@@ -1,0 +1,896 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\ActivityLog;
+use App\Models\BusinessSource;
+use App\Models\EmailLog;
+use App\Models\Company;
+use App\Models\Folio;
+use App\Models\Guest;
+use App\Models\MessageLog;
+use App\Models\OnlinePayment;
+use App\Models\PaymentMode;
+use App\Models\RatePlan;
+use App\Models\Reservation;
+use App\Models\ReservationRoom;
+use App\Models\Room;
+use App\Models\RoomType;
+use App\Services\ActivityLogger;
+use App\Services\AvailabilityService;
+use App\Services\CityLedgerService;
+use App\Services\ReservationDeskService;
+use App\Services\ReservationBillingService;
+use App\Services\ReservationAmendmentService;
+use App\Services\CancellationService;
+use App\Services\FolioService;
+use App\Services\ShiftService;
+use App\Support\BookingConfirmationPdf;
+use App\Support\Numbering;
+use App\Models\RateContract;
+use App\Services\ContractService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class ReservationController extends Controller
+{
+    public function index(Request $request)
+    {
+        if (! $request->query() && ($saved = ReservationDeskService::defaultQuery())) {
+            parse_str($saved, $params);
+
+            return redirect()->route('reservations.index', $params);
+        }
+
+        return view('reservations.index', ReservationDeskService::page($request));
+    }
+
+    protected function formData(): array
+    {
+        return [
+            'roomTypes' => RoomType::where('is_active', true)->orderBy('base_rate')->get(),
+            'ratePlans' => RatePlan::where('is_active', true)->get(),
+            'sources' => BusinessSource::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
+            'companies' => Company::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
+            'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
+        ];
+    }
+
+    public function create(Request $request)
+    {
+        return view('reservations.form', $this->formData() + [
+            'reservation' => new Reservation([
+                'arrival_date' => $request->input('arrival', bdate()->toDateString()),
+                'departure_date' => $request->input('departure', bdate()->addDay()->toDateString()),
+                'adults' => 1, 'status' => 'confirmed', 'booking_type' => 'individual',
+            ]),
+            'guest' => $request->guest_id ? Guest::find($request->guest_id) : new Guest,
+            'lines' => [['room_type_id' => $request->room_type_id, 'room_id' => $request->room_id, 'rate_plan_id' => null, 'rate' => null, 'adults' => 2, 'children' => 0]],
+        ]);
+    }
+
+    /**
+     * Open a city-ledger account from the booking desk.
+     *
+     * The walk-in desk already does this in place; the booking desk needs the same,
+     * so both go through CityLedgerService and create the same account.
+     */
+    public function storeCompany(Request $request): \Illuminate\Http\JsonResponse
+    {
+        abort_unless(can_do('credit.manage'), 403);
+
+        $company = CityLedgerService::createFromDesk(
+            $request->validate(CityLedgerService::rules()),
+            'New reservation'
+        );
+
+        return response()->json(['company' => CityLedgerService::payload($company)], 201);
+    }
+
+    protected function rules(bool $update = false): array
+    {
+        return [
+            'guest_id' => 'nullable|integer',
+            'guest.title' => 'nullable|string|max:30',
+            'guest.custom_title' => 'required_if:guest.title,__other__|nullable|string|max:30|not_in:__other__',
+            'guest.first_name' => 'required|string|max:80',
+            'guest.last_name' => 'nullable|string|max:80',
+            'guest.phone' => 'required|string|max:30',
+            'guest.email' => 'nullable|email|max:150',
+            'guest.nationality' => 'nullable|string|max:60',
+            'guest.city' => 'nullable|string|max:80',
+            'guest.id_type' => 'nullable|string|max:30',
+            'guest.id_number' => 'nullable|string|max:60',
+            'arrival_date' => ['required', 'date', 'after_or_equal:'.bdate()->toDateString()],
+            'departure_date' => ['required', 'date', $this->departureRule()],
+            // A day use is sold by the hour: the desk names the hours and what they cost
+            // per hour, and the night count is not what the booking is charged on.
+            'stay_type' => 'nullable|in:overnight,day_use',
+            'day_use_hours' => 'required_if:stay_type,day_use|nullable|integer|min:1|max:12',
+            'day_use_rate' => 'required_if:stay_type,day_use|nullable|numeric|min:0|max:99999999.99',
+            'eta' => 'nullable|date_format:H:i',
+            'business_source_id' => 'nullable|integer|owned:business_sources',
+            'company_id' => 'nullable|integer|owned:companies',
+            'booking_type' => 'required|in:individual,group',
+            'group_name' => 'nullable|required_if:booking_type,group|string|max:150',
+            'status' => 'required|in:confirmed,tentative',
+            'ota_reference' => 'nullable|string|max:60',
+            'purpose' => 'nullable|string|max:60',
+            'billing_instruction' => 'required|in:guest,company',
+            'discount_pct' => 'nullable|numeric|min:0|max:100',
+            'special_request' => 'nullable|string|max:2000',
+            'change_reason' => 'nullable|string|max:255',
+            'rooms' => 'required|array|min:1|max:50',
+            'rooms.*.stay_id' => $update ? 'nullable|integer|min:1' : 'prohibited',
+            'rooms.*.room_type_id' => 'required|integer|owned:room_types',
+            'rooms.*.rate_plan_id' => 'nullable|integer|owned:rate_plans',
+            'rooms.*.room_id' => 'nullable|integer|owned:rooms',
+            'rooms.*.rate' => 'required|numeric|min:0|max:9999999',
+            'rooms.*.adults' => 'required|integer|min:1|max:10',
+            'rooms.*.children' => 'nullable|integer|min:0|max:10',
+            'advance' => 'nullable|numeric|min:0',
+            'advance_mode' => 'nullable|integer|owned:payment_modes',
+            'advance_ref' => 'nullable|string|max:80',
+            'cheque_bank_name' => 'nullable|string|max:100', 'cheque_number' => 'nullable|string|max:20', 'cheque_bank_branch' => 'nullable|string|max:100',
+            'payments' => $update ? 'prohibited' : 'nullable|array|min:2|max:10',
+            'payments.*.amount' => 'required|numeric|min:0.01', 'payments.*.payment_mode_id' => 'required|integer|owned:payment_modes',
+            'payments.*.reference' => 'nullable|string|max:80', 'payments.*.momo_network' => 'nullable|string|max:20',
+            'payments.*.momo_phone' => 'nullable|string|max:30', 'payments.*.cheque_bank_name' => 'nullable|string|max:100',
+            'payments.*.cheque_number' => 'nullable|string|max:20', 'payments.*.cheque_bank_branch' => 'nullable|string|max:100',
+        ];
+    }
+
+    /**
+     * "Others" on the title picker is a prompt, not a title: the guest keeps the one that
+     * was typed. The same rule the walk-in desk applies, so both doors to a profile agree.
+     */
+    protected function resolveGuestTitle(array $data): array
+    {
+        if (($data['guest']['title'] ?? null) === '__other__') {
+            $data['guest']['title'] = trim((string) ($data['guest']['custom_title'] ?? ''));
+        }
+        unset($data['guest']['custom_title']);
+
+        return $data;
+    }
+
+    protected function upsertGuest(array $g, ?int $guestId, ?int $companyId): Guest
+    {
+        $guest = $guestId ? Guest::findOrFail($guestId) : null;
+        if ($guest?->isPrivacyLocked()) {
+            $guest = null; // erased / restricted profiles are never reused – a returning guest gets a fresh profile
+        }
+        if (! $guest && ! empty($g['phone'])) {
+            $guest = Guest::whereNull('privacy_status')->where('phone', $g['phone'])->where('first_name', $g['first_name'])->first();
+        }
+        $guest ??= new Guest;
+        $guest->fill(array_filter($g, fn ($v) => $v !== null && $v !== ''));
+        if ($companyId && ! $guest->company_id) {
+            $guest->company_id = $companyId;
+        }
+        $guest->save();
+        if ($guest->is_blacklisted) {
+            throw ValidationException::withMessages(['guest.first_name' => 'This guest is blacklisted. Reservation blocked.']);
+        }
+
+        return $guest;
+    }
+
+    /**
+     * Lock the physical inventory rows before checking availability. Every
+     * reservation created through this controller takes the same locks, which
+     * keeps two concurrent desk requests from both selling the last room.
+     */
+    protected function lockInventory(array $lines, ?int $reservationId = null): void
+    {
+        $typeIds = collect($lines)->pluck('room_type_id')->filter()->map(fn ($id) => (int) $id);
+        $roomIds = collect($lines)->pluck('room_id')->filter()->map(fn ($id) => (int) $id);
+        if ($reservationId) {
+            $typeIds = $typeIds->merge(ReservationRoom::where('reservation_id', $reservationId)->whereIn('status', ['reserved', 'checked_in'])->pluck('room_type_id'));
+        }
+        if ($roomIds->isNotEmpty()) {
+            $typeIds = $typeIds->merge(Room::whereIn('id', $roomIds)->pluck('room_type_id'));
+        }
+        $typeIds = $typeIds->unique()->values();
+        AvailabilityService::lockRoomInventory($typeIds);
+    }
+
+    /** A day use departs on its arrival day; an overnight stay must move forward. */
+    protected function departureRule(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) {
+            $arrival = (string) request()->input('arrival_date');
+            $editing = request()->route('reservation');
+            $dayUse = request()->input('stay_type') === 'day_use'
+                || ($editing instanceof Reservation && $editing->isDayUse());
+            if ($dayUse) {
+                if (substr((string) $value, 0, 10) !== substr($arrival, 0, 10)) {
+                    $fail('A day use stays on its arrival day – its departure is the same date.');
+                }
+
+                return;
+            }
+            if (! $arrival || strtotime((string) $value) <= strtotime($arrival)) {
+                $fail('The departure date must be after the arrival date.');
+            }
+        };
+    }
+
+    /**
+     * The hour a day use runs until: the guest's ETA (or the time the desk sells it,
+     * for today) plus the hours bought.
+     */
+    protected function dayUseUntil(string $arrival, ?string $eta, int $hours): string
+    {
+        $start = $eta ?: (Carbon::parse($arrival)->isToday() ? now()->format('H:i') : '12:00');
+
+        return Carbon::parse(substr($arrival, 0, 10).' '.substr($start, 0, 5))->addHours(max(1, $hours))->format('H:i');
+    }
+
+    protected function checkInventory(array $lines, string $from, string $to, ?int $ignoreReservation = null, ?int $contractId = null, bool $dayUse = false): void
+    {
+        $need = collect($lines)->groupBy('room_type_id')->map->count();
+        foreach ($need as $typeId => $count) {
+            $type = RoomType::findOrFail((int) $typeId);
+            // A day use sells hours, not nights: the night-rate rules (stop-sell,
+            // minimum stay) are not what it is judged on. The room still has to be free.
+            if (! $dayUse) {
+                $quote = $contractId
+                    ? ContractService::quote(RateContract::with('rates', 'blackouts')->findOrFail($contractId), $type, $from, $to, 1)
+                    : \App\Services\RateService::quote($type, $from, $to);
+                if ($quote['stop_sell']) {
+                    throw ValidationException::withMessages(['rooms' => "{$type->name} is closed for sale on the selected dates."]);
+                }
+                if (! $quote['min_stay_ok']) {
+                    throw ValidationException::withMessages(['rooms' => "A minimum stay of {$quote['min_stay']} night(s) applies to {$type->name}."]);
+                }
+            }
+            $avail = AvailabilityService::typeAvailable((int) $typeId, $from, $to, null, $contractId, $ignoreReservation); // v2.7: own allotment is sellable
+            if ($count > $avail) {
+                $name = RoomType::find($typeId)?->name ?? 'room type';
+                throw ValidationException::withMessages(['rooms' => "Only {$avail} {$name} room(s) available for the selected dates (requested {$count}). Overbooking is not allowed."]);
+            }
+        }
+        $ids = collect($lines)->pluck('room_id')->filter()->map(fn ($id) => (int) $id);
+        if ($ids->count() !== $ids->unique()->count()) {
+            throw ValidationException::withMessages(['rooms' => 'The same room is assigned twice.']);
+        }
+        foreach (collect($lines)->filter(fn ($line) => ! empty($line['room_id'])) as $line) {
+            $room = Room::whereKey((int) $line['room_id'])->first();
+            if (! $room || (int) $room->room_type_id !== (int) $line['room_type_id']) {
+                throw ValidationException::withMessages(['rooms' => 'A selected room does not belong to its selected room type. Refresh availability and choose again.']);
+            }
+        }
+        foreach ($ids as $rid) {
+            $ignoreStay = $ignoreReservation
+                ? ReservationRoom::where('reservation_id', $ignoreReservation)->where('room_id', $rid)->whereIn('status', ['reserved', 'checked_in'])->value('id')
+                : null;
+            if (! AvailabilityService::roomAvailableForReservation($rid, $from, $to, $ignoreStay ? (int) $ignoreStay : null)) {
+                $roomNo = Room::whereKey($rid)->value('room_no') ?? $rid;
+                throw ValidationException::withMessages(['rooms' => "Room {$roomNo} is no longer available for the selected dates. Choose another room or leave it on auto-assign."]);
+            }
+        }
+    }
+
+    protected function lineExtra(array $line, ?RateContract $contract = null): float
+    {
+        $type = RoomType::find($line['room_type_id']);
+        $plan = ! empty($line['rate_plan_id']) ? RatePlan::find($line['rate_plan_id']) : null;
+        $extraAdults = max(0, (int) $line['adults'] - (int) ($type->base_occupancy ?? 2));
+        $contractExtra = ! $plan && $contract ? $contract->rates->where('room_type_id', $type->id)->whereNotNull('extra_adult_rate')->first()?->extra_adult_rate : null;
+
+        return $extraAdults * (float) ($plan->extra_adult_rate ?? $contractExtra ?? $type->extra_adult_rate);
+    }
+
+    /**
+     * v2.7: the contract that applies (resolved on the server from company + arrival) and the bill-to-company guards:
+     * a company not approved for direct billing is refused; a credit hold needs credit.override.
+     */
+    protected function contractAndCredit(array $data): ?RateContract
+    {
+        $company = ! empty($data['company_id']) ? \App\Models\Company::find($data['company_id']) : null;
+        if ($company && ($data['billing_instruction'] ?? 'guest') === 'company') {
+            if (! $company->direct_billing) {
+                throw ValidationException::withMessages(['billing_instruction' => "{$company->name} is not approved for direct billing – choose Bill to Guest."]);
+            }
+            if ($company->onHold() && ! can_do('credit.override')) {
+                throw ValidationException::withMessages(['billing_instruction' => "{$company->name} is on credit hold".($company->credit_hold_reason ? " ({$company->credit_hold_reason})" : '').' – choose Bill to Guest or ask Accounts to release it.']);
+            }
+        }
+
+        return ContractService::forCompany($company?->id, $data['arrival_date'])?->load('rates');
+    }
+
+    public function store(Request $request)
+    {
+        $data = $this->resolveGuestTitle($request->validate($this->rules()));
+        if (! empty($data['payments']) && ($data['advance'] ?? 0) > 0) {
+            throw ValidationException::withMessages(['payments' => 'Use either the single advance fields or split tender lines, not both.']);
+        }
+        $advanceLines = ! empty($data['payments']) || ($data['advance'] ?? 0) > 0 ? $this->advancePaymentLines($request, $data) : [];
+        // A day use is taken in hours on one day: it leaves the same day and is charged
+        // for the hours bought (hours × rate per hour), never for a night.
+        $dayUse = ($data['stay_type'] ?? 'overnight') === 'day_use';
+        $hours = $dayUse ? (int) $data['day_use_hours'] : 0;
+        $hourly = $dayUse ? (float) $data['day_use_rate'] : 0.0;
+        $until = $dayUse ? $this->dayUseUntil($data['arrival_date'], $data['eta'] ?? null, $hours) : null;
+        $occupiedTo = $dayUse ? Carbon::parse(substr($data['arrival_date'], 0, 10))->addDay()->toDateString() : $data['departure_date'];
+        $contract = $this->contractAndCredit($data);
+
+        $reservation = DB::transaction(function () use ($data, $contract, $advanceLines, $dayUse, $hours, $hourly, $until, $occupiedTo) {
+            $this->lockInventory($data['rooms']);
+            $this->checkInventory($data['rooms'], $data['arrival_date'], $occupiedTo, null, $contract?->id, $dayUse);
+            $guest = $this->upsertGuest($data['guest'], $data['guest_id'] ?? null, $data['company_id'] ?? null);
+            $res = Reservation::create([
+                'reservation_no' => Numbering::next('reservation'),
+                'guest_id' => $guest->id,
+                'adults' => collect($data['rooms'])->sum('adults'),
+                'children' => collect($data['rooms'])->sum('children'),
+                'created_by' => auth()->id(), 'rate_contract_id' => $contract?->id,
+            ] + collect($data)->only(['company_id', 'business_source_id', 'booking_type', 'group_name', 'arrival_date', 'departure_date', 'eta', 'status', 'ota_reference', 'purpose', 'billing_instruction', 'discount_pct', 'special_request'])->all());
+            foreach ($data['rooms'] as $line) {
+                $res->rooms()->create([
+                    'room_type_id' => $line['room_type_id'], 'room_id' => $line['room_id'] ?? null, 'rate_plan_id' => $line['rate_plan_id'] ?? null,
+                    'guest_id' => $guest->id, 'arrival_date' => $data['arrival_date'], 'departure_date' => $dayUse ? $data['arrival_date'] : $data['departure_date'],
+                    // rate is what the folio posts: the hours bought at the hourly rate.
+                    'rate' => $dayUse ? round($hours * $hourly, 2) : $line['rate'],
+                    'adults' => $line['adults'], 'children' => $line['children'] ?? 0,
+                    'is_day_use' => $dayUse, 'day_use_until' => $until,
+                    'day_use_hours' => $dayUse ? $hours : null, 'day_use_rate' => $dayUse ? $hourly : null,
+                    'extra_charge' => $this->lineExtra($line, $contract), 'status' => 'reserved',
+                ]);
+            }
+            if ($advanceLines) {
+                $folio = FolioService::openStandalone(['reservation_id' => $res->id, 'guest_id' => $guest->id, 'type' => 'guest']);
+                foreach ($advanceLines as $line) {
+                    FolioService::payment($folio, (float) $line['amount'], (int) $line['payment_mode_id'], $line['reference'] ?? null, 'advance', 'payment', [
+                        'bank_name' => $line['cheque_bank_name'] ?? null, 'number' => $line['cheque_number'] ?? null, 'bank_branch' => $line['cheque_bank_branch'] ?? null,
+                    ]);
+                }
+            }
+            $createdState = ReservationAmendmentService::snapshot($res);
+            ReservationAmendmentService::record($res, 'created', null, $createdState, null, 'front_desk');
+            ActivityLogger::log('reservations', 'create', "Created reservation {$res->reservation_no} for {$guest->full_name}", $res);
+
+            return $res;
+        });
+
+        // Notifications are post-commit side effects; a provider outage must
+        // never turn a successfully saved reservation into a 500 response.
+        try {
+            \App\Services\MailService::autoConfirm($reservation);
+            \App\Services\MessageService::autoConfirm($reservation);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $message = $dayUse
+            ? "Day-use reservation {$reservation->reservation_no} created for {$hours} hour(s)."
+            : "Reservation {$reservation->reservation_no} created.";
+
+        return redirect()->route('reservations.show', $reservation)->with('success', $message);
+    }
+
+    public function show(Reservation $reservation)
+    {
+        $reservation->load(['guest.company', 'company', 'source', 'rooms.room', 'rooms.roomType', 'rooms.ratePlan', 'rooms.folio', 'rooms.guest', 'folios.transactions.paymentMode', 'creator', 'channel']);
+        $advances = $reservation->folios->flatMap->transactions->where('is_void', false)->whereIn('type', ['payment']);
+        $pending = $reservation->rooms->where('status', 'reserved');
+        $noShowPending = $pending->filter(fn ($stay) => $stay->arrival_date->lte(bdate()))->values();
+        $onlinePayments = can_do('payments.view')
+            ? OnlinePayment::where('reservation_id', $reservation->id)->latest('id')->get()
+            : collect();
+        $stayIds = $reservation->rooms->modelKeys();
+        $paymentIds = $onlinePayments->modelKeys();
+        $activityLogs = ActivityLog::with('user')
+            ->where(function ($q) use ($reservation, $stayIds, $paymentIds) {
+                $q->where(fn ($subject) => $subject->where('subject_type', 'Reservation')->where('subject_id', $reservation->id));
+                if ($stayIds) {
+                    $q->orWhere(fn ($subject) => $subject->where('subject_type', 'ReservationRoom')->whereIn('subject_id', $stayIds));
+                }
+                if ($paymentIds) {
+                    $q->orWhere(fn ($subject) => $subject->where('subject_type', 'OnlinePayment')->whereIn('subject_id', $paymentIds));
+                }
+            })
+            ->where(fn ($q) => $q->where('module', '!=', 'messages')->orWhere('action', '!=', 'send'))
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(50)->get();
+        $activityItems = $activityLogs->map(fn ($log) => (object) [
+            'module' => $log->module,
+            'action' => $log->action,
+            'description' => $log->description,
+            'created_at' => $log->created_at,
+            'actor' => $log->user?->name ?? 'System',
+            'tone' => 'info',
+        ]);
+        if (can_do('logs.view')) {
+            $relatedFilter = function ($q) use ($reservation, $stayIds) {
+                $q->where(fn ($related) => $related->where('related_type', 'Reservation')->where('related_id', $reservation->id));
+                if ($stayIds) {
+                    $q->orWhere(fn ($related) => $related->where('related_type', 'ReservationRoom')->whereIn('related_id', $stayIds));
+                }
+            };
+            $emailLogs = EmailLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->get();
+            $messageLogs = MessageLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->get();
+            foreach ($emailLogs as $log) {
+                $activityItems->push((object) [
+                    'module' => 'Communication',
+                    'action' => 'E-mail '.ucfirst($log->status),
+                    'description' => ucwords(str_replace('_', ' ', $log->template)).' e-mail',
+                    'created_at' => $log->created_at,
+                    'actor' => $log->user?->name ?? 'System',
+                    'tone' => $log->status === 'failed' ? 'bad' : 'ok',
+                ]);
+            }
+            foreach ($messageLogs as $log) {
+                $activityItems->push((object) [
+                    'module' => 'Communication',
+                    'action' => ($log->channel === 'whatsapp' ? 'WhatsApp' : 'SMS').' '.ucfirst($log->status),
+                    'description' => ucwords(str_replace('_', ' ', $log->template)).' message',
+                    'created_at' => $log->created_at,
+                    'actor' => $log->user?->name ?? 'System',
+                    'tone' => $log->status === 'failed' ? 'bad' : 'ok',
+                ]);
+            }
+        }
+        $activityItems = $activityItems->sortByDesc(fn ($item) => $item->created_at->getTimestamp())->take(50)->values();
+
+        return view('reservations.show', [
+            'onlinePayments' => $onlinePayments,
+            'activityLogs' => $activityItems,
+            'trips' => \App\Models\TransportTrip::with('vehicle', 'driver')->where('reservation_id', $reservation->id)->orderBy('scheduled_at')->get(),
+            'formCs' => \App\Models\FormCRecord::with('stay.room')->where('reservation_id', $reservation->id)->orderBy('id')->get(), // v3.4
+            'deskMessages' => \App\Models\GuestMessage::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->latest('id')->limit(10)->get(), // v3.5
+            'deskWakeups' => \App\Models\WakeupCall::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->where(fn ($q) => $q->where('status', 'scheduled')->orWhere('call_at', '>=', now()->subDays(2)))->orderBy('call_at')->limit(10)->get(),
+            'deskTraces' => \App\Services\TraceService::forReservation($reservation),
+            'foreignGuest' => \App\Services\FormCService::isForeign($reservation->guest),
+            'r' => $reservation,
+            'cancelQuote' => CancellationService::quote($reservation, $pending, 'cancel'),
+            'stayQuotes' => $pending->mapWithKeys(fn ($s) => [$s->id => CancellationService::quote($reservation, collect([$s]), 'cancel')['amount']]),
+            'noshowQuote' => CancellationService::quote($reservation, $noShowPending, 'noshow'),
+            'commissions' => $reservation->commissions()->with('company')->get(),
+            'advances' => $advances,
+            'postedReservationBalance' => can_do('folio.view') ? ReservationBillingService::postedSummary($reservation) : null,
+            'amendments' => $reservation->amendments()->with('user')->get(),
+            'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
+            'freeRooms' => $reservation->rooms->where('status', 'reserved')->mapWithKeys(fn ($s) => [$s->id => AvailabilityService::reservationRooms($s->arrival_date, $s->departure_date, null, $s->id)]),
+        ]);
+    }
+
+    public function edit(Reservation $reservation)
+    {
+        abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403, 'Only confirmed/tentative reservations can be edited.');
+        abort_if($reservation->rooms()->where('status', '!=', 'reserved')->where('status', '!=', 'cancelled')->exists(), 403, 'Some rooms are already checked in. Use Front Desk → Amend stay.');
+        $reservation->load('rooms', 'guest');
+
+        return view('reservations.form', $this->formData() + [
+            'reservation' => $reservation,
+            'guest' => $reservation->guest,
+            'lines' => $reservation->rooms->where('status', 'reserved')->map(fn ($s) => [
+                'stay_id' => $s->id, 'room_type_id' => $s->room_type_id, 'room_id' => $s->room_id,
+                'rate_plan_id' => $s->rate_plan_id, 'rate' => $s->rate, 'adults' => $s->adults, 'children' => $s->children,
+            ])->values()->all(),
+        ]);
+    }
+
+    public function update(Request $request, Reservation $reservation)
+    {
+        abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403);
+        $data = $this->resolveGuestTitle($request->validate($this->rules(true)));
+        // The stay type is chosen when the booking is taken; an amendment keeps the
+        // stay that is already on the books, so a posted stay type is not applied here.
+        unset($data['stay_type'], $data['day_use_hours'], $data['day_use_rate']);
+        $dayUse = $reservation->isDayUse();
+        $occupiedTo = $dayUse
+            ? Carbon::parse($reservation->arrival_date->toDateString())->addDay()->toDateString()
+            : $data['departure_date'];
+        if ($dayUse) {
+            $data['departure_date'] = $data['arrival_date'];
+        }
+        $contract = $this->contractAndCredit($data);
+
+        DB::transaction(function () use ($data, $reservation, $contract, $dayUse, $occupiedTo) {
+            $reservation = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+            // The edit form's status check happened before the transaction;
+            // repeat it after the reservation lock so a concurrent check-in or
+            // cancellation cannot be overwritten by a stale form submission.
+            abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403);
+            abort_if($reservation->rooms()->where('status', '!=', 'reserved')->where('status', '!=', 'cancelled')->exists(), 403, 'Some rooms are already checked in. Use Front Desk → Amend stay.');
+            $before = ReservationAmendmentService::snapshot($reservation);
+            $existingStays = $reservation->rooms()->where('status', 'reserved')->lockForUpdate()->get()->keyBy('id');
+            $submittedStayIds = collect($data['rooms'])->pluck('stay_id')->filter()->map(fn ($id) => (int) $id);
+            if ($submittedStayIds->count() !== $submittedStayIds->unique()->count()
+                || $submittedStayIds->diff($existingStays->keys())->isNotEmpty()) {
+                throw ValidationException::withMessages(['rooms' => 'One or more room lines are stale or do not belong to this reservation. Reload the reservation and try again.']);
+            }
+            if ($existingStays->keys()->diff($submittedStayIds)->isNotEmpty()) {
+                throw ValidationException::withMessages(['rooms' => 'Use the Cancel room action on the reservation page to remove a booked room; this applies the cancellation policy and channel update safely.']);
+            }
+
+            // Keep each reservation_room identity stable: add-ons, charges, guest
+            // requests and other front-desk records are linked to this row by FK.
+            // Moving dates/types underneath an open upsell or active fixed charge
+            // would make its service date or billing schedule ambiguous, so staff
+            // must reconcile those records before making that particular change.
+            foreach ($data['rooms'] as $line) {
+                if (empty($line['stay_id'])) {
+                    continue;
+                }
+                $stay = $existingStays->get((int) $line['stay_id']);
+                $datesChanged = $stay->arrival_date->toDateString() !== $data['arrival_date']
+                    || $stay->departure_date->toDateString() !== $data['departure_date'];
+                $typeChanged = (int) $stay->room_type_id !== (int) $line['room_type_id'];
+                if (($datesChanged || $typeChanged)
+                    && ($stay->fixedCharges()->where('is_active', true)->exists()
+                        || \App\Models\UpsellOrder::where('reservation_room_id', $stay->id)->whereIn('status', ['requested', 'confirmed'])->exists())) {
+                    throw ValidationException::withMessages(['rooms' => 'Cancel or reconcile active add-ons and fixed charges for the affected room before changing its dates or room type.']);
+                }
+            }
+
+            $this->lockInventory($data['rooms'], $reservation->id);
+            $this->checkInventory($data['rooms'], $data['arrival_date'], $occupiedTo, $reservation->id, $contract?->id, $dayUse);
+            $guest = $this->upsertGuest($data['guest'], $reservation->guest_id, $data['company_id'] ?? null);
+            $reservation->update([
+                'adults' => collect($data['rooms'])->sum('adults'), 'children' => collect($data['rooms'])->sum('children'), 'rate_contract_id' => $contract?->id,
+            ] + collect($data)->only(['company_id', 'business_source_id', 'booking_type', 'group_name', 'arrival_date', 'departure_date', 'eta', 'status', 'ota_reference', 'purpose', 'billing_instruction', 'discount_pct', 'special_request'])->all());
+
+            foreach ($data['rooms'] as $line) {
+                $attributes = [
+                    'room_type_id' => $line['room_type_id'], 'room_id' => $line['room_id'] ?? null, 'rate_plan_id' => $line['rate_plan_id'] ?? null,
+                    'guest_id' => $guest->id, 'arrival_date' => $data['arrival_date'], 'departure_date' => $data['departure_date'],
+                    'rate' => $line['rate'], 'adults' => $line['adults'], 'children' => $line['children'] ?? 0,
+                    'extra_charge' => $this->lineExtra($line, $contract), 'status' => 'reserved',
+                ];
+                if (! empty($line['stay_id'])) {
+                    $existingStays->get((int) $line['stay_id'])->update($attributes);
+                } else {
+                    $reservation->rooms()->create($attributes);
+                }
+            }
+            $after = ReservationAmendmentService::snapshot($reservation);
+            ReservationAmendmentService::record($reservation, 'amended', $before, $after, $data['change_reason'] ?? null, 'front_desk');
+            ActivityLogger::log('reservations', 'update', "Updated reservation {$reservation->reservation_no}", $reservation, [
+                'change_count' => count(ReservationAmendmentService::changes($before, $after)),
+            ]);
+        });
+
+        return redirect()->route('reservations.show', $reservation)->with('success', 'Reservation updated.');
+    }
+
+    public function cancel(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate(['reason' => 'required|string|max:255', 'stay_id' => 'nullable|integer',
+            'waive_fee' => 'nullable|boolean', 'waive_reason' => 'nullable|required_if:waive_fee,1|string|max:190']);
+        $before = ReservationAmendmentService::snapshot($reservation);
+        $q = $reservation->rooms()->where('status', 'reserved');
+        if (! empty($data['stay_id'])) {
+            $q->where('id', $data['stay_id']);
+        }
+        $stays = $q->get();
+        abort_if($stays->isEmpty(), 422, 'Nothing to cancel.');
+        try {
+            [, $fee, , $channel] = CancellationService::cancel($reservation, $stays, $data['reason'], $request->boolean('waive_fee'), $data['waive_reason'] ?? null);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        $after = ReservationAmendmentService::snapshot($reservation);
+        ReservationAmendmentService::record($reservation, 'cancelled', $before, $after, $data['reason'], 'front_desk');
+
+        try {
+            \App\Services\MailService::autoConfirm($reservation->refresh());
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $atChannel = $channel === null ? '' : ($channel['sent']
+            ? ' The cancellation was sent to the channel.'.($channel['message'] !== '' ? ' '.$channel['message'] : '')
+            : ' The channel could not be reached – cancel it there by hand (flagged on the reservation).');
+
+        return back()->with('success', 'Reservation cancelled.'.($fee > 0 ? ' Cancellation fee '.money($fee).' posted to the advance folio.' : ' Refund any advance from the folio if applicable.').$atChannel);
+    }
+
+    public function noShow(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate(['waive_fee' => 'nullable|boolean', 'waive_reason' => 'nullable|required_if:waive_fee,1|string|max:190']);
+        $quote = [];
+        DB::transaction(function () use ($reservation, $request, $data, &$quote) {
+            $locked = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+            $before = ReservationAmendmentService::snapshot($locked);
+            $businessDate = bdate();
+            // A multi-room booking may have staggered arrivals. Never mark a
+            // future room no-show just because another room in the same booking
+            // arrived. Lock the selected lines so two agents cannot post the
+            // same no-show fee concurrently.
+            $stays = $locked->rooms()->where('status', 'reserved')->whereDate('arrival_date', '<=', $businessDate)->lockForUpdate()->get();
+            if ($stays->isEmpty()) {
+                throw new \Symfony\Component\HttpKernel\Exception\HttpException(422, 'No pending rooms due for no-show today.');
+            }
+            $quote = CancellationService::quote($locked, $stays, 'noshow');
+            $ids = $stays->pluck('id');
+            ReservationRoom::whereIn('id', $ids)->update(['status' => 'no_show']);
+            \App\Services\UpsellService::closeForStays($ids, 'No-show');   // v4.1
+            $locked->syncStatus();
+            ActivityLogger::log('reservations', 'no_show', "Marked {$locked->reservation_no} as no-show", $locked);
+            if ($quote['amount'] > 0) {
+                $request->boolean('waive_fee')
+                    ? ActivityLogger::log('reservations', 'cancel_fee_waived', 'Waived no-show fee '.money($quote['amount']).": {$data['waive_reason']}", $locked)
+                    : CancellationService::post($locked, $quote['amount'], 'No-show fee');
+            }
+            $after = ReservationAmendmentService::snapshot($locked);
+            ReservationAmendmentService::record($locked, 'no_show', $before, $after, $data['waive_reason'] ?? null, 'front_desk');
+        });
+
+        return back()->with('success', 'Marked as no-show.'.($quote['amount'] > 0 && ! $request->boolean('waive_fee') ? ' No-show fee '.money($quote['amount']).' posted.' : ''));
+    }
+
+    public function confirm(Reservation $reservation)
+    {
+        DB::transaction(function () use ($reservation) {
+            $reservation = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+            abort_unless($reservation->status === 'tentative', 422);
+            abort_unless($reservation->rooms()->where('status', 'reserved')->exists(), 422, 'This reservation has no pending rooms to confirm.');
+            $before = ReservationAmendmentService::snapshot($reservation);
+            $reservation->update(['status' => 'confirmed']);
+            $after = ReservationAmendmentService::snapshot($reservation);
+            ReservationAmendmentService::record($reservation, 'confirmed', $before, $after, null, 'front_desk');
+            ActivityLogger::log('reservations', 'confirm', "Confirmed {$reservation->reservation_no}", $reservation);
+        });
+
+        return back()->with('success', 'Reservation confirmed.');
+    }
+
+    protected function advancePaymentLines(Request $request, array $data): array
+    {
+        $usingSplit = ! empty($data['payments']);
+        $lines = $usingSplit ? array_values($data['payments']) : [[
+            'amount' => $data['amount'] ?? $data['advance'] ?? null, 'payment_mode_id' => $data['payment_mode_id'] ?? $data['advance_mode'] ?? null,
+            'reference' => $data['reference'] ?? $data['advance_ref'] ?? null, 'momo_network' => $data['momo_network'] ?? null,
+            'momo_phone' => $data['momo_phone'] ?? null, 'cheque_bank_name' => $data['cheque_bank_name'] ?? null,
+            'cheque_number' => $data['cheque_number'] ?? null, 'cheque_bank_branch' => $data['cheque_bank_branch'] ?? null,
+        ]];
+        if (! $usingSplit && (empty($lines[0]['amount']) || empty($lines[0]['payment_mode_id']))) {
+            throw ValidationException::withMessages(['payment_mode_id' => 'Enter an amount and choose a payment mode.']);
+        }
+
+        $voucherCount = 0;
+        foreach ($lines as $i => &$line) {
+            $mode = PaymentMode::find((int) ($line['payment_mode_id'] ?? 0));
+            if (! $mode || ! $mode->is_active || $mode->type === 'city_ledger') {
+                throw ValidationException::withMessages([$usingSplit ? "payments.{$i}.payment_mode_id" : 'payment_mode_id' => 'Choose an active direct payment mode.']);
+            }
+            if (filled($line['momo_network'] ?? null) || filled($line['momo_phone'] ?? null)) {
+                $line['reference'] = mb_substr(trim(implode(' · ', array_filter([
+                    $line['momo_network'] ?? null, $line['momo_phone'] ?? null, $line['reference'] ?? null,
+                ]))), 0, 80);
+            }
+            $line['amount'] = round((float) $line['amount'], 2);
+            $line['payment_mode_id'] = (int) $mode->id;
+            $line['_mode_name'] = $mode->name;
+            if (\App\Services\GiftVoucherService::isVoucherMode((int) $mode->id)) {
+                $voucherCount++;
+            }
+        }
+        unset($line);
+        if ($voucherCount && count($lines) !== 1) {
+            throw ValidationException::withMessages(['payments' => 'A gift voucher must be used as a single tender.']);
+        }
+
+        return $lines;
+    }
+
+    public function previewAdvance(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:1', 'payment_mode_id' => 'nullable|integer|owned:payment_modes',
+            'reference' => 'nullable|string|max:80', 'momo_network' => 'nullable|string|max:20', 'momo_phone' => 'nullable|string|max:30',
+            'cheque_bank_name' => 'nullable|string|max:100', 'cheque_number' => 'nullable|string|max:20', 'cheque_bank_branch' => 'nullable|string|max:100',
+            'payments' => 'nullable|array|min:2|max:10',
+            'payments.*.amount' => 'required|numeric|min:0.01', 'payments.*.payment_mode_id' => 'required|integer|owned:payment_modes',
+            'payments.*.reference' => 'nullable|string|max:80', 'payments.*.momo_network' => 'nullable|string|max:20',
+            'payments.*.momo_phone' => 'nullable|string|max:30', 'payments.*.cheque_bank_name' => 'nullable|string|max:100',
+            'payments.*.cheque_number' => 'nullable|string|max:20', 'payments.*.cheque_bank_branch' => 'nullable|string|max:100',
+        ]);
+        $lines = $this->advancePaymentLines($request, $data);
+        try {
+            ShiftService::assertOpen();
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage().' Nothing was posted.';
+
+            return $request->expectsJson()
+                ? response()->json(['ok' => false, 'message' => $msg], 422)
+                : back()->with('error', $msg);
+        }
+        $total = round(array_sum(array_column($lines, 'amount')), 2);
+        $modes = implode(' + ', array_unique(array_column($lines, '_mode_name')));
+        $references = collect($lines)->map(fn ($line) => filled($line['reference'] ?? null) ? $line['_mode_name'].': '.$line['reference'] : null)->filter()->implode('; ');
+        $open = $reservation->rooms()->where('status', 'checked_in')->whereHas('folio', fn ($q) => $q->where('status', 'open'))->exists()
+            || Folio::where('reservation_id', $reservation->id)->where('status', 'open')->exists();
+        $msg = 'An advance of '.money($total).' by '.$modes.($references ? ' · '.$references : '')
+            .' would be recorded for '.$reservation->reservation_no.'. '
+            .($open ? 'It would post on the open folio.' : 'No folio is open, so confirm opens one through the existing advance action.')
+            .' Nothing is saved until you confirm.';
+        if (count($lines) === 1 && \App\Services\GiftVoucherService::isVoucherMode((int) $lines[0]['payment_mode_id'])) {
+            $msg .= ' Confirm redeems the voucher code in the reference. It is not redeemed now.';
+        }
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $msg]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function advance(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:1', 'payment_mode_id' => 'nullable|integer|owned:payment_modes',
+            'reference' => 'nullable|string|max:80', 'momo_network' => 'nullable|string|max:20', 'momo_phone' => 'nullable|string|max:30',
+            'cheque_bank_name' => 'nullable|string|max:100', 'cheque_number' => 'nullable|string|max:20', 'cheque_bank_branch' => 'nullable|string|max:100',
+            'payments' => 'nullable|array|min:2|max:10',
+            'payments.*.amount' => 'required|numeric|min:0.01', 'payments.*.payment_mode_id' => 'required|integer|owned:payment_modes',
+            'payments.*.reference' => 'nullable|string|max:80', 'payments.*.momo_network' => 'nullable|string|max:20',
+            'payments.*.momo_phone' => 'nullable|string|max:30', 'payments.*.cheque_bank_name' => 'nullable|string|max:100',
+            'payments.*.cheque_number' => 'nullable|string|max:20', 'payments.*.cheque_bank_branch' => 'nullable|string|max:100',
+        ]);
+        $lines = $this->advancePaymentLines($request, $data);
+        DB::transaction(function () use ($reservation, $lines) {
+            // Serialize folio selection/creation with other advance payments for
+            // this booking, so concurrent desk clicks cannot create two advance
+            // folios or post against a stale closed one.
+            $locked = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+            $stay = $locked->rooms()->where('status', 'checked_in')->lockForUpdate()->first();
+            $folio = $stay?->folio ?? Folio::where('reservation_id', $locked->id)->whereNull('reservation_room_id')->where('status', 'open')->lockForUpdate()->first()
+                ?? FolioService::openStandalone(['reservation_id' => $locked->id, 'guest_id' => $locked->guest_id, 'type' => 'guest']);
+            foreach ($lines as $line) {
+                FolioService::payment($folio, (float) $line['amount'], (int) $line['payment_mode_id'], $line['reference'] ?? null, 'advance', 'payment', [
+                    'bank_name' => $line['cheque_bank_name'] ?? null, 'number' => $line['cheque_number'] ?? null, 'bank_branch' => $line['cheque_bank_branch'] ?? null,
+                ]);
+                ActivityLogger::log('folio', 'advance', 'Advance '.money($line['amount'])." received for {$locked->reservation_no}", $locked);
+            }
+        });
+
+        return back()->with('success', count($lines) > 1 ? count($lines).' advance tenders recorded.' : 'Advance payment recorded.');
+    }
+
+    public function assignRooms(Request $request, Reservation $reservation)
+    {
+        $data = $request->validate(['assign' => 'required|array', 'assign.*' => 'nullable|integer|owned:rooms']);
+        $roomIds = collect($data['assign'])->filter()->map(fn ($id) => (int) $id);
+        if ($roomIds->count() !== $roomIds->unique()->count()) {
+            return back()->with('error', 'The same room cannot be assigned to two stays in this reservation.');
+        }
+
+        try {
+            DB::transaction(function () use ($data, $reservation, $roomIds) {
+                $reservation = Reservation::whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+                $before = ReservationAmendmentService::snapshot($reservation);
+                foreach (array_keys($data['assign']) as $stayId) {
+                    $reservation->rooms()->whereKey($stayId)->where('status', 'reserved')->lockForUpdate()->first();
+                }
+                if ($roomIds->isNotEmpty()) {
+                    Room::whereIn('id', $roomIds)->orderBy('id')->lockForUpdate()->get();
+                }
+                foreach ($data['assign'] as $stayId => $roomId) {
+                    $stay = $reservation->rooms()->whereKey($stayId)->where('status', 'reserved')->lockForUpdate()->first();
+                    if (! $stay) {
+                        continue;
+                    }
+                    if (! $roomId) {
+                        $stay->update(['room_id' => null]);
+                        continue;
+                    }
+                    $roomId = (int) $roomId;
+                    if (! AvailabilityService::roomAvailableForReservation($roomId, $stay->arrival_date, $stay->departure_date, $stay->id)) {
+                        $roomNo = Room::whereKey($roomId)->value('room_no') ?? $roomId;
+                        throw new \RuntimeException("Room {$roomNo} is no longer available for this stay (it may be occupied, blocked, leased, or out of order). Choose another room.");
+                    }
+                    $room = Room::findOrFail($roomId);
+                    $stay->update(['room_id' => $room->id, 'room_type_id' => $room->room_type_id]);
+                }
+                $after = ReservationAmendmentService::snapshot($reservation);
+                ReservationAmendmentService::record($reservation, 'assigned', $before, $after, null, 'front_desk');
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Room assignment updated.');
+    }
+
+    public function print(Reservation $reservation)
+    {
+        $reservation->load('guest', 'rooms.roomType', 'rooms.room', 'rooms.ratePlan', 'source', 'company', 'folios.transactions');
+
+        return view('reservations.print', ['r' => $reservation]);
+    }
+
+    public function downloadConfirmationPdf(Reservation $reservation, BookingConfirmationPdf $pdf)
+    {
+        $reservation->load('guest', 'rooms.roomType', 'rooms.room', 'rooms.ratePlan', 'company', 'folios.transactions');
+        $property = hotel();
+        abort_unless($property, 404);
+
+        $content = $pdf->render($reservation, $property);
+        $safeNumber = preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $reservation->reservation_no) ?: (string) $reservation->id;
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="Booking-Confirmation-'.$safeNumber.'.pdf"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function availability(Request $request)
+    {
+        $data = $request->validate([
+            'from' => 'nullable|date',
+            'days' => 'nullable|integer|min:1|max:31',
+        ]);
+        $from = $data['from'] ?? bdate()->toDateString();
+
+        return view('reservations.availability', AvailabilityService::matrix($from, (int) ($data['days'] ?? 14)));
+    }
+
+    // ---------- JSON helpers for forms ----------
+    public function apiRates(Request $request)
+    {
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date|after:from', 'company_id' => 'nullable|integer|owned:companies']);
+        $type = RoomType::findOrFail($request->integer('room_type_id'));
+        $from = $request->input('from', bdate()->toDateString());
+        $to = $request->input('to', Carbon::parse($from)->addDay()->toDateString());
+        $q = \App\Services\RateService::quote($type, $from, $to);
+        // v2.7: a company with an active contract gets its negotiated price (net grid / % off; blackout nights at the public rate)
+        $contract = ContractService::forCompany($request->integer('company_id') ?: null, $from);
+        $cq = $contract ? ContractService::quote($contract, $type, $from, $to, max(1, $request->integer('adults') ?: 1)) : null;
+        // Return a plain JSON array; nested Eloquent collections can be encoded as object internals by some PHP runtimes.
+        $plans = RatePlan::where('room_type_id', $type->id)->where('is_active', true)
+            ->get(['id', 'name', 'meal_plan', 'rate'])->toArray();
+        if ($cq) {
+            return response()->json([
+                'base_rate' => (float) $type->base_rate, 'rate' => $cq['average'], 'total' => $cq['total'], 'nights' => $cq['nights'],
+                'min_stay' => $cq['min_stay'], 'stop_sell' => $cq['stop_sell'], 'seasons' => [], 'extra_adult' => $cq['extra_adult_rate'] ?? (float) $type->extra_adult_rate,
+                'max_adults' => $type->max_adults, 'plans' => $plans,
+                'contract' => ['id' => $contract->id, 'code' => $contract->code, 'name' => $contract->name, 'basis' => $contract->basisLabel(), 'meal_plan' => $contract->meal_plan,
+                    'public_rate' => round($cq['public_total'] / max(1, $cq['count']), 2), 'contract_nights' => $cq['contract_nights'], 'nights' => $cq['count'],
+                    'lra' => $contract->lra, 'why' => array_values(array_unique(array_filter(array_column($cq['nights'], 'why'))))],
+            ]);
+        }
+
+        return response()->json([
+            'base_rate' => (float) $type->base_rate, 'rate' => $q['average'], 'total' => $q['total'], 'nights' => $q['nights'],
+            'min_stay' => $q['min_stay'], 'stop_sell' => $q['stop_sell'],
+            'seasons' => array_values(array_unique(array_filter(array_column($q['nights'], 'season')))), 'extra_adult' => (float) $type->extra_adult_rate, 'max_adults' => $type->max_adults,
+            'plans' => $plans,
+        ]);
+    }
+
+    public function apiFreeRooms(Request $request)
+    {
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date|after:from', 'room_type_id' => 'nullable|integer', 'company_id' => 'nullable|integer|owned:companies']);
+        $from = $request->input('from', bdate()->toDateString());
+        $to = $request->input('to', Carbon::parse($from)->addDay()->toDateString());
+        $typeId = $request->integer('room_type_id') ?: null;
+        if ($typeId) {
+            $type = RoomType::findOrFail($typeId);
+            $contract = ContractService::forCompany($request->integer('company_id') ?: null, $from);
+            $quote = $contract
+                ? ContractService::quote($contract, $type, $from, $to, max(1, $request->integer('adults') ?: 1))
+                : \App\Services\RateService::quote($type, $from, $to);
+            if ($quote['stop_sell'] || ! $quote['min_stay_ok']) {
+                return response()->json([]);
+            }
+        }
+
+        return response()->json(AvailabilityService::reservationRooms($from, $to, $typeId)
+            ->map(fn ($r) => ['id' => $r->id, 'room_no' => $r->room_no, 'status' => $r->status, 'hk' => $r->hk_status, 'type' => $r->roomType->name])->values());
+    }
+
+    public function apiGuests(Request $request)
+    {
+        $data = $request->validate(['q' => 'nullable|string|max:100']);
+
+        return response()->json(Guest::whereNull('privacy_status')->where('is_blacklisted', false)->search($data['q'] ?? null)->take(10)->get()
+            ->map(fn ($g) => $g->only(['id', 'title', 'first_name', 'last_name', 'phone', 'email', 'nationality', 'city', 'id_type', 'id_number', 'company_id', 'is_vip', 'is_blacklisted'])));
+    }
+}

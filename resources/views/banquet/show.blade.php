@@ -1,0 +1,185 @@
+@extends('layouts.app')
+@section('title', $e->event_no.' · '.($e->title ?: $e->contact_name))
+@section('crumbs') <a href="{{ route('banquet.index') }}">Banquet</a> / {{ $e->event_no }} @endsection
+@section('actions')
+@php $quoteActionLabel = in_array($e->status, ['definite', 'completed'], true) ? 'Banquet contract' : 'Event proposal'; @endphp
+<span id="evStatus">{!! $e->statusBadge() !!}</span>
+<a class="btn" href="{{ route('banquet.quote', $e) }}" target="_blank" rel="noopener" id="quoteBtn" aria-label="Open {{ strtolower($quoteActionLabel) }} for {{ $e->event_no }} in a new tab"><x-icon name="receipt"/> {{ $quoteActionLabel }}</a>
+<a class="btn" href="{{ route('banquet.print', $e) }}" target="_blank" rel="noopener" id="beoBtn" aria-label="Open function sheet for {{ $e->event_no }} in a new tab"><x-icon name="print"/> BEO</a>
+<a class="btn" href="{{ route('banquet.menu', $e) }}" target="_blank" rel="noopener" id="menuBtn" aria-label="Open the kitchen menu sheet for {{ $e->event_no }} in a new tab"><x-icon name="cup"/> Kitchen menu</a>
+@if(can_do('banquet.manage'))
+  @if($e->isEditable())<a class="btn" href="{{ route('banquet.edit', $e) }}" id="editEvent"><x-icon name="edit"/> Edit</a>@endif
+  @if(in_array($e->status, ['enquiry', 'tentative']))
+    <button class="btn" data-modal="holdModal" id="holdBtn" aria-controls="holdModal" aria-haspopup="dialog"><x-icon name="clock"/> {{ $e->status === 'tentative' ? 'Extend option' : 'Hold tentative' }}</button>
+    <form method="post" action="{{ route('banquet.confirm', $e) }}" class="inline">@csrf<button class="btn btn-primary" id="confirmBtn"><x-icon name="check"/> Confirm definite</button></form>
+    <button class="btn btn-ghost text-red" data-modal="lostModal" id="lostBtn" aria-controls="lostModal" aria-haspopup="dialog">Lost</button>
+  @endif
+  @if($e->status === 'lost')<form method="post" action="{{ route('banquet.reopen', $e) }}" class="inline">@csrf<button class="btn" id="reopenBtn"><x-icon name="refresh"/> Re-open</button></form>@endif
+  @if($e->status === 'definite' && ! $e->billed_at)<button class="btn btn-ghost text-red" data-modal="cancelModal" id="cancelBtn" aria-controls="cancelModal" aria-haspopup="dialog">Cancel booking</button>@endif
+@endif
+@if($e->readyToBill() && can_do('banquet.billing'))<form method="post" action="{{ route('banquet.bill', $e) }}" class="inline">@csrf<button class="btn btn-primary" id="billBtn"><x-icon name="receipt"/> Bill event</button></form>@endif
+@endsection
+@section('content')
+@php
+  $pct = $e->deposit_due > 0 ? min(100, round($deposits / $e->deposit_due * 100)) : null;
+  $progressStep = ['enquiry' => 1, 'tentative' => 2, 'definite' => 3, 'completed' => 4][$e->status] ?? 0;
+@endphp
+@if($e->optionExpired())<div class="alert alert-error"><b>Option expired</b> on {{ $e->option_date->format('d M Y') }}. The hold will be released at the next night audit unless you extend it or confirm.</div>
+@elseif($e->status === 'tentative')<div class="alert alert-warn">Venue held <b>until {{ $e->option_date->format('D d M Y') }}</b> ({{ (int) bdate()->diffInDays($e->option_date) }} day(s)). Confirm before then or it is released automatically.</div>@endif
+@if($e->status === 'lost')<div class="alert alert-warn"><b>Lost</b>{{ $e->closed_at ? ' on '.$e->closed_at->format('d M Y') : '' }}: {{ $e->lost_reason }}</div>@endif
+@if($e->status === 'cancelled')<div class="alert alert-error"><b>Cancelled</b> by {{ $e->closer?->name }} on {{ $e->closed_at?->format('d M Y') }}: {{ $e->cancel_reason }}. Cancellation fee {{ money($e->cancellation_fee) }}.</div>@endif
+@if($e->portal_enabled && can_do('organiser.view'))<div class="alert alert-info" id="orgEvent"><x-icon name="globe"/><div><b>On the organiser portal</b> – the client follows this event online. @if($e->beo_approved_at)BEO signed by {{ $e->beo_sign_name }} on {{ $e->beo_approved_at->format('d M Y') }}.@elseif($e->beo_published_at)BEO published {{ $e->beo_published_at->format('d M Y') }}, awaiting signature.@else No BEO published yet.@endif <a href="{{ route('organiser-admin.event', $e->id) }}">Portal page</a></div></div>@endif
+@if($e->billed_at)<div class="alert alert-success">Billed on {{ $e->billed_at->format('d M Y H:i') }} to folio @if(can_do('folio.view'))<a href="{{ route('folios.show', $folio) }}"><b>{{ $folio?->folio_no }}</b></a>@else<b>{{ $folio?->folio_no }}</b>@endif{{ $folio?->status === 'closed' ? ' – settled, invoice '.$folio->invoice_no : ' – balance '.money($folio?->balance()) }}.</div>@endif
+@if($e->readyToBill())<div class="alert alert-info">All functions have taken place. Record the actual attendance, then <b>Bill event</b> – charges go onto folio {{ $folio?->folio_no ?? '(opened on billing)' }} with the deposits.</div>@endif
+
+@if($progressStep)
+<nav class="bq-progress" aria-label="Event booking progress">
+  <ol>
+    @foreach([1 => ['Enquiry', 'Discuss and quote'], 2 => ['Tentative', 'Optional venue hold'], 3 => ['Definite', 'Confirmed booking'], 4 => ['Billed', 'Charges on folio']] as $step => [$label, $description])
+      <li class="{{ $step < $progressStep ? 'is-done' : ($step === $progressStep ? 'is-current' : '') }}" @if($step === $progressStep) aria-current="step" @endif>
+        <span class="bq-progress-node" aria-hidden="true">{{ $step < $progressStep ? '✓' : $step }}</span>
+        <span class="bq-progress-copy"><b>{{ $label }}</b><small>{{ $description }}</small></span>
+      </li>
+    @endforeach
+  </ol>
+</nav>
+@endif
+
+<div class="stats req5">
+  <x-stat label="Client" :value="$e->company?->name ?? $e->contact_name" icon="users" tone="blue" :sub="\App\Models\BanquetEvent::TYPES[$e->event_type] ?? $e->event_type"/>
+  <x-stat label="Date(s)" :value="$e->event_date->format('d M')" icon="calendar" tone="purple" :sub="($e->end_date && ! $e->end_date->eq($e->event_date) ? 'to '.$e->end_date->format('d M Y') : $e->event_date->format('l Y')).' · '.$e->functions->count().' function(s)'"/>
+  <x-stat label="Guests" :value="$e->pax()" icon="user" tone="slate" :sub="'peak billable pax'"/>
+  <x-stat label="Value" :value="money($e->net())" icon="money" tone="green" :sub="'+ tax '.money($e->tax(), false).' = '.money($e->total(), false)"/>
+  <x-stat label="Deposits" :value="money($deposits)" icon="wallet" :tone="$pct === null ? 'slate' : ($pct >= 100 ? 'green' : 'amber')" :sub="$e->deposit_due > 0 ? $pct.'% of '.money($e->deposit_due, false).' required' : 'none required'"/>
+</div>
+
+<div class="grid g-2-1">
+<div>
+  @foreach($e->functions as $f)
+  <div class="card fn-show" id="fn{{ $f->id }}">
+    <div class="card-head"><h3>{{ $f->name }}</h3><span class="small muted">{{ $f->date->format('D d M Y') }} · {{ $f->timeRange() }} · <b>{{ $f->hall->name }}</b> · {{ \App\Models\BanquetFunction::SETUPS[$f->setup_style] ?? $f->setup_style }}</span></div>
+    <div class="card-body">
+      <div class="fn-pax">
+        <div><span>Expected</span><b>{{ $f->expected_pax }}</b></div>
+        <div><span>Guaranteed</span><b>{{ $f->guaranteed_pax ?? '—' }}</b>@if($e->isOpen())<em class="{{ $f->guaranteeLocked() ? 'text-amber' : '' }}">{{ $f->guaranteeLocked() ? 'final since' : 'due' }} {{ $f->guaranteeCutoff()->format('d M') }}</em>@endif</div>
+        <div><span>Actual</span><b>{{ $f->actual_pax ?? '—' }}</b></div>
+        <div><span>Billable</span><b class="text-blue">{{ $f->billablePax() }}</b></div>
+      </div>
+      <table class="table mt-1 bq-charge-table"><caption class="sr-only">Estimated charges for {{ $f->name }}</caption><thead class="sr-only"><tr><th scope="col">Charge item</th><th scope="col">Net amount</th></tr></thead><tbody>
+        @if($f->rate_per_pax > 0 || $f->package)<tr><th scope="row">{{ $f->package?->name ?? 'Food & beverage' }}<div class="tiny muted">{{ $f->billablePax() }} × {{ money($f->rate_per_pax, false) }} · tax {{ rtrim(rtrim(number_format($f->fnb_tax_rate, 2), '0'), '.') }}%</div></th><td class="num">{{ money($f->fnbAmount(), false) }}</td></tr>@endif
+        @if($f->barPackage)<tr><th scope="row">{{ $f->barPackage->name }}<div class="tiny muted">{{ $f->billablePax() }} × {{ money($f->bar_rate_per_pax, false) }} · drinks · tax {{ rtrim(rtrim(number_format($f->bar_tax_rate, 2), '0'), '.') }}%</div></th><td class="num">{{ money($f->barAmount(), false) }}</td></tr>@endif
+        <tr><th scope="row">Venue – {{ $f->hall->name }}<div class="tiny muted">{{ $f->hours() }} h</div></th><td class="num">{{ money($f->hall_rate, false) }}</td></tr>
+        @foreach($f->items as $it)<tr><th scope="row">{{ $it->description }}<div class="tiny muted">{{ rtrim(rtrim(number_format($it->qty, 2), '0'), '.') }} × {{ money($it->unit_price, false) }}{{ $it->service?->department ? ' · '.$it->service->department->name : '' }}</div></th><td class="num">{{ money($it->amount(), false) }}</td></tr>@endforeach
+        <tr class="bold"><th scope="row">Function total <span class="tiny muted">(tax {{ money($f->tax(), false) }})</span></th><td class="num">{{ money($f->net(), false) }}</td></tr>
+      </tbody></table>
+      @if($f->package && $f->package->itemList())<div class="menu-list"><b class="tiny muted">MENU</b> {{ implode(' · ', $f->package->itemList()) }}</div>@endif
+      @if($f->barPackage && $f->barPackage->itemList())<div class="menu-list"><b class="tiny muted">BAR</b> {{ implode(' · ', $f->barPackage->itemList()) }}</div>@endif
+      @if($f->notes)<div class="small mt-1" style="white-space:pre-line"><b class="tiny muted">NOTES</b> {{ $f->notes }}</div>@endif
+    </div>
+  </div>
+  @endforeach
+
+  @if($e->status === 'definite' && ! $e->billed_at && $e->functions->contains(fn ($f) => $f->date->lte(bdate())) && can_do('banquet.manage'))
+  <div class="card" id="actualsCard"><div class="card-head"><h3>Actual attendance</h3><span class="tiny muted">charged on the higher of guarantee and actual</span></div>
+    <form method="post" action="{{ route('banquet.actuals', $e) }}" class="card-body flex gap-1 items-end" style="flex-wrap:wrap">@csrf
+      @foreach($e->functions->filter(fn ($f) => $f->date->lte(bdate())) as $f)
+        <div class="field"><label for="actualPax{{ $f->id }}">{{ $f->name }} <span class="tiny muted">guaranteed {{ $f->guaranteed_pax ?? $f->expected_pax }}</span></label><input id="actualPax{{ $f->id }}" type="number" min="0" max="100000" name="actual[{{ $f->id }}]" value="{{ $f->actual_pax }}" class="input" style="width:120px"></div>
+      @endforeach
+      <button class="btn btn-primary" id="saveActuals"><x-icon name="check"/> Save attendance</button>
+    </form>
+  </div>
+  @endif
+</div>
+
+<div>
+  <div class="card" id="depositCard"><div class="card-head"><h3>Deposits &amp; folio</h3>@if($folio)@if(can_do('folio.view'))<a class="small" href="{{ route('folios.show', $folio) }}">{{ $folio->folio_no }}</a>@else<span class="small muted">{{ $folio->folio_no }}</span>@endif @endif</div>
+    <div class="card-body">
+      @if($e->deposit_due > 0)<div class="mb-1"><div class="bq-bar"><span style="width:{{ $pct }}%" class="{{ $pct >= 100 ? 'ok' : '' }}"></span></div><div class="tiny muted mt-1">{{ money($deposits) }} of {{ money($e->deposit_due) }} required{{ $e->deposit_due_date ? ' by '.$e->deposit_due_date->format('d M') : '' }}</div></div>@endif
+      <ul class="bq-list">
+        @forelse($txns as $t)
+          <li><span>{{ $t->description }}<div class="tiny muted">{{ $t->business_date->format('d M Y') }}{{ $t->reference ? ' · '.$t->reference : '' }}</div></span><b class="{{ $t->type === 'charge' ? '' : ($t->type === 'refund' ? 'text-red' : 'text-green') }}">{{ $t->type === 'charge' ? '' : ($t->type === 'refund' ? '+' : '−') }}{{ money($t->type === 'charge' ? $t->amount + $t->tax_amount : $t->amount, false) }}</b></li>
+        @empty<li class="muted small">No deposit taken yet.</li>@endforelse
+        @if($folio)<li class="bold"><span>{{ $folio->balance() < 0 ? 'Credit (unused deposit)' : 'Balance due' }}</span><b>{{ money(abs($folio->balance()), false) }}</b></li>@endif
+      </ul>
+      @if(can_do('banquet.billing') && $e->isOpen() && ! $e->billed_at)
+      <form method="post" action="{{ route('banquet.deposit', $e) }}" class="deposit-form mt-1" id="depositForm">@csrf
+        <div id="banquetDepositSingle">
+          <div class="flex gap-1"><label class="sr-only" for="banquetDepositAmount">Deposit amount</label><input id="banquetDepositAmount" type="number" name="amount" step="0.01" min="0.01" max="99999999" class="input" required placeholder="Amount" value="{{ old('amount', $e->deposit_due > $deposits ? round($e->deposit_due - $deposits, 2) : ($deposits ? '' : $suggestDeposit)) }}">
+          <label class="sr-only" for="banquetDepositMode">Deposit payment method</label><select id="banquetDepositMode" name="payment_mode_id" class="input" required data-payment-mode>@foreach($modes as $id => $n)<option value="{{ $id }}" @selected((string) old('payment_mode_id') === (string) $id)>{{ $n }}</option>@endforeach</select></div>
+          <div class="flex gap-1 mt-1"><label class="sr-only" for="banquetDepositReference">Deposit reference</label><input id="banquetDepositReference" name="reference" class="input grow" maxlength="80" placeholder="Reference (cheque / UTR / receipt)" value="{{ old('reference') }}"></div>
+          <x-cheque-fields class="span-all"/>
+        </div>
+        <x-payment-split-tender widget-id="banquetDepositSplit" single-id="banquetDepositSingle" :modes="$modes" label="deposit"/>
+        <button class="btn btn-primary mt-1" id="takeDeposit"><x-icon name="wallet"/> Receive deposit</button>
+      </form>
+      @endif
+      @if(can_do('banquet.billing') && $folio && $folio->status === 'open' && $folio->balance() < -0.009 && in_array($e->status, ['cancelled', 'lost', 'completed']))
+      <form method="post" action="{{ route('banquet.refund', $e) }}" class="mt-1" id="refundForm">@csrf
+        <div class="flex gap-1"><label class="sr-only" for="banquetRefundAmount">Refund amount</label><input id="banquetRefundAmount" type="number" name="amount" step="0.01" min="0.01" class="input" value="{{ round(-$folio->balance(), 2) }}" max="{{ round(-$folio->balance(), 2) }}">
+        <label class="sr-only" for="banquetRefundMode">Refund payment method</label><select id="banquetRefundMode" name="payment_mode_id" class="input" data-payment-mode>@foreach($modes as $id => $n)<option value="{{ $id }}">{{ $n }}</option>@endforeach</select>
+        <label class="sr-only" for="banquetRefundReference">Refund reference</label><input id="banquetRefundReference" name="reference" class="input" maxlength="60" placeholder="Reference">
+        <button class="btn btn-danger" id="refundBtn">Refund</button></div>
+        <x-cheque-fields class="span-all"/>
+      </form>
+      @endif
+    </div>
+  </div>
+  <div class="card"><div class="card-head"><h3>Details</h3></div><div class="card-body"><dl class="kv">
+    <dt>Contact</dt><dd>{{ $e->contact_name }}</dd>
+    @if($e->contact_phone)<dt>Phone</dt><dd>{{ $e->contact_phone }}</dd>@endif
+    @if($e->contact_email)<dt>E-mail</dt><dd>{{ $e->contact_email }}</dd>@endif
+    <dt>Bill to</dt><dd>{{ $e->company?->name ?? 'Private client' }}</dd>
+    <dt>Source</dt><dd>{{ \App\Models\BanquetEvent::SOURCES[$e->source] ?? '—' }}</dd>
+    <dt>Sales person</dt><dd>{{ $e->salesUser?->name ?? '—' }}</dd>
+    @if($e->roomBlock)<dt>Room block</dt><dd><a href="{{ route('blocks.show', $e->roomBlock) }}">{{ $e->roomBlock->block_no }}</a> <span class="tiny muted">{{ $e->roomBlock->name }}</span></dd>@endif
+    @if($e->confirmed_at)<dt>Confirmed</dt><dd>{{ $e->confirmed_at->format('d M Y') }}</dd>@endif
+    <dt>Created</dt><dd>{{ $e->created_at?->format('d M Y') }}</dd>
+  </dl>
+  @if($e->requirements)<div class="small mt-1" style="white-space:pre-line"><b class="tiny muted">REQUIREMENTS</b><br>{{ $e->requirements }}</div>@endif
+  @if($e->internal_notes)<div class="small mt-1 text-amber" style="white-space:pre-line"><b class="tiny">INTERNAL</b><br>{{ $e->internal_notes }}</div>@endif
+  </div></div>
+</div>
+</div>
+
+@if(in_array($e->status, ['enquiry', 'tentative']))
+<div class="modal" id="holdModal" role="dialog" aria-modal="true" aria-labelledby="holdModalTitle" aria-describedby="holdModalHelp"><div class="modal-box"><form method="post" action="{{ route('banquet.tentative', $e) }}">@csrf
+  <div class="modal-head"><h3 id="holdModalTitle">{{ $e->status === 'tentative' ? 'Extend the option on' : 'Hold venue for' }} {{ $e->event_no }}</h3><button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close hold dialog"><x-icon name="x"/></button></div>
+  <div class="modal-body"><p id="holdModalHelp" class="m-0 mb-1 small">The venue(s) are blocked for this client until the option date. If they haven't confirmed by then, the hold is released automatically at the night audit.</p>
+    <div class="field"><label for="holdOptionDate">Option date</label><input id="holdOptionDate" type="date" name="option_date" class="input" required min="{{ bdate()->toDateString() }}" max="{{ $e->event_date->toDateString() }}" value="{{ ($e->option_date ?? bdate()->copy()->addDays(7))->min($e->event_date)->toDateString() }}"></div></div>
+  <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-primary" id="confirmHold">Hold</button></div>
+</form></div></div>
+<div class="modal" id="lostModal" role="dialog" aria-modal="true" aria-labelledby="lostModalTitle"><div class="modal-box"><form method="post" action="{{ route('banquet.lost', $e) }}">@csrf
+  <div class="modal-head"><h3 id="lostModalTitle">Mark {{ $e->event_no }} as lost</h3><button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close lost-event dialog"><x-icon name="x"/></button></div>
+  <div class="modal-body"><div class="field"><label for="lostReason">Reason</label><input id="lostReason" name="lost_reason" class="input" required maxlength="255" list="lostReasons" placeholder="e.g. price – went to a competitor"><datalist id="lostReasons"><option value="Price – went to a competitor"><option value="Date not available"><option value="Venue too small / too large"><option value="Event postponed indefinitely"><option value="No response from client"></datalist></div></div>
+  <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-danger" id="confirmLost">Mark lost</button></div>
+</form></div></div>
+@endif
+@if($quote)
+<div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle" aria-describedby="cancelPolicyNote"><div class="modal-box"><form method="post" action="{{ route('banquet.cancel', $e) }}">@csrf
+  <div class="modal-head"><h3 id="cancelModalTitle">Cancel {{ $e->event_no }}</h3><button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close cancellation dialog"><x-icon name="x"/></button></div>
+  <div class="modal-body">
+    <p id="cancelPolicyNote" class="m-0 mb-1">{{ $quote['days'] }} day(s) before the event: the policy charges <b>{{ rtrim(rtrim(number_format($quote['pct'], 2), '0'), '.') }}%</b> of {{ money($quote['base']) }} = <b id="cancelFee">{{ money($quote['fee']) }}</b> (+ tax). Deposits received: {{ money($deposits) }}.</p>
+    <div class="field"><label for="cancelReason">Reason</label><input id="cancelReason" name="cancel_reason" class="input" required maxlength="200" placeholder="e.g. client postponed the wedding"></div>
+    @if(can_do('banquet.billing') && $quote['fee'] > 0)
+      <label class="check mt-1"><input type="checkbox" name="waive" value="1" id="waiveFee" aria-controls="waiveReasonField" @checked(old('waive'))> Waive the cancellation fee</label>
+      <div class="field" id="waiveReasonField" @unless(old('waive')) hidden @endunless><label for="waiveReason">Reason for waiver <span class="req">*</span></label><input id="waiveReason" name="waive_reason" class="input" maxlength="200" value="{{ old('waive_reason') }}" aria-describedby="waiveReasonHint"><span id="waiveReasonHint" class="hint">Required when the fee is waived.</span></div>
+    @endif
+  </div>
+  <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-danger" id="confirmCancel">Cancel booking</button></div>
+</form></div></div>
+@endif
+<script>
+(() => {
+  const waiver = document.getElementById('waiveFee');
+  const reason = document.getElementById('waiveReason');
+  const reasonField = document.getElementById('waiveReasonField');
+  if (!waiver || !reason || !reasonField) return;
+  const syncWaiverReason = () => {
+    reasonField.hidden = !waiver.checked;
+    reason.required = waiver.checked;
+  };
+  waiver.addEventListener('change', syncWaiverReason);
+  syncWaiverReason();
+})();
+</script>
+@endsection

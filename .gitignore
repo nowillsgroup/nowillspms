@@ -1,0 +1,53 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+/storage/app/backups
+/public/uploads
+
+# Python harness caches (deploy/dev/audit)
+__pycache__/
+# generated route-table snapshot for system_audit.php (regenerate with artisan route:list --json)
+deploy/dev/audit/.routes.json
+
+# generated preview screenshots (re-create with the preview server when needed)
+deploy/dev/previews/*-snapshot.png
+
+# local scratch space used by the agent sandbox
+.arena-scratch/
+
+# The installers ship as templates (deploy/installers/*.php.txt) and are copied to the
+# web root for the one-time install, then deleted. They must not be tracked: a server
+# that has correctly removed them would otherwise sit with a permanently dirty tree,
+# and CyberPanel's Git Manager refuses to push or pull from a dirty checkout.
+/install.php
+/public/install.php
+
+# Release/build archives are artifacts, not source.
+*.zip
+
+# Lock file created after web installer completes
+/storage/framework/installed.lock

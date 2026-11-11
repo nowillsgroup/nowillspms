@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login · Nowills PMS</title>
+<link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
+<link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v={{ filemtime(public_path('favicon.svg')) }}">
+</head><body class="auth-login-page">
+@include('partials.icons')
+<div class="auth auth-login">
+  <section class="auth-art auth-login-art" aria-label="Nowills hospitality suite">
+    <div class="auth-art-head">
+      <div class="brand" style="padding:0;border:0;height:auto"><img class="brand-logo-auth" src="{{ \App\Support\BrandAsset::src('nowills-pms-premium-gold.webp') }}" alt="Nowills PMS — Cloud Hospitality Suite"></div>
+      <span class="auth-live"><i></i> Built for hospitality</span>
+    </div>
+
+    <div class="auth-intro">
+      <p class="auth-eyebrow">The hospitality operating system</p>
+      <h1>Every detail in sync.<br>Every stay exceptional.</h1>
+      <p>Bring reservations, front desk, housekeeping, dining, events and finance together in one clear view—built for the way hospitality works.</p>
+    </div>
+
+    <div class="auth-module-orbit" role="img" aria-label="Nowills PMS core modules: bookings, front desk, rooms, housekeeping, dining, events, finance, reports and guest management">
+      <div class="auth-orbit-ring" aria-hidden="true"></div>
+      <div class="auth-orbit-spinner" aria-hidden="true">
+        <span class="auth-orbit-node" style="--orbit-index:0"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="calendar"/></span><span class="auth-orbit-label">Bookings</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:1"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="id"/></span><span class="auth-orbit-label">Front desk</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:2"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="bed"/></span><span class="auth-orbit-label">Rooms</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:3"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="broom"/></span><span class="auth-orbit-label">Housekeeping</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:4"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="cup"/></span><span class="auth-orbit-label">Dining</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:5"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="star"/></span><span class="auth-orbit-label">Events</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:6"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="wallet"/></span><span class="auth-orbit-label">Finance</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:7"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="chart"/></span><span class="auth-orbit-label">Reports</span></span></span>
+        <span class="auth-orbit-node" style="--orbit-index:8"><span class="auth-orbit-counter"><span class="auth-orbit-bubble"><x-icon name="users"/></span><span class="auth-orbit-label">Guests</span></span></span>
+      </div>
+      <div class="auth-orbit-center"><img src="{{ \App\Support\BrandAsset::src('nowills-pms-premium-mark.webp') }}" alt=""><span>NOWILLS PMS</span></div>
+    </div>
+
+    <div class="auth-slider" data-auth-slider aria-roledescription="carousel" aria-label="Hospitality spaces">
+      <div class="auth-slides">
+        <figure class="auth-slide is-active" data-slide="0" aria-hidden="false">
+          <img src="{{ asset('images/login/g1.jpg') }}" alt="Aerial view of The Grove Essipong Beach Resort, Takoradi">
+          <figcaption><strong>Resort & recreation</strong><span>See the whole property from one connected view.</span></figcaption>
+        </figure>
+        <figure class="auth-slide" data-slide="1" aria-hidden="true">
+          <img src="{{ asset('images/login/g3.jpg') }}" alt="The Grove Essipong Beach Resort exterior">
+          <figcaption><strong>Hospitality, rooted here</strong><span>One connected system for every part of the resort.</span></figcaption>
+        </figure>
+        <figure class="auth-slide" data-slide="2" aria-hidden="true">
+          <img src="{{ asset('images/login/g4.jpg') }}" alt="Conference hall at The Grove Essipong Beach Resort">
+          <figcaption><strong>Conference & events</strong><span>Make every moment count at The Grove.</span></figcaption>
+        </figure>
+      </div>
+      <div class="auth-slider-bar">
+        <div class="auth-slider-buttons">
+          <button type="button" class="auth-slider-btn" data-auth-prev aria-label="Previous image">‹</button>
+          <button type="button" class="auth-slider-btn" data-auth-next aria-label="Next image">›</button>
+        </div>
+        <div class="auth-dots" role="group" aria-label="Choose a hospitality image">
+          <button type="button" class="auth-dot is-active" data-auth-dot="0" aria-label="Show image 1" aria-pressed="true"></button>
+          <button type="button" class="auth-dot" data-auth-dot="1" aria-label="Show image 2" aria-pressed="false"></button>
+          <button type="button" class="auth-dot" data-auth-dot="2" aria-label="Show image 3" aria-pressed="false"></button>
+        </div>
+        <span class="auth-slider-count" data-auth-count>01 / 03</span>
+      </div>
+    </div>
+
+    <div class="auth-tiles">
+      <div><x-icon name="hotel"/><br>Hotels</div><div><x-icon name="cup"/><br>Restaurants</div><div><x-icon name="tree"/><br>Resorts</div><div><x-icon name="house"/><br>Guest Houses</div><div><x-icon name="coffee"/><br>Cafés</div>
+    </div>
+  </section>
+  <main class="auth-form auth-login-form">
+    <form class="auth-card auth-login-card" method="post" action="{{ route('login.attempt') }}" autocomplete="on">
+      @csrf
+      <div class="auth-form-kicker"><span class="auth-kicker-dot" aria-hidden="true"></span> PROPERTY TEAM ACCESS</div>
+      <h2>Welcome back</h2>
+      <p class="auth-login-subtitle">Sign in with your hotel or group credentials.</p>
+      @if($errors->any())<div class="alert alert-error auth-login-error" role="alert"><x-icon name="alert"/><div>{{ $errors->first() }}</div></div>@endif
+
+      <div class="field auth-login-field">
+        <label for="hotel_code" id="codeLabel">{{ old('group_login') ? 'Group ID' : 'Hotel ID' }}</label>
+        <input class="input" id="hotel_code" name="hotel_code" value="{{ old('hotel_code') }}" placeholder="e.g. NOWILLS" required autocomplete="organization" autocapitalize="characters" spellcheck="false" aria-describedby="hotelCodeHint">
+        <small class="auth-field-hint" id="hotelCodeHint">Use the ID provided by your property administrator.</small>
+      </div>
+      <div class="field auth-login-field">
+        <label for="username">Username</label>
+        <input class="input" id="username" name="username" value="{{ old('username') }}" placeholder="Your username" required autocomplete="username" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="field auth-login-field">
+        <label for="password">Password</label>
+        <div class="auth-password-wrap">
+          <input class="input" id="password" type="password" name="password" placeholder="Your password" required autocomplete="current-password">
+          <button class="auth-password-toggle" type="button" data-toggle-password aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
+      </div>
+      <div class="auth-login-options">
+        <label class="check" for="group_login"><input id="group_login" type="checkbox" name="group_login" value="1" @checked(old('group_login'))> Group login</label>
+        <label class="check" for="remember"><input id="remember" type="checkbox" name="remember" value="1" @checked(old('remember'))> Remember me</label>
+      </div>
+      <button class="btn btn-primary btn-lg btn-block auth-login-submit" type="submit"><x-icon name="login"/> Sign in</button>
+      <section class="auth-company-contact" aria-label="Nowills Group contact details">
+        <div class="auth-company-contact-head">
+          <strong class="auth-company-contact-name">Nowills Group</strong>
+          <span>ACCRA · GHANA</span>
+        </div>
+        <address>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>2nd Floor, Toku House, Graphic Road, Accra</span>
+        </address>
+        <div class="auth-company-contact-links">
+          <a href="mailto:info@nowills.com"><x-icon name="mail"/><span>info@nowills.com</span></a>
+          <a href="tel:0538855565"><x-icon name="phone"/><span>0538855565</span></a>
+          <a href="https://www.nowills.com"><x-icon name="globe"/><span>www.nowills.com</span></a>
+        </div>
+      </section>
+      @if(app()->environment('local'))
+      <div class="alert alert-info small mt-2"><div><b>Demo:</b> Hotel ID <code>NOWILLS</code> · user <code>admin</code> · pass <code>Admin@123</code><br>Group: tick <i>Group login</i>, ID <code>NWGROUP</code> · <code>groupadmin</code> · <code>Admin@123</code></div></div>
+      @endif
+    </form>
+  </main>
+</div>
+<script>
+(() => {
+  const group = document.getElementById('group_login');
+  const codeLabel = document.getElementById('codeLabel');
+  const password = document.getElementById('password');
+  const passwordToggle = document.querySelector('[data-toggle-password]');
+  const syncCodeLabel = () => { if (codeLabel) codeLabel.textContent = group?.checked ? 'Group ID' : 'Hotel ID'; };
+  group?.addEventListener('change', syncCodeLabel);
+  syncCodeLabel();
+  passwordToggle?.addEventListener('click', () => {
+    if (!password) return;
+    const reveal = password.type === 'password';
+    password.type = reveal ? 'text' : 'password';
+    passwordToggle.textContent = reveal ? 'Hide' : 'Show';
+    passwordToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+    passwordToggle.setAttribute('aria-pressed', String(reveal));
+  });
+})();
+
+(() => {
+  const root = document.querySelector('[data-auth-slider]');
+  if (!root) return;
+  const slides = [...root.querySelectorAll('.auth-slide')];
+  const dots = [...root.querySelectorAll('[data-auth-dot]')];
+  const count = root.querySelector('[data-auth-count]');
+  let active = 0;
+  let timer;
+
+  const show = (next) => {
+    active = (next + slides.length) % slides.length;
+    slides.forEach((slide, index) => {
+      const selected = index === active;
+      slide.classList.toggle('is-active', selected);
+      slide.setAttribute('aria-hidden', selected ? 'false' : 'true');
+    });
+    dots.forEach((dot, index) => {
+      const selected = index === active;
+      dot.classList.toggle('is-active', selected);
+      dot.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    if (count) count.textContent = String(active + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0');
+  };
+  const stop = () => {
+    clearInterval(timer);
+    timer = undefined;
+  };
+  const start = () => {
+    stop();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const interacting = root.matches(':hover') || root.contains(document.activeElement);
+    if (!reducedMotion && !interacting && document.visibilityState === 'visible') {
+      timer = setInterval(() => show(active + 1), 6500);
+    }
+  };
+
+  root.querySelector('[data-auth-prev]')?.addEventListener('click', () => { show(active - 1); start(); });
+  root.querySelector('[data-auth-next]')?.addEventListener('click', () => { show(active + 1); start(); });
+  dots.forEach(dot => dot.addEventListener('click', () => { show(Number(dot.dataset.authDot)); start(); }));
+  root.addEventListener('mouseenter', stop);
+  root.addEventListener('mouseleave', start);
+  root.addEventListener('focusin', stop);
+  root.addEventListener('focusout', event => {
+    if (!root.contains(event.relatedTarget)) start();
+  });
+  document.addEventListener('visibilitychange', start);
+  start();
+})();
+</script>
+</body></html>

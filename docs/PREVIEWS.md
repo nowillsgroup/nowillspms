@@ -1,0 +1,207 @@
+# Preview screens
+
+The static screens in `deploy/dev/previews/` are images of the application for
+review without PHP or a database — useful on a sandbox, in a pull request or on a
+call. They are not a second implementation of anything: the dashboard preview is
+**rendered from the real Blade views**, so it cannot describe a screen the
+application no longer has.
+
+## Why the dashboard is generated, not copied
+
+Until v7.78 the dashboard preview was a hand-maintained pane
+(`previews/_dashboard-content.html`) sitting inside a generated shell. Nothing
+connected it to `resources/views/dashboard.blade.php`, so it fell out of date: it
+was still showing the pre-redesign layout with no action centre, pinned reports,
+arrivals, departures, room status, shortcuts, activity or department snapshots,
+while `build-dashboard-preview.mjs --check` happily reported "up to date"
+because it only hashed the hand-written pane.
+
+The pane is gone. The preview is now the dashboard:
+
+| Piece | Comes from |
+| --- | --- |
+| Content, all sections | `resources/views/dashboard.blade.php` + `dashboard/management-overview.blade.php` + `dashboard/management-trends.blade.php` |
+| Sidebar | `config/pms.php` → `menu` |
+| Icon sprite | `resources/views/partials/icons.blade.php` |
+| Page head, top bar | `resources/views/layouts/app.blade.php` |
+| Figures | fixed sample, `deploy/dev/preview/dashboard-sample.mjs` |
+| Shell, shared by every rendered screen | `deploy/dev/preview/app-shell.mjs` |
+
+The Rooms master screens are generated the same way, so the room photo upload on a
+room form is the upload the application has:
+
+| Piece | Comes from |
+| --- | --- |
+| Room form | `resources/views/masters/form.blade.php` |
+| Photo gallery | `resources/views/masters/room-photos.blade.php` |
+| Definition (fields, columns) | the `rooms` entry of `config/masters.php`, mirrored in `deploy/dev/preview/rooms-sample.mjs`; `room_photos_check.py` fails if the two drift |
+| Photos on the sample room | three photographs in `deploy/dev/previews/assets/`, served at `/preview-assets/` |
+
+The same three photographs stand in for the room pictures on the reservation
+workspace's cards; the application shows each room's own uploaded photo (its
+card-sized copy on the board, the full picture in the room dialog).
+
+The reservation workspace screen itself is described in `docs/WORKSPACE.md`. It is
+generated from its own view, including the screen's
+`@push('head')` stylesheet and `@push('scripts')` behaviour — the preview runs the
+application's real board, rack, filter chips, grouping and keyboard shortcuts:
+
+| Piece | Comes from |
+| --- | --- |
+| Room board, rack, attention rail, KPI strip, modals | `resources/views/reservations/workspace.blade.php` |
+| Screen CSS (`.ws-*`) | the view's own `@push('head')` block |
+| Board behaviour (filters, chips, grouping, rack sort, `/` `B` `R` `G`) | the view's own `@push('scripts')` block |
+| Attention list and KPI tiles | `ReservationWorkspaceController::attention()` / `kpiTiles()`, mirrored in the sample |
+| Figures | fixed sample, `deploy/dev/preview/workspace-sample.mjs` |
+
+The screen keeps its layout, grouping and rack order in the address bar and in
+`sessionStorage`, so a preview link can open straight onto the rack
+(`/reservations-workspace?date=2026-11-05&view=rack&group=floor`) and the order staff
+chose survives a refresh.
+
+## Build and check
+
+```bash
+node deploy/dev/build-dashboard-preview.mjs           # writes previews/management-dashboard.html
+node deploy/dev/build-dashboard-preview.mjs --check   # exit 1 when the file on disk is stale
+node deploy/dev/audit/dashboard_preview_check.js      # 73 assertions about the rendered screen
+
+node deploy/dev/build-rooms-preview.mjs                # writes previews/rooms-create.html + rooms-edit.html
+node deploy/dev/build-rooms-preview.mjs --check        # exit 1 when either file is stale
+node deploy/dev/audit/rooms_preview_check.js           # 36 assertions about the two room screens
+
+node deploy/dev/build-workspace-preview.mjs            # writes previews/reservations-workspace.html
+node deploy/dev/build-workspace-preview.mjs --check    # exit 1 when the file is stale
+node deploy/dev/audit/workspace_preview_check.js       # 52 assertions, run against the page in jsdom
+python3 deploy/dev/audit/workspace_check.py            # 18 source tests: ids, CSS, permissions, contract
+
+node deploy/dev/build-reservation-form-preview.mjs     # writes previews/reservation-form.html
+node deploy/dev/build-reservation-form-preview.mjs --check
+
+node deploy/dev/build-group-reservation-preview.mjs    # writes previews/group-reservation.html
+node deploy/dev/build-group-reservation-preview.mjs --check
+node deploy/dev/audit/reservations_group_preview_check.js # 50 assertions, run against the page in jsdom
+```
+
+The group reservation screen is the same idea applied to `reservations/group.blade.php`:
+the part-way-taken Nowills Group booking (five rooms, 4–10 December, staggered arrivals,
+three occupants named), rendered by `deploy/dev/preview/group-reservation-sample.mjs`.
+Room type / rate plan and the occupancy totals match the application's own `@json`
+hand-off (`Coll::toJSON` returns the plain array Laravel's `json_encode` produces), and
+the room and rate pickers answer from `data:` URLs standing in for the
+`reservations.api.rooms` / `reservations.api.rates` endpoints.
+
+The folio statement preview is the printable statement of account (`resources/views/folios/statement.blade.php`,
+route `folios.statement`), rendered from the view itself with the ledger rows, day subtotals and running
+balance prepared exactly as `FolioController::statement()` prepares them:
+
+| Piece | Comes from |
+| --- | --- |
+| Ledger, day subtotals, running balance | `FolioController::statement()`, mirrored in `deploy/dev/preview/folio-statement-sample.mjs` |
+| Letterhead (logo, legal name, TIN) | the `$currentHotel` share, as `layouts.print` renders it |
+| Document chrome (print bar, back link) | `resources/views/layouts/print.blade.php`, replicated by the builder |
+
+```bash
+node deploy/dev/build-folio-statement-preview.mjs           # writes previews/folio-statement.html
+node deploy/dev/build-folio-statement-preview.mjs --check
+node deploy/dev/audit/folio_statement_preview_check.mjs     # the letterhead, ledger, summary and print contract
+PREVIEW_LANDING=folio-statement PORT=4194 node deploy/dev/management-dashboard-preview-server.mjs
+```
+
+The show page no longer prints its own stand-in statement head; its **Print statement** button opens the
+real statement in a new tab (`?autoprint=1` triggers the browser print dialog on load).
+
+`--check` now compares the whole regenerated page, so editing a dashboard view
+makes it fail until the preview is rebuilt.
+
+The TV welcome screen preview is the first paint an in-room television renders at `/tv/{token}`
+(`resources/views/tv/app.blade.php`) before any JavaScript runs: the welcome the in-house guest sees
+when they switch the set on. It renders the server-rendered `#tvPreboot` markup with the sample boot
+payload from `deploy/dev/preview/tv-welcome-sample.mjs` (fictional room 202, guest Ama Mensah, English,
+Gold theme welcome, full stay card): the TV stylesheet is inlined, the welcome photograph is inlined as a
+`data:` URL, and the interactive boot script is omitted so the preview freezes on the exact markup a TV
+shows. Because the markup is the screen itself, the file is exempt from the furniture check's
+visible-banner rule.
+
+```bash
+node deploy/dev/build-tv-welcome-preview.mjs     # writes previews/tv-welcome.html
+node deploy/dev/build-tv-welcome-preview.mjs --check
+```
+
+The back-office welcome-screens manager (`resources/views/iptv/welcome.blade.php`, route `iptv.welcome`)
+is *not* what this preview shows — it is the front desk's template editor and stays untouched.
+
+The IPTV dashboard preview is the landing page of the back-office IPTV area (`resources/views/iptv/index.blade.php`,
+route `iptv.index`) — the screen the front desk sees at `/iptv`: stat tiles (TVs online, rooms covered, guests
+welcomed, rentals, 7-day orders, live messages), the offline/pairing alert strip, the Room TVs floor grid
+(online guest / online vacant / offline / no TV / ★ welcomed), the 7-day usage bar chart, the emergency-alert
+card, lobby & signage screens, messages on screen and recent guest activity. It renders the `@section('content')`
+body from the view with fictional, read-only sample data (`deploy/dev/preview/iptv-dashboard-sample.mjs`): nine
+rooms across three floors, ten room TVs (one offline, one room with none), two lobby screens, two welcomes
+today, and the 7-day usage trend. The view's own `@php` locals (auth flags and the `TvEvent::EVENTS` map) are
+provided in scope, as a full render would assign them, and the furniture check exempts the file because its
+visible sample banner would trip the stray-text rule.
+
+```bash
+node deploy/dev/build-iptv-dashboard-preview.mjs           # writes previews/iptv-dashboard.html
+node deploy/dev/build-iptv-dashboard-preview.mjs --check
+```
+
+## How the renderer works
+
+`deploy/dev/preview/blade-render.mjs` runs a small Blade subset against the sample
+scope:
+
+* `@if` / `@elseif` / `@else` / `@unless`, `@foreach` / `@forelse` / `@empty`,
+  `@include`, `@php` (simple assignments only), `@push` (rendered on request via
+  `renderer.push(view, 'head' | 'scripts', scope)`), `@section` (extracted),
+  `{{ }}` escaped and `{!! !!}` raw; `<style>` and `<script>` bodies are copied
+  verbatim so CSS `@media` is never mistaken for a directive;
+* `<x-icon name="{{ $icon }}"/>` interpolates its attributes, as Blade does;
+* `<x-icon>` and `<x-empty>` resolve against the page's own sprite;
+* expressions are evaluated as JavaScript after a PHP→JS pass — `$x` variables,
+  `->` access, `::` static calls, `?:`, keyed arrays (`['k' => 'v']`), casts,
+  `fn ($x) => …`, string concatenation — so ternaries, tones and badges stay
+  consistent with the data instead of being hard-coded per branch;
+* services and model counts the views call (`KpiService::openEvents()`,
+  `Company::where(...)->count()`, …) answer from the sample table in
+  `dashboard-sample.mjs`.
+
+The builder prints a render report. It must stay clean:
+
+```
+echoes evaluated ....... 1066
+fallback values ........ 0
+@php blocks skipped .... 3 (values supplied by the sample)
+```
+
+The three skipped blocks build the conic-gradient mix charts, which the sample
+supplies pre-computed. Anything the renderer cannot evaluate is reported and the
+harness fails if it reaches the page as `undefined`, `NaN` or a stray `{{`.
+
+## What is sample
+
+Every figure is a fixed sample: room counts, revenue, arrivals, activity,
+department snapshots. The permission set is "staff member with every
+permission", which is why every module contributes rows to the action centre.
+The structure, wording, ordering, icons, classes, links and conditional logic are
+the application's own.
+
+The screen carries no notice saying it is a preview — it is presented as the
+screen itself.
+
+## Serving
+
+```bash
+PORT=4182 node deploy/dev/management-dashboard-preview-server.mjs                      # landing: fleet overview
+PREVIEW_LANDING=management-dashboard PORT=4183 node deploy/dev/management-dashboard-preview-server.mjs
+PREVIEW_LANDING=reservations-workspace PORT=4187 node deploy/dev/management-dashboard-preview-server.mjs
+```
+
+`/management-dashboard` and `/__preview/management-dashboard` serve the dashboard
+on either instance, `/reservations-workspace` the reservation workspace,
+`/rooms-create` and `/rooms-edit` the two room screens, and
+`/previews` lists every screen. `PREVIEW_LANDING=rooms-edit` opens an instance
+straight onto the room record. The server is read-only and serves only the
+previews folder (including its `assets/` at `/preview-assets/`), `public/css/*`
+and `public/images/*`.
