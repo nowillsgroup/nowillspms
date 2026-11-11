@@ -237,3 +237,20 @@ After every web-server change, verify that `/.env`, `/build/vendor/`, and
 CyberPanel users must set the website's document root to `public/` in **Websites
 → List Websites → Manage → vHost Conf**, then restart OpenLiteSpeed. Do not
 publish the project root even temporarily.
+
+### Backup request timeout
+
+Property exports and full database backups are streamed from an authenticated
+administration request and may run for up to five minutes. Align the upstream
+timeout with that application limit:
+
+```nginx
+location ~ \.php$ {
+    # existing fastcgi_pass / include directives stay here
+    fastcgi_read_timeout 330s;
+}
+```
+
+For PHP-FPM set `request_terminate_timeout = 330s` in the pool configuration.
+Keep the web-server value slightly above PHP's 300-second backup limit so PHP
+can return a controlled error rather than the proxy producing a 504.

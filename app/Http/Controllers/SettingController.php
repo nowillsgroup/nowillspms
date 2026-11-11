@@ -244,7 +244,10 @@ class SettingController extends Controller
         } else {
             $full = ($data['type'] ?? 'hotel') === 'full';
             abort_if($full && ! $this->fullAllowed($request), 403);
-            @set_time_limit(300);
+            // Deployment docs align PHP-FPM/nginx to this five-minute ceiling.
+            if (function_exists('set_time_limit')) {
+                set_time_limit(300);
+            }
             $path = $full ? BackupService::full() : BackupService::hotel(hotel()->id);
             ActivityLogger::log('settings', 'backup', 'Created '.($full ? 'full database backup' : 'property data export').' '.basename($path));
         }
