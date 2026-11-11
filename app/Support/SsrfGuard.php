@@ -82,8 +82,10 @@ class SsrfGuard
         }
 
         if (strlen($packed) === 4) {
-            // Explicitly reject 169.254/16 (cloud metadata/link-local).
-            if (ord($packed[0]) === 169 && ord($packed[1]) === 254) {
+            $first = ord($packed[0]);
+            // Explicitly reject 169.254/16 (cloud metadata/link-local) and
+            // 224/4 multicast, neither of which is a valid remote HTTP peer.
+            if (($first === 169 && ord($packed[1]) === 254) || $first >= 224) {
                 return false;
             }
         } else {
@@ -93,8 +95,9 @@ class SsrfGuard
             if (substr($packed, 0, 12) === str_repeat("\0", 10)."\xff\xff") {
                 return self::isPublicIp(inet_ntop(substr($packed, 12)) ?: '');
             }
-            // fe80::/10 link-local (fe80 through febf) and fc00::/7 ULA.
-            if (($first === 0xfe && ($second & 0xc0) === 0x80) || ($first & 0xfe) === 0xfc) {
+            // fe80::/10 link-local (fe80 through febf), fc00::/7 ULA, and
+            // ff00::/8 multicast are not valid public HTTP destinations.
+            if (($first === 0xfe && ($second & 0xc0) === 0x80) || ($first & 0xfe) === 0xfc || $first === 0xff) {
                 return false;
             }
         }
