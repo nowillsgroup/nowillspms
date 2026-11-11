@@ -122,16 +122,16 @@ class ChannelConnectionController extends Controller
     public function show(ChannelConnection $chconn)
     {
         $c = $chconn->load('source', 'company', 'roomMaps', 'rateMaps', 'restrictions.roomType', 'restrictions.creator');
-        $types = RoomType::where('is_active', true)->orderBy('base_rate')->get();
+        $types = RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('channel-manager.show', [
-            'c' => $c, 'types' => $types, 'plans' => RatePlan::where('is_active', true)->orderBy('rate')->get()->groupBy('room_type_id'),
+            'c' => $c, 'types' => $types, 'plans' => RatePlan::where('is_active', true)->orderBy('rate')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('room_type_id'),
             'pending' => ChannelService::pendingCount($c), 'stats' => ChannelService::stats(30)->get($c->id, ['bookings' => 0, 'nights' => 0, 'revenue' => 0, 'commission' => 0, 'cancelled' => 0]),
-            'pushes' => $c->pushes()->with('user')->latest('id')->limit(10)->get(),
-            'messages' => ChannelMessage::with('reservation')->where('channel_connection_id', $c->id)->latest('id')->limit(10)->get(),
+            'pushes' => $c->pushes()->with('user')->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'messages' => ChannelMessage::with('reservation')->where('channel_connection_id', $c->id)->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'preview' => ChannelService::ari($c, bdate()->copy()->startOfDay(), 7),
             'restrictions' => $c->restrictions->filter(fn ($r) => $r->date_to->gte(bdate()))->sortBy('date_from'),
-            'simBookings' => $c->isSimulator() ? $c->reservations()->with('guest')->whereIn('status', ['confirmed', 'tentative'])->latest('id')->limit(15)->get() : collect(),
+            'simBookings' => $c->isSimulator() ? $c->reservations()->with('guest')->whereIn('status', ['confirmed', 'tentative'])->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
         ]);
     }
 
@@ -197,7 +197,7 @@ class ChannelConnectionController extends Controller
                 $map = ChannelRoomMap::firstOrNew(['channel_connection_id' => $chconn->id, 'room_type_id' => $typeId]);
                 if (empty($r['code'])) {
                     $map->exists && $map->delete();
-                    ChannelRateMap::where('channel_connection_id', $chconn->id)->where('room_type_id', $typeId)->get()->each->delete();
+                    ChannelRateMap::where('channel_connection_id', $chconn->id)->where('room_type_id', $typeId)->limit((int) config('pms.max_list_rows', 5000))->get()->each->delete();
 
                     continue;
                 }

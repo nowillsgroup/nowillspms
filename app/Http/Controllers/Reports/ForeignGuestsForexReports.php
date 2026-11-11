@@ -319,9 +319,9 @@ trait ForeignGuestsForexReports
         $F = \App\Services\FormCService::class;
         $f0 = Carbon::parse($from)->startOfDay();
         $t0 = Carbon::parse($to)->endOfDay();
-        $stays = \App\Models\ReservationRoom::with('reservation.guest', 'guest')->whereIn('status', ['checked_in', 'checked_out'])->whereBetween('checked_in_at', [$f0, $t0])->get()
+        $stays = \App\Models\ReservationRoom::with('reservation.guest', 'guest')->whereIn('status', ['checked_in', 'checked_out'])->whereBetween('checked_in_at', [$f0, $t0])->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($s) => ['s' => $s, 'g' => $F::stayGuest($s)])->filter(fn ($r) => $F::isForeign($r['g']));
-        $forms = \App\Models\FormCRecord::whereBetween('checked_in_at', [$f0, $t0])->where('is_companion', false)->get()->keyBy('reservation_room_id');
+        $forms = \App\Models\FormCRecord::whereBetween('checked_in_at', [$f0, $t0])->where('is_companion', false)->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('reservation_room_id');
         $total = $stays->count();
         $rows = $stays->groupBy(fn ($r) => ucwords(mb_strtolower(trim($r['g']->nationality))))->map(function ($grp, $nat) use ($forms, $total) {
             $nights = $grp->sum(fn ($r) => max(1, $r['s']->checked_in_at->copy()->startOfDay()->diffInDays(($r['s']->checked_out_at ?? $r['s']->departure_date)->copy()->startOfDay())));
@@ -345,8 +345,8 @@ trait ForeignGuestsForexReports
         $f = Carbon::parse($from)->toDateString();
         $t = Carbon::parse($to)->toDateString();
         $buys = \App\Models\ForexExchange::whereNull('voided_at')->whereDate('business_date', '<=', $t)->get(['currency_id', 'business_date', 'fc_amount', 'inr_amount'])->groupBy('currency_id');
-        $outs = \App\Models\ForexSurrenderLine::with('surrender')->whereHas('surrender', fn ($q) => $q->where('hotel_id', \App\Support\Tenant::id())->whereDate('date', '<=', $t))->get()->groupBy('currency_id');
-        $rows = \App\Models\Currency::orderBy('sort_order')->get()->map(function ($c) use ($buys, $outs, $f) {
+        $outs = \App\Models\ForexSurrenderLine::with('surrender')->whereHas('surrender', fn ($q) => $q->where('hotel_id', \App\Support\Tenant::id())->whereDate('date', '<=', $t))->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('currency_id');
+        $rows = \App\Models\Currency::orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($c) use ($buys, $outs, $f) {
             $b = $buys[$c->id] ?? collect();
             $o = $outs[$c->id] ?? collect();
             if ($b->isEmpty() && $o->isEmpty()) {
@@ -374,7 +374,7 @@ trait ForeignGuestsForexReports
 
     protected function r_forex_rates($from, $to): array
     {
-        $rows = ForexRate::with('currency.board')->whereBetween('rate_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ForexRate::with('currency.board')->whereBetween('rate_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'currency' => optional($r->currency)->name, 'board' => optional($r->board)->name,
             'rate_date' => $r->rate_date, 'buy' => $r->buy_rate, 'sell' => $r->sell_rate,
             'mid' => $r->mid_rate, 'source' => $r->source, 'status' => $r->status,
@@ -385,7 +385,7 @@ trait ForeignGuestsForexReports
     protected function r_forex_register($from, $to): array
     {
         $xs = \App\Models\ForexExchange::with('currency', 'stay.room', 'creator')->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())
-            ->orderBy('business_date')->orderBy('id')->get();
+            ->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $xs->map(function ($x) {
             $v = (bool) $x->voided_at;
 
@@ -408,7 +408,7 @@ trait ForeignGuestsForexReports
 
     protected function r_forex_surrenders($from, $to): array
     {
-        $rows = ForexSurrender::with('guest.currency.user')->whereBetween('surrendered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ForexSurrender::with('guest.currency.user')->whereBetween('surrendered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'currency' => optional($r->currency)->name,
             'surrendered' => $r->surrendered_at, 'amount' => $r->amount, 'rate' => $r->rate,
             'ghs_amount' => $r->ghs_amount, 'fee' => $r->fee, 'status' => $r->status, 'user' => optional($r->user)->name,
@@ -419,7 +419,7 @@ trait ForeignGuestsForexReports
     protected function r_formc_register($from, $to): array
     {
         $recs = \App\Models\FormCRecord::with('stay.room')->whereBetween('checked_in_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])
-            ->orderBy('checked_in_at')->orderBy('id')->get();
+            ->orderBy('checked_in_at')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $V = \App\Models\FormCRecord::VISA_TYPES;
         $rows = $recs->map(fn ($f) => ['in' => $f->checked_in_at?->format('d M Y H:i'), 'form' => $f->form_no, 'guest' => $f->name().($f->is_companion ? ' (companion)' : ''),
             'nat' => (string) $f->nationality, 'passport' => \App\Models\Guest::mask($f->passport_no), 'visa' => (string) ($V[$f->visa_type] ?? ''), 'room' => (string) $f->stay?->room?->room_no,

@@ -41,14 +41,14 @@ class ComplianceController extends Controller
                 ->when($request->query('category'), fn ($q, $c) => $q->where('category', $c))
                 ->when($request->query('department'), fn ($q, $d) => $q->where('department', $d))
                 ->when(trim((string) $request->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('name', 'like', "%{$t}%")->orWhere('authority', 'like', "%{$t}%")->orWhere('reference_no', 'like', "%{$t}%")))
-                ->get()
+                ->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->when($st && $st !== 'archived', fn ($c) => $c->filter(fn ($i) => $i->state() === $st))
                 // most urgent first: expired, due, renewing, valid, no expiry
                 ->sortBy(fn ($i) => [array_search($i->state(), ['expired', 'due', 'renewing', 'valid', 'perpetual', 'archived']), $i->expires_on?->timestamp ?? PHP_INT_MAX, $i->name])->values();
             $v += ['items' => $items];
         } elseif ($tab === 'calendar') {
             $start = bdate()->copy()->startOfMonth();
-            $items = Cs::active()->whereNotNull('expires_on')->whereDate('expires_on', '<', $start->copy()->addMonths(12)->toDateString())->orderBy('expires_on')->get();
+            $items = Cs::active()->whereNotNull('expires_on')->whereDate('expires_on', '<', $start->copy()->addMonths(12)->toDateString())->orderBy('expires_on')->limit((int) config('pms.max_list_rows', 5000))->get();
             $months = [];
             for ($i = 0; $i < 12; $i++) {
                 $m = $start->copy()->addMonths($i);

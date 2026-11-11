@@ -20,18 +20,19 @@ class TableBookingController extends Controller
     /** The outlet being worked on: ?outlet=, else the first with reservations switched on. */
     protected function outlet(Request $request, bool $any = false): ?Outlet
     {
-        $list = $any ? Outlet::where('is_active', true)->whereIn('type', ['restaurant', 'bar', 'cafe'])->orderBy('id')->get() : TB::enabledOutlets();
+        $list = $any ? Outlet::where('is_active', true)->whereIn('type', ['restaurant', 'bar', 'cafe'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : TB::enabledOutlets();
 
         return $list->firstWhere('id', $request->integer('outlet')) ?? $list->first();
     }
 
     protected function inHouse()
     {
-        return ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        return ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
     }
 
     public function index(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $outlet = $this->outlet($request);
         if (! $outlet) {
             return view('tables.index', ['outlet' => null, 'outlets' => collect()]);
@@ -40,12 +41,12 @@ class TableBookingController extends Controller
         $tab = array_key_exists($request->tab, self::TABS) ? $request->tab : 'all';
         $rows = TableReservation::with('tables', 'guest', 'stay.room')->where('outlet_id', $outlet->id)->whereDate('date', $date->toDateString())
             ->when($request->q, fn ($q, $t) => $q->where(fn ($w) => $w->where('name', 'like', "%$t%")->orWhere('phone', 'like', "%$t%")->orWhere('booking_no', 'like', "%$t%")))
-            ->orderBy('start_at')->get();
+            ->orderBy('start_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $counts = [];
         foreach (array_keys(self::TABS) as $t) {
             $counts[$t] = $this->tab($rows, $t)->count();
         }
-        $tables = PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->get();
+        $tables = PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         // timeline window: service periods of the day (or 11:00-23:00), whole hours
         $slots = array_keys(TB::slots($outlet, $date));
         $first = $slots ? (int) substr($slots[0], 0, 2) : 11;
@@ -83,10 +84,10 @@ class TableBookingController extends Controller
     public function show(TableReservation $tres)
     {
         $tres->load('tables', 'guest', 'stay.room', 'order', 'outlet', 'creator');
-        $log = \App\Models\ActivityLog::with('user')->where('subject_type', 'TableReservation')->where('subject_id', $tres->id)->orderBy('id')->get();
+        $log = \App\Models\ActivityLog::with('user')->where('subject_type', 'TableReservation')->where('subject_id', $tres->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('tables.show', ['r' => $tres, 'log' => $log, 'history' => TB::history($tres->phone, $tres->guest_id, $tres->id), 'flagged' => TB::flagged($tres),
-            'tables' => PosTable::where('outlet_id', $tres->outlet_id)->where('is_active', true)->orderBy('id')->get(), 'inHouse' => $this->inHouse()]);
+            'tables' => PosTable::where('outlet_id', $tres->outlet_id)->where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'inHouse' => $this->inHouse()]);
     }
 
     protected function rules(bool $create = true): array
@@ -193,15 +194,15 @@ class TableBookingController extends Controller
         }
         TB::autoLayout($outlet);
         $c = TB::cfg($outlet);
-        $waitlist = TableReservation::where('outlet_id', $outlet->id)->whereIn('status', TableReservation::WAITING)->orderBy('created_at')->get();
+        $waitlist = TableReservation::where('outlet_id', $outlet->id)->whereIn('status', TableReservation::WAITING)->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $upcoming = TableReservation::with('tables')->where('outlet_id', $outlet->id)->whereIn('status', TableReservation::UPCOMING)
-            ->whereBetween('start_at', [now()->subMinutes((int) $c['hold_minutes'] + 30), now()->addHours(3)])->orderBy('start_at')->get();
+            ->whereBetween('start_at', [now()->subMinutes((int) $c['hold_minutes'] + 30), now()->addHours(3)])->orderBy('start_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('tables.floor', [
             'outlet' => $outlet, 'outlets' => TB::enabledOutlets(), 'live' => TB::live($outlet), 'waitlist' => $waitlist, 'upcoming' => $upcoming,
             'stats' => TB::dayStats($outlet, now()->startOfDay()), 'inHouse' => $this->inHouse(), 'cfg' => $c,
             'sections' => PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->whereNotNull('section')->distinct()->orderBy('section')->pluck('section'),
-            'tables' => PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->get(),
+            'tables' => PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'quote' => [2 => TB::estimateWait($outlet, 2), 4 => TB::estimateWait($outlet, 4), 6 => TB::estimateWait($outlet, 6)],
         ]);
     }
@@ -285,9 +286,9 @@ class TableBookingController extends Controller
     {
         $outlet = $this->outlet($request, true);
 
-        return view('tables.settings', ['outlet' => $outlet, 'outlets' => Outlet::where('is_active', true)->whereIn('type', ['restaurant', 'bar', 'cafe'])->orderBy('id')->get(),
-            'cfg' => $outlet ? TB::cfg($outlet) : TB::DEFAULTS, 'periods' => $outlet ? $outlet->periods()->get() : collect(),
-            'tables' => $outlet ? PosTable::where('outlet_id', $outlet->id)->orderBy('id')->get() : collect()]);
+        return view('tables.settings', ['outlet' => $outlet, 'outlets' => Outlet::where('is_active', true)->whereIn('type', ['restaurant', 'bar', 'cafe'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'cfg' => $outlet ? TB::cfg($outlet) : TB::DEFAULTS, 'periods' => $outlet ? $outlet->periods()->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'tables' => $outlet ? PosTable::where('outlet_id', $outlet->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect()]);
     }
 
     public function saveSettings(Request $request)

@@ -59,7 +59,7 @@ class GlController extends Controller
 
         return view('gl.show', [
             'j' => $journal, 'minDate' => $this->minDate(),
-            'departments' => \App\Models\Department::orderBy('name')->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),
+            'departments' => \App\Models\Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),
             'unallocated' => $journal->lines->filter(fn ($l) => $l->department_id === null && $l->account && $l->account->type === 'expense')->count(),
         ]);
     }
@@ -90,9 +90,9 @@ class GlController extends Controller
         $copy = $request->integer('copy') ? GlJournal::with('lines')->find($request->integer('copy')) : null;
 
         return view('gl.create', [
-            'accounts' => AccountHead::where('is_active', true)->orderBy('code')->get(),
+            'accounts' => AccountHead::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'minDate' => $this->minDate(), 'maxDate' => bdate()->toDateString(), 'copy' => $copy,
-            'departments' => \App\Models\Department::orderBy('name')->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),   // v8.1
+            'departments' => \App\Models\Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),   // v8.1
             'requireCc' => \App\Services\BudgetService::cfg()['cost_centre_required'],
         ]);
     }
@@ -199,11 +199,11 @@ class GlController extends Controller
     public function mapping()
     {
         ChartOfAccounts::ensureLight();
-        $accounts = AccountHead::where('is_active', true)->orderBy('code')->get();
+        $accounts = AccountHead::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('gl.mapping', [
             'accounts' => $accounts, 'categories' => config('pms.charge_categories'),
-            'modes' => PaymentMode::orderBy('name')->get(),
+            'modes' => PaymentMode::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'catDefaults' => collect(config('pms.charge_categories'))->mapWithKeys(fn ($l, $k) => [$k => LedgerService::categoryAccount($k)]),
             'posRevenue' => LedgerService::posRevenueAccount(),
         ]);

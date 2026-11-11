@@ -795,6 +795,11 @@ return [
         ]],
     ],
 
+    // Safety ceiling for legacy report/list queries that are not paginated yet.
+    // Interactive screens should paginate; exports should chunk. This prevents a
+    // single broad filter from exhausting PHP memory while those migrations land.
+    'max_list_rows' => max(100, (int) env('PMS_MAX_LIST_ROWS', 5000)),
+
     'charge_categories' => [
         'room' => 'Room Tariff', 'extra_bed' => 'Extra Bed / Person', 'fnb' => 'Food & Beverage', 'laundry' => 'Laundry',
         'telephone' => 'Telephone', 'minibar' => 'Minibar', 'transport' => 'Transport / Pickup', 'spa' => 'Spa',

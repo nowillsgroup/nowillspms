@@ -316,7 +316,7 @@ trait ConciergeActivitiesReports
 {
     protected function r_activity_departures($from, $to): array
     {
-        $rows = ActivityDeparture::with('activity.guest.activityBooking')->whereBetween('departure_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ActivityDeparture::with('activity.guest.activityBooking')->whereBetween('departure_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'activity' => optional($r->activity)->name, 'guest' => optional($r->guest)->name,
             'booking' => optional($r->activityBooking)->reference, 'departure' => $r->departure_date,
             'location' => $r->location, 'transport' => $r->transport_type, 'status' => $r->status,
@@ -386,8 +386,8 @@ trait ConciergeActivitiesReports
         $V = \App\Models\ActivityVendor::class;
         $done = $this->cgRows($from, $to)->whereIn('status', ['completed', 'no_show', 'cancelled'])->groupBy('activity_vendor_id');
         $open = \App\Services\ConciergeService::unsettled(null, $to)->groupBy('activity_vendor_id');
-        $paid = \App\Models\ActivitySettlement::where('status', 'posted')->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', $to)->get()->groupBy('activity_vendor_id');
-        $rows = \App\Models\ActivityVendor::orderBy('name')->get()->map(function ($v) use ($done, $open, $paid, $V) {
+        $paid = \App\Models\ActivitySettlement::where('status', 'posted')->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('activity_vendor_id');
+        $rows = \App\Models\ActivityVendor::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($done, $open, $paid, $V) {
             $d = $done[$v->id] ?? collect();
             $o = $open[$v->id] ?? collect();
             $p = $paid[$v->id] ?? collect();

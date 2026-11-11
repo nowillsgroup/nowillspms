@@ -18,11 +18,11 @@ class HousekeepingController extends Controller
         $rooms = Room::with(['roomType', 'floor', 'currentStay.reservation.guest'])->where('is_active', true)
             ->when($request->hk, fn ($q, $s) => $q->where('hk_status', $s))
             ->when($request->floor, fn ($q, $f) => $q->where('floor_id', $f))
-            ->orderBy('room_no')->get();
+            ->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('housekeeping.index', [
             'rooms' => $rooms,
-            'counts' => Room::where('is_active', true)->get()->countBy('hk_status'),
+            'counts' => Room::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get()->countBy('hk_status'),
             'floors' => \App\Models\Floor::orderBy('sort_order')->pluck('name', 'id'),
         ]);
     }
@@ -39,7 +39,7 @@ class HousekeepingController extends Controller
                 // Re-read and lock each room before changing housekeeping or
                 // operational status. A stale housekeeping screen must not
                 // turn a room vacant after front desk has checked a guest in.
-                $rooms = Room::whereIn('id', $data['rooms'])->orderBy('id')->lockForUpdate()->get();
+                $rooms = Room::whereIn('id', $data['rooms'])->orderBy('id')->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get();
                 foreach ($rooms as $room) {
                     if (! empty($data['status']) && $room->status === 'occupied') {
                         throw new RuntimeException("Room {$room->room_no} is occupied; its status can't be changed.");
@@ -71,7 +71,7 @@ class HousekeepingController extends Controller
         $date = $request->input('date', bdate()->toDateString());
         $tasks = HousekeepingTask::with('room.floor', 'employee', 'inspector')->whereDate('task_date', $date)
             ->when($request->status, fn ($q, $s) => $s === 'inspect' ? $q->where('status', 'completed')->whereNull('inspection_status')->whereNotNull('room_id')->where('task_type', '!=', 'inspection') : $q->where('status', $s))
-            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END")->get();
+            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END")->limit((int) config('pms.max_list_rows', 5000))->get();
         $staff = HousekeepingService::attendants();
 
         return view('housekeeping.tasks', [

@@ -141,23 +141,23 @@ class PropertyController extends Controller
             'property' => $hotel,
             'health' => $this->health->row($hotel),
             'access' => $this->accessRow($hotel),
-            'members' => $hotel->propertyUsers()->with('role')->orderBy('name')->get()->map(fn (User $m) => [
+            'members' => $hotel->propertyUsers()->with('role')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn (User $m) => [
                 'user' => $m,
                 'role' => $m->role?->name,
                 'is_default' => (bool) $m->pivot->is_default,
                 'last_used' => $m->pivot->last_used_at ? \Carbon\Carbon::parse($m->pivot->last_used_at) : null,
             ]),
-            'ownStaff' => User::where('hotel_id', $hotel->id)->orderBy('name')->get(),
+            'ownStaff' => User::where('hotel_id', $hotel->id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'addressLine' => collect([$hotel->address, $hotel->city, $hotel->state, $hotel->country, $hotel->pincode])->filter()->implode(', '),
             'contactLine' => collect([$hotel->phone, $hotel->email, $hotel->website])->filter()->implode(' · '),
-            'events' => $hotel->propertyEvents()->with('user')->limit(25)->get(),
+            'events' => $hotel->propertyEvents()->with('user')->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'blockers' => $this->properties->archiveBlockers($hotel),
             'candidates' => $this->grantCandidates($hotel),
             'roles' => Role::orderBy('name')->get(['id', 'name']),
             'canManage' => $this->access->canAdminister($request->user(), $hotel),
             // v10.1 a handover is a platform decision, and only to a group with room under its entitlement
             'canTransfer' => $this->access->isPlatformAdmin($request->user()) && ! $hotel->isArchived(),
-            'transferGroups' => HotelGroup::where('id', '!=', $hotel->hotel_group_id)->orderBy('name')->get(),
+            'transferGroups' => HotelGroup::where('id', '!=', $hotel->hotel_group_id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'licence' => $licence,
             'licenceCounts' => [
                 'keep' => count(array_filter($licence, fn ($m) => $m['licensed'])),
@@ -434,13 +434,13 @@ class PropertyController extends Controller
     protected function visibleGroups(User $user)
     {
         if ($this->access->isPlatformAdmin($user)) {
-            return HotelGroup::orderBy('name')->get();
+            return HotelGroup::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         }
         if ($user->is_group_admin && $user->hotel_group_id) {
-            return HotelGroup::whereKey($user->hotel_group_id)->get();
+            return HotelGroup::whereKey($user->hotel_group_id)->limit((int) config('pms.max_list_rows', 5000))->get();
         }
 
-        return HotelGroup::whereIn('id', $user->accessibleProperties()->pluck('hotel_group_id')->filter()->unique())->orderBy('name')->get();
+        return HotelGroup::whereIn('id', $user->accessibleProperties()->pluck('hotel_group_id')->filter()->unique())->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     /** Groups this user may open a property in — entitlement and suspension already applied. */

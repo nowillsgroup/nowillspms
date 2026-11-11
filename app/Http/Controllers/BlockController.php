@@ -30,7 +30,7 @@ class BlockController extends Controller
 
     protected function formData(?RoomBlock $block = null): array
     {
-        return ['block' => $block, 'types' => RoomType::where('is_active', true)->orderBy('name')->get(),
+        return ['block' => $block, 'types' => RoomType::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'companies' => Company::where('is_active', true)->orderBy('name')->pluck('name', 'id'), 'sources' => BusinessSource::orderBy('name')->pluck('name', 'id'),
             'lines' => $block ? $block->lines->pluck('rooms', 'room_type_id')->all() : []];
     }

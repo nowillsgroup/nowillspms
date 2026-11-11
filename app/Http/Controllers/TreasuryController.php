@@ -37,13 +37,13 @@ class TreasuryController extends Controller
     {
         TS::syncAccounts();
         $pos = TS::position();
-        $pending = TreasuryTransfer::with('from', 'to', 'requester')->whereIn('status', ['requested', 'approved', 'in_transit'])->orderBy('date')->get();
-        $inHand = ChequeReceived::with('company')->where('status', 'in_hand')->orderBy('received_on')->get();
-        $pdcs = ChequeReceived::with('company')->where('status', 'pdc')->orderBy('cheque_date')->limit(8)->get();
+        $pending = TreasuryTransfer::with('from', 'to', 'requester')->whereIn('status', ['requested', 'approved', 'in_transit'])->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $inHand = ChequeReceived::with('company')->where('status', 'in_hand')->orderBy('received_on')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $pdcs = ChequeReceived::with('company')->where('status', 'pdc')->orderBy('cheque_date')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get();
         $fc = TS::forecast(13);
 
         return view('treasury.index', ['pos' => $pos, 'pending' => $pending, 'inHand' => $inHand, 'pdcs' => $pdcs, 'alerts' => TS::alerts(), 'fc' => $fc,
-            'recent' => TreasuryTransfer::with('from', 'to')->where('status', 'completed')->orderByDesc('completed_on')->orderByDesc('id')->limit(6)->get()]);
+            'recent' => TreasuryTransfer::with('from', 'to')->where('status', 'completed')->orderByDesc('completed_on')->orderByDesc('id')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     // ───────────── transfers ─────────────
@@ -64,8 +64,8 @@ class TreasuryController extends Controller
         }
 
         return view('treasury.transfers', ['transfers' => $q->paginate(30)->withQueryString(), 'accounts' => $accounts, 'suggest' => $suggest,
-            'cheques' => ChequeReceived::where('status', 'in_hand')->whereNull('transfer_id')->orderBy('received_on')->get(),
-            'threshold' => (float) TS::cfg('treasury_approval_threshold'), 'feeHeads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->get()]);
+            'cheques' => ChequeReceived::where('status', 'in_hand')->whereNull('transfer_id')->orderBy('received_on')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'threshold' => (float) TS::cfg('treasury_approval_threshold'), 'feeHeads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function storeTransfer(Request $r)
@@ -148,16 +148,16 @@ class TreasuryController extends Controller
             $rq->where('status', $r->status);
         }
         $iq = ChequeIssued::with('book.account', 'payment.supplier', 'head')->orderByDesc('id');
-        $books = ChequeBook::with('account')->withCount('cheques')->orderByDesc('id')->get();
+        $books = ChequeBook::with('account')->withCount('cheques')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $banks = TS::accounts()->where('kind', 'bank')->values();
         $bookHeads = $books->where('status', 'active')->mapWithKeys(fn ($b) => [$b->id => (int) $b->account->account_head_id]);
         $linked = ChequeIssued::whereNotNull('supplier_payment_id')->where('status', '!=', 'void')->pluck('supplier_payment_id');
         $payments = SupplierPayment::with('supplier', 'paymentMode')->whereNull('cancelled_at')->whereNotIn('id', $linked)->whereDate('date', '>=', bdate()->copy()->subDays(120)->toDateString())
-            ->orderByDesc('date')->get()->filter(fn ($p) => in_array(LedgerService::modeAccount($p->payment_mode_id), $bookHeads->values()->all(), true))->values();
+            ->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($p) => in_array(LedgerService::modeAccount($p->payment_mode_id), $bookHeads->values()->all(), true))->values();
 
         return view('treasury.cheques', ['tab' => $tab, 'received' => $rq->paginate(40, ['*'], 'rpage')->withQueryString(), 'issued' => $iq->paginate(40, ['*'], 'ipage')->withQueryString(),
             'books' => $books, 'banks' => $banks, 'payments' => $payments, 'bookHeads' => $bookHeads, 'companies' => Company::orderBy('name')->get(['id', 'name']),
-            'heads' => AccountHead::where('is_active', true)->whereNotIn('group_name', ['Cash & Bank', 'Petty Cash'])->where(fn ($q) => $q->whereNull('system_key')->orWhereNotIn('system_key', TS::CONTROL_KEYS))->orderBy('code')->get(),
+            'heads' => AccountHead::where('is_active', true)->whereNotIn('group_name', ['Cash & Bank', 'Petty Cash'])->where(fn ($q) => $q->whereNull('system_key')->orWhereNotIn('system_key', TS::CONTROL_KEYS))->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stats' => ['pdc' => ChequeReceived::where('status', 'pdc')->sum('amount'), 'in_hand' => ChequeReceived::where('status', 'in_hand')->sum('amount'),
                 'deposited' => ChequeReceived::where('status', 'deposited')->sum('amount'), 'unpresented' => ChequeIssued::where('status', 'issued')->sum('amount'),
                 'bounced' => ChequeReceived::where('status', 'bounced')->whereDate('bounced_on', '>=', bdate()->copy()->subDays(90)->toDateString())->count()]]);
@@ -242,7 +242,7 @@ class TreasuryController extends Controller
     {
         $weeks = max(4, min(26, (int) $r->query('weeks', 13)));
 
-        return view('treasury.forecast', ['fc' => TS::forecast($weeks), 'weeks' => $weeks, 'lines' => CashForecastLine::with('creator')->orderByDesc('is_active')->orderBy('first_date')->get()]);
+        return view('treasury.forecast', ['fc' => TS::forecast($weeks), 'weeks' => $weeks, 'lines' => CashForecastLine::with('creator')->orderByDesc('is_active')->orderBy('first_date')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function storeLine(Request $r)
@@ -295,7 +295,7 @@ class TreasuryController extends Controller
     public function accounts()
     {
         TS::syncAccounts();
-        $heads = AccountHead::whereIn('type', ['asset', 'liability', 'equity'])->orderBy('code')->get();
+        $heads = AccountHead::whereIn('type', ['asset', 'liability', 'equity'])->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('treasury.accounts', ['accounts' => TS::accounts(false), 'pos' => TS::position(), 'heads' => $heads, 'cfg' => collect(TS::DEFAULTS)->mapWithKeys(fn ($v, $k) => [$k => TS::cfg($k)])]);
     }

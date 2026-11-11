@@ -56,7 +56,7 @@ class PurchaseController extends Controller
         });
 
         // 1. the commitment: approved or part-received, and the goods have not all arrived — money promised, not yet posted
-        $openOrders = PurchaseOrder::with('supplier')->whereIn('status', ['approved', 'partial'])->get();
+        $openOrders = PurchaseOrder::with('supplier')->whereIn('status', ['approved', 'partial'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $openReceived = $receivedOf($openOrders->pluck('id')->all());
         $openRows = $openOrders->map(function ($po) use ($openReceived, $receivedFor, $asOf, $ageOf) {
             $received = $receivedFor($po, $openReceived);
@@ -73,7 +73,7 @@ class PurchaseController extends Controller
             'rows' => $openRows->sortByDesc('open')->take(10)->values()->all()];
 
         // 2. the gate: who has to approve what, and who may not — the matrix the approve button itself tests
-        $drafts = PurchaseOrder::with('items', 'supplier')->where('status', 'draft')->where('total', '>', 0)->get();
+        $drafts = PurchaseOrder::with('items', 'supplier')->where('status', 'draft')->where('total', '>', 0)->limit((int) config('pms.max_list_rows', 5000))->get();
         $levelRows = [];
         foreach ([1, 2, 3] as $level) {
             $set = $drafts->filter(fn ($po) => ProcurementService::requiredLevel($po) === $level)->sortByDesc('total')->values();
@@ -92,7 +92,7 @@ class PurchaseController extends Controller
             'segregation' => setting('po_segregation', '0') === '1'];
 
         // 3. the match: a receipt and the bill for it must be the same money, order by order
-        $matched = PurchaseOrder::with(['supplier', 'store', 'bill' => $onLedger])->whereIn('status', ['received', 'partial', 'closed'])->get();
+        $matched = PurchaseOrder::with(['supplier', 'store', 'bill' => $onLedger])->whereIn('status', ['received', 'partial', 'closed'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $matchReceived = $receivedOf($matched->pluck('id')->all());
         $matchRows = $matched->map(function ($po) use ($matchReceived, $receivedFor) {
             $received = $receivedFor($po, $matchReceived);
@@ -122,9 +122,9 @@ class PurchaseController extends Controller
         return view('inventory.po-form', [
             'suppliers' => Supplier::where('is_active', true)->pluck('name', 'id'),
             'stores' => Store::pluck('name', 'id'),
-            'items' => InventoryItem::where('is_active', true)->orderBy('name')->get(),
+            'items' => InventoryItem::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'prices' => ProcurementService::priceMap(), 'limits' => ProcurementService::limits(),
-            'currencies' => Currency::where('is_active', true)->orderBy('sort_order')->orderBy('code')->get(),
+            'currencies' => Currency::where('is_active', true)->orderBy('sort_order')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'home' => $home, 'fxEnabled' => \App\Services\ForexService::apConvert(),
             'fxRateUrl' => route('purchases.fx-rate'),
         ]);

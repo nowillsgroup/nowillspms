@@ -33,11 +33,11 @@ class HotelGroupController extends Controller
 
         return view('group.account', [
             'group' => $group,
-            'rows' => $this->health->rows($group->hotels()->orderBy('sort_order')->orderBy('name')->get()),
-            'summary' => $this->health->summarise($this->health->rows($group->hotels()->orderBy('name')->get())),
-            'events' => PropertyEvent::where('hotel_group_id', $group->id)->with(['user', 'hotel'])->latest('id')->limit(20)->get(),
+            'rows' => $this->health->rows($group->hotels()->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()),
+            'summary' => $this->health->summarise($this->health->rows($group->hotels()->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get())),
+            'events' => PropertyEvent::where('hotel_group_id', $group->id)->with(['user', 'hotel'])->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'canSuspendGroup' => $this->access->isPlatformAdmin($request->user()),
-            'admins' => $group->admins()->with('role')->orderBy('name')->get(),
+            'admins' => $group->admins()->with('role')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'types' => PropertyController::PROPERTY_TYPES,
             // v10.3 what the tenant bought, module by module
             'licence' => LicenceService::stateFor($group),

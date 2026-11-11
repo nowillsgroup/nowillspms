@@ -316,7 +316,7 @@ trait PartnerOrganiserPortalsReports
 {
     protected function r_organiser_access($from, $to): array
     {
-        $list = \App\Models\OrganiserAudit::with('company', 'organiserUser')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
+        $list = \App\Models\OrganiserAudit::with('company', 'organiserUser')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($x) => ['at' => $x->created_at->format('d-m-Y H:i:s'), 'org' => $x->company?->name ?? '—', 'user' => $x->organiserUser ? $x->organiserUser->name.' <'.$x->organiserUser->email.'>' : 'unknown',
             'action' => str_replace('_', ' ', $x->action), 'detail' => $x->detail, 'ip' => $x->ip,
             '_class' => in_array($x->action, ['locked', 'login_blocked'], true) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
@@ -330,7 +330,7 @@ trait PartnerOrganiserPortalsReports
     protected function r_organiser_events($from, $to): array
     {
         $OS = \App\Services\OrganiserService::class;
-        $list = \App\Models\BanquetEvent::with('company', 'functions')->where('portal_enabled', true)->get()
+        $list = \App\Models\BanquetEvent::with('company', 'functions')->where('portal_enabled', true)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($e) => [$e->functions->min('date')?->toDateString() ?? '9999', $e->event_no])->values();
         $online = \App\Models\OnlinePayment::where('purpose', 'banquet')->where('status', 'paid')->whereIn('banquet_event_id', $list->pluck('id'))
             ->selectRaw('banquet_event_id, sum(amount_received) s')->groupBy('banquet_event_id')->pluck('s', 'banquet_event_id');
@@ -356,7 +356,7 @@ trait PartnerOrganiserPortalsReports
 
     protected function r_organiser_payments($from, $to): array
     {
-        $list = \App\Models\OnlinePayment::with('event')->where('purpose', 'banquet')->whereBetween('paid_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('paid_at')->get();
+        $list = \App\Models\OnlinePayment::with('event')->where('purpose', 'banquet')->whereBetween('paid_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('paid_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($p) => ['at' => $p->paid_at->format('d-m-Y H:i'), 'event' => $p->event?->event_no, 'title' => \Illuminate\Support\Str::limit((string) $p->event?->title, 40),
             'payer' => $p->payer_name, 'channel' => str_replace('_', ' ', (string) $p->channel), 'amount' => (float) $p->received(), 'ref' => $p->provider_payment_id,
             'status' => ucfirst($p->status !== 'paid' ? $p->status : ($p->refunded_amount > 0 ? 'refunded' : 'paid')),
@@ -370,7 +370,7 @@ trait PartnerOrganiserPortalsReports
 
     protected function r_organiser_requests($from, $to): array
     {
-        $list = \App\Models\OrganiserRequest::with('company', 'organiserUser', 'event', 'decider')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
+        $list = \App\Models\OrganiserRequest::with('company', 'organiserUser', 'event', 'decider')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($q) => ['no' => $q->number, 'at' => $q->created_at->format('d-m-Y H:i'), 'type' => \App\Models\OrganiserRequest::TYPES[$q->type],
             'org' => $q->company?->name ?? $q->organiserUser?->name, 'by' => $q->organiserUser?->name, 'event' => $q->event?->event_no,
             'what' => \Illuminate\Support\Str::limit($q->details ?: ($q->payload['title'] ?? ''), 110), 'status' => \App\Models\OrganiserRequest::STATUSES[$q->status],
@@ -387,7 +387,7 @@ trait PartnerOrganiserPortalsReports
     protected function r_partner_access($from, $to): array
     {
         $list = \App\Models\PartnerAudit::with('company', 'partnerUser')->whereIn('action', ['login', 'login_failed', 'login_blocked', 'locked', 'unlocked', 'logout', 'timeout', 'password', 'reset_requested', 'user'])
-            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($x) => ['at' => $x->created_at->format('d-m-Y H:i:s'), 'partner' => $x->company?->name ?? '—', 'user' => $x->partnerUser ? $x->partnerUser->name.' <'.$x->partnerUser->email.'>' : 'unknown',
             'action' => str_replace('_', ' ', $x->action), 'detail' => $x->detail, 'ip' => $x->ip,
             '_class' => in_array($x->action, ['locked', 'login_blocked'], true) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
@@ -402,7 +402,7 @@ trait PartnerOrganiserPortalsReports
     {
         $PS = \App\Services\PartnerService::class;
         $list = \App\Models\Reservation::with('company', 'partnerUser', 'guest', 'rooms.roomType')->whereNotNull('partner_user_id')
-            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($r) use ($PS) {
             $live = $r->rooms->where('status', '!=', 'cancelled');
             $set = $live->isEmpty() ? $r->rooms : $live;
@@ -426,9 +426,9 @@ trait PartnerOrganiserPortalsReports
         $PS = \App\Services\PartnerService::class;
         $a = $from->copy()->startOfDay();
         $b = $to->copy()->endOfDay();
-        $companies = \App\Models\Company::whereIn('type', ['corporate', 'travel_agent'])->where(fn ($q) => $q->where('portal_enabled', true)->orWhereHas('partnerUsers'))->orderBy('name')->get();
+        $companies = \App\Models\Company::whereIn('type', ['corporate', 'travel_agent'])->where(fn ($q) => $q->where('portal_enabled', true)->orWhereHas('partnerUsers'))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $companies->map(function ($c) use ($a, $b, $PS) {
-            $all = \App\Models\Reservation::with('rooms')->where('company_id', $c->id)->whereBetween('created_at', [$a, $b])->get();
+            $all = \App\Models\Reservation::with('rooms')->where('company_id', $c->id)->whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get();
             $portal = $all->whereNotNull('partner_user_id');
             $live = $portal->where('status', '!=', 'cancelled');
 
@@ -448,7 +448,7 @@ trait PartnerOrganiserPortalsReports
 
     protected function r_partner_requests($from, $to): array
     {
-        $list = \App\Models\PartnerRequest::with('company', 'partnerUser', 'reservation', 'decider')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
+        $list = \App\Models\PartnerRequest::with('company', 'partnerUser', 'reservation', 'decider')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($q) => ['no' => $q->number, 'at' => $q->created_at->format('d-m-Y H:i'), 'type' => \App\Models\PartnerRequest::TYPES[$q->type], 'partner' => $q->company?->name, 'by' => $q->partnerUser?->name,
             'booking' => $q->reservation?->reservation_no, 'what' => \Illuminate\Support\Str::limit($q->reason ?: $q->details, 110), 'status' => \App\Models\PartnerRequest::STATUSES[$q->status],
             'decider' => $q->decider?->name, 'note' => \Illuminate\Support\Str::limit((string) $q->decision_note, 90), 'hours' => $q->responseHours(),

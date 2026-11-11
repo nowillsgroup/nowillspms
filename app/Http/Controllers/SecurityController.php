@@ -37,20 +37,20 @@ class SecurityController extends Controller
         }
         $v = ['tab' => $tab, 'cfg' => SecurityService::cfg(), 'snap' => SecurityService::snapshot()];
         if (can_do('security.visitors')) {   // the "Register visitor" dialog is on every tab
-            $v['stays'] = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->get()
+            $v['stays'] = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->sortBy(fn ($s) => $s->room?->room_no)->values();
             $v['staff'] = User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->pluck('name', 'id');
-            $v['events'] = SecurityService::eventsNow()->get();
+            $v['events'] = SecurityService::eventsNow()->limit((int) config('pms.max_list_rows', 5000))->get();
         }
         switch ($tab) {
             case 'onsite':
                 $v['list'] = Visitor::with('room', 'watch', 'stay')->whereIn('status', ['awaiting', 'in'])
-                    ->orderByRaw("status = 'awaiting' desc")->orderBy('valid_until')->get();
-                $v['private'] = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->where('visitor_policy', '!=', 'allow')->get();
-                $v['arriving'] = Visitor::with('room')->where('status', 'expected')->whereBetween('expected_at', [now()->subHours(3), now()->addHours(2)])->orderBy('expected_at')->get();
+                    ->orderByRaw("status = 'awaiting' desc")->orderBy('valid_until')->limit((int) config('pms.max_list_rows', 5000))->get();
+                $v['private'] = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->where('visitor_policy', '!=', 'allow')->limit((int) config('pms.max_list_rows', 5000))->get();
+                $v['arriving'] = Visitor::with('room')->where('status', 'expected')->whereBetween('expected_at', [now()->subHours(3), now()->addHours(2)])->orderBy('expected_at')->limit((int) config('pms.max_list_rows', 5000))->get();
                 break;
             case 'expected':
-                $v['list'] = Visitor::with('room', 'stay')->where('status', 'expected')->orderBy('expected_at')->get();
+                $v['list'] = Visitor::with('room', 'stay')->where('status', 'expected')->orderBy('expected_at')->limit((int) config('pms.max_list_rows', 5000))->get();
                 break;
             case 'log':
                 $from = $request->date('from') ?? now()->subDays(6)->startOfDay();
@@ -65,7 +65,7 @@ class SecurityController extends Controller
                     ->latest('id')->paginate(50)->withQueryString();
                 break;
             case 'watchlist':
-                $v['list'] = SecurityWatch::with('creator')->orderByDesc('is_active')->orderBy('name')->get();
+                $v['list'] = SecurityWatch::with('creator')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
                 $v['hits'] = Visitor::whereNotNull('watchlist_id')->where('created_at', '>=', now()->subDays(90))->selectRaw('watchlist_id, count(*) n')->groupBy('watchlist_id')->pluck('n', 'watchlist_id');
                 break;
         }

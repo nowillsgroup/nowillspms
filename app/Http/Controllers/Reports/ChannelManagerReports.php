@@ -316,7 +316,7 @@ trait ChannelManagerReports
 {
     protected function r_channel_ari_states($from, $to): array
     {
-        $rows = ChannelAriState::with('channel')->whereBetween('state_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ChannelAriState::with('channel')->whereBetween('state_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->channel)->name, 'date' => $r->state_date,
             'rooms_sold' => $r->rooms_sold, 'rooms_available' => $r->rooms_available,
             'occupancy' => $r->occupancy_pct, 'rate_par' => $r->rate_par, 'rate_achieved' => $r->rate_achieved,
@@ -327,7 +327,7 @@ trait ChannelManagerReports
 
     protected function r_channel_messages($from, $to): array
     {
-        $rows = ChannelMessage::with('channel')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ChannelMessage::with('channel')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->channel)->name, 'sent' => $r->sent_at,
             'direction' => $r->direction, 'content' => $r->content, 'guest' => $r->guest_id,
             'status' => $r->status, 'direction' => $r->direction,
@@ -341,7 +341,7 @@ trait ChannelManagerReports
         $days = min(60, max(1, (int) $f->diffInDays(Carbon::parse($to)->startOfDay()) + 1));
         $types = \App\Models\RoomType::pluck('name', 'id');
         $rows = collect();
-        foreach (\App\Models\ChannelConnection::where('is_active', true)->orderBy('name')->get() as $c) {
+        foreach (\App\Models\ChannelConnection::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             foreach (\App\Services\ChannelService::parity($c, $f, $days) as $typeId => $byDate) {
                 foreach ($byDate as $date => $cell) {
                     if (! $cell['out_of_sync']) {
@@ -368,7 +368,7 @@ trait ChannelManagerReports
         $t = Carbon::parse($to)->endOfDay();
         $res = \App\Models\Reservation::whereNotNull('channel_connection_id')->whereBetween('created_at', [$f, $t])
             ->get(['id', 'channel_connection_id', 'status', 'arrival_date', 'departure_date', 'created_at', 'channel_amount', 'channel_commission', 'channel_payment'])->groupBy('channel_connection_id');
-        $rows = \App\Models\ChannelConnection::orderBy('name')->get()->map(function ($c) use ($res) {
+        $rows = \App\Models\ChannelConnection::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($c) use ($res) {
             $all = $res->get($c->id, collect());
             $live = $all->where('status', '!=', 'cancelled');
             $nights = $live->sum(fn ($r) => $r->arrival_date->diffInDays($r->departure_date));
@@ -391,7 +391,7 @@ trait ChannelManagerReports
 
     protected function r_channel_rate_maps($from, $to): array
     {
-        $rows = ChannelRateMap::with('channel.roomType.ratePlan')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ChannelRateMap::with('channel.roomType.ratePlan')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->channel)->name, 'room_type' => optional($r->roomType)->name,
             'plan' => optional($r->ratePlan)->name, 'rate' => $r->rate, 'currency' => $r->currency,
             'meal' => $r->meal_plan, 'rooms_left' => $r->rooms_left, 'min_stay' => $r->min_stay,
@@ -402,7 +402,7 @@ trait ChannelManagerReports
 
     protected function r_channel_restrictions($from, $to): array
     {
-        $rows = ChannelRestriction::with('channel.roomType')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ChannelRestriction::with('channel.roomType')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->channel)->name, 'room_type' => optional($r->roomType)->name,
             'type' => $r->restriction_type, 'value' => $r->restriction_value,
             'from' => $r->effective_from, 'to' => $r->effective_to, 'status' => $r->status,
@@ -412,7 +412,7 @@ trait ChannelManagerReports
 
     protected function r_channel_room_maps($from, $to): array
     {
-        $rows = ChannelRoomMap::with('channel.roomType')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ChannelRoomMap::with('channel.roomType')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->channel)->name, 'room_type' => optional($r->roomType)->name,
             'sellable' => $r->sellable, 'capacity' => $r->capacity, 'rate' => $r->rate,
             'currency' => $r->currency, 'inventory_type' => $r->inventory_type,
@@ -423,7 +423,7 @@ trait ChannelManagerReports
 
     protected function r_channel_sync_log($from, $to): array
     {
-        $rows = \App\Models\ChannelPush::with('connection:id,name')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('id')->get()
+        $rows = \App\Models\ChannelPush::with('connection:id,name')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($p) => $p->created_at->toDateString().'|'.$p->channel_connection_id)
             ->map(function ($g) {
                 $failed = $g->where('status', 'failed');
@@ -441,7 +441,7 @@ trait ChannelManagerReports
     protected function r_ota_channels($from, $to): array
     {
         // Rewritten against the real schema: channels map to room type + business source; there is no channel type table.
-        $rows = OtaChannel::with('roomType', 'source')->get()->map(fn ($r) => [
+        $rows = OtaChannel::with('roomType', 'source')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'room_type' => optional($r->roomType)->name,
             'source' => optional($r->source)->name,
             'active' => $r->is_active ? 'Yes' : 'No', 'last_sync' => $r->last_sync_at,

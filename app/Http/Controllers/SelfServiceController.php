@@ -31,12 +31,12 @@ class SelfServiceController extends Controller
         }
         $month = bdate()->copy()->startOfMonth();
 
-        return view('me.hr', ['e' => $e, 'balances' => LeaveService::balances($e), 'types' => LeaveType::where('is_active', true)->orderBy('id')->get(),
-            'requests' => $e->leaveRequests()->with('leaveType', 'decider')->orderByDesc('date_from')->limit(20)->get(),
-            'slips' => Payslip::with('run')->where('employee_id', $e->id)->whereHas('run', fn ($q) => $q->whereIn('status', ['approved', 'paid']))->latest('id')->limit(12)->get(),
-            'advances' => $e->advances()->whereNull('cancelled_at')->orderByDesc('date')->get()->filter(fn ($a) => $a->outstanding() > 0),
+        return view('me.hr', ['e' => $e, 'balances' => LeaveService::balances($e), 'types' => LeaveType::where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'requests' => $e->leaveRequests()->with('leaveType', 'decider')->orderByDesc('date_from')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'slips' => Payslip::with('run')->where('employee_id', $e->id)->whereHas('run', fn ($q) => $q->whereIn('status', ['approved', 'paid']))->latest('id')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'advances' => $e->advances()->whereNull('cancelled_at')->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($a) => $a->outstanding() > 0),
             'att' => PayrollService::attendanceSummary($e, $month, bdate()->copy()),
-            'recent' => Attendance::where('employee_id', $e->id)->whereDate('date', '>=', bdate()->copy()->subDays(13)->toDateString())->orderByDesc('date')->get(),
+            'recent' => Attendance::where('employee_id', $e->id)->whereDate('date', '>=', bdate()->copy()->subDays(13)->toDateString())->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'month' => $month]);
     }
 
@@ -93,9 +93,9 @@ class SelfServiceController extends Controller
 
         return view('me.roster', ['e' => $e, 'today' => $today, 'days' => $days, 'shifts' => $shifts,
             'open' => \App\Services\TimeClockService::openPunch($e),
-            'punches' => \App\Models\TimePunch::with('shift')->where('employee_id', $e->id)->whereDate('work_date', '>=', now()->subDays(13)->toDateString())->orderByDesc('clock_in')->get(),
+            'punches' => \App\Models\TimePunch::with('shift')->where('employee_id', $e->id)->whereDate('work_date', '>=', now()->subDays(13)->toDateString())->orderByDesc('clock_in')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'selfOn' => setting('timeclock_self', '1') === '1', 'ipOk' => \App\Services\TimeClockService::ipAllowed($request->ip()),
-            'swaps' => (clone $swapIds)->with('requester', 'colleague', 'shift', 'colleagueShift', 'decider')->latest('id')->limit(15)->get(),
+            'swaps' => (clone $swapIds)->with('requester', 'colleague', 'shift', 'colleagueShift', 'decider')->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'colleagues' => Employee::where('department_id', $e->department_id)->where('is_active', true)->whereKeyNot($e->id)->orderBy('name')->pluck('name', 'id'),
             'swappable' => $shifts->filter(fn ($s) => $s->isShift() && $s->startsAt()?->gt(now()->addHours((int) setting('roster_swap_notice_hours', '12')))),
             'hasPin' => (bool) $e->clock_pin]);

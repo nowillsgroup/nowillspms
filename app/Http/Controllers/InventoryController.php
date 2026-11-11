@@ -24,12 +24,12 @@ class InventoryController extends Controller
      */
     public function index(Request $request)
     {
-        $stores = Store::orderBy('name')->get();
+        $stores = Store::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $stock = StockMovement::select('inventory_item_id', 'store_id', DB::raw('SUM(qty) as qty'), DB::raw('MAX(date) as last_on'))
-            ->groupBy('inventory_item_id', 'store_id')->get()->groupBy('inventory_item_id');
+            ->groupBy('inventory_item_id', 'store_id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('inventory_item_id');
         $items = InventoryItem::with('category')->where('is_active', true)
             ->when($request->category, fn ($q, $c) => $q->where('item_category_id', $c))
-            ->when($request->q, fn ($q, $t) => $q->where('name', 'like', "%$t%"))->orderBy('name')->get()
+            ->when($request->q, fn ($q, $t) => $q->where('name', 'like', "%$t%"))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(function ($i) use ($stock, $stores) {
                 $rows = $stock[$i->id] ?? collect();
                 $i->by_store = $rows->pluck('qty', 'store_id');
@@ -114,10 +114,10 @@ class InventoryController extends Controller
      */
     public function movement(Request $request)
     {
-        $stores = Store::orderBy('name')->get();
+        $stores = Store::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $storeId = (int) ($request->input('store_id') ?: ($stores->first()?->id ?? 0));
         $store = $stores->firstWhere('id', $storeId);
-        $items = InventoryItem::where('is_active', true)->orderBy('name')->get();
+        $items = InventoryItem::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         $qty = StockMovement::where('store_id', $storeId)->select('inventory_item_id', DB::raw('SUM(qty) as qty'))
             ->groupBy('inventory_item_id')->pluck('qty', 'inventory_item_id');
@@ -143,7 +143,7 @@ class InventoryController extends Controller
         // what has already left this store since the first of the month
         $since = bdate()->copy()->startOfMonth();
         $out = StockMovement::with('item', 'user')->where('store_id', $storeId)->whereDate('date', '>=', $since)
-            ->whereDate('date', '<=', bdate())->where('qty', '<', 0)->orderByDesc('date')->get();
+            ->whereDate('date', '<=', bdate())->where('qty', '<', 0)->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $label = fn ($type) => ucfirst(str_replace('_', ' ', (string) $type));
         $month = ['count' => $out->count(), 'units' => round((float) $out->sum(fn ($m) => abs((float) $m->qty)), 2),
             'value' => round((float) $out->sum(fn ($m) => abs((float) $m->qty * (float) $m->rate)), 2),
@@ -244,7 +244,7 @@ class InventoryController extends Controller
             ->orderByDesc('date')->orderByDesc('id')->paginate(50)->withQueryString();
 
         $window = $filter(StockMovement::with('item', 'store', 'user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to))
-            ->orderBy('date')->orderBy('id')->get();
+            ->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         $ins = $window->filter(fn ($m) => (float) $m->qty > 0);
         $outs = $window->filter(fn ($m) => (float) $m->qty < 0);
@@ -282,7 +282,7 @@ class InventoryController extends Controller
         $opening = $filter(StockMovement::whereDate('date', '<', $from))
             ->select('inventory_item_id', DB::raw('SUM(qty) as qty'))->groupBy('inventory_item_id')->pluck('qty', 'inventory_item_id');
         $ids = $window->pluck('inventory_item_id')->merge($opening->keys())->unique()->filter()->values();
-        $items = InventoryItem::whereIn('id', $ids)->get()->keyBy('id');
+        $items = InventoryItem::whereIn('id', $ids)->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
 
         $balanceRows = $window->groupBy('inventory_item_id')->map(function ($set, $itemId) use ($opening, $items) {
             $item = $items[$itemId] ?? null;

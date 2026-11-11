@@ -31,7 +31,7 @@ class AssetController extends Controller
                     ->orWhere('location', 'like', $term)->orWhereHas('room', fn ($r) => $r->where('room_no', $request->q)));
             });
 
-        $live = Asset::withSum('depLines', 'amount')->where('status', '!=', 'disposed')->get();
+        $live = Asset::withSum('depLines', 'amount')->where('status', '!=', 'disposed')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('assets.index', [
             'assets' => $q->orderBy('asset_no')->paginate(30)->withQueryString(),
@@ -84,11 +84,11 @@ class AssetController extends Controller
 
         return view('assets.show', [
             'a' => $asset,
-            'lines' => $asset->hasMany(\App\Models\AssetDepLine::class)->with('run')->orderByDesc('id')->get(),
+            'lines' => $asset->hasMany(\App\Models\AssetDepLine::class)->with('run')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'projection' => AssetService::projection($asset, 12),
-            'tickets' => $asset->tickets()->with('employee', 'schedule')->latest()->limit(25)->get(),
-            'schedules' => $asset->schedules()->orderBy('next_due')->get(),
-            'journals' => GlJournal::whereIn('source_type', ['asset', 'asset_disp'])->where('source_key', (string) $asset->id)->orderBy('id')->get(),
+            'tickets' => $asset->tickets()->with('employee', 'schedule')->latest()->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'schedules' => $asset->schedules()->orderBy('next_due')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'journals' => GlJournal::whereIn('source_type', ['asset', 'asset_disp'])->where('source_key', (string) $asset->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'qr' => (new \chillerlan\QRCode\QRCode($opts))->render(route('assets.show', $asset)),
             'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'online', 'gift_voucher'])->pluck('name', 'id'),
             'repairCost' => (float) $asset->tickets()->sum('cost'),
@@ -134,7 +134,7 @@ class AssetController extends Controller
         $assets = Asset::with('room')->where('status', '!=', 'disposed')
             ->when($ids, fn ($q) => $q->whereIn('id', $ids))
             ->when(! $ids && $request->filled('category'), fn ($q) => $q->where('asset_category_id', $request->integer('category')))
-            ->orderBy('asset_no')->limit(200)->get();
+            ->orderBy('asset_no')->limit(200)->limit((int) config('pms.max_list_rows', 5000))->get();
         $opts = new \chillerlan\QRCode\QROptions(['outputType' => \chillerlan\QRCode\Output\QROutputInterface::MARKUP_SVG, 'outputBase64' => false,
             'svgAddXmlHeader' => false, 'eccLevel' => \chillerlan\QRCode\Common\EccLevel::L, 'addQuietzone' => false]);
         $qr = new \chillerlan\QRCode\QRCode($opts);
@@ -144,7 +144,7 @@ class AssetController extends Controller
 
     public function export(Request $request)
     {
-        $rows = Asset::with('category', 'room')->withSum('depLines', 'amount')->orderBy('asset_no')->get();
+        $rows = Asset::with('category', 'room')->withSum('depLines', 'amount')->orderBy('asset_no')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');
@@ -162,7 +162,7 @@ class AssetController extends Controller
     public function categories()
     {
         return view('assets.categories', ['categories' => AssetCategory::withCount(['assets' => fn ($q) => $q->where('status', '!=', 'disposed')])
-            ->withSum(['assets' => fn ($q) => $q->where('status', '!=', 'disposed')], 'cost')->orderBy('name')->get()]);
+            ->withSum(['assets' => fn ($q) => $q->where('status', '!=', 'disposed')], 'cost')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveCategory(Request $request, ?AssetCategory $acat = null)
@@ -208,11 +208,11 @@ class AssetController extends Controller
     {
         $fa = AssetService::faHeads();
         $bills = SupplierInvoice::with('supplier')->where('type', 'invoice')->where('status', '!=', 'cancelled')
-            ->whereHas('lines', fn ($q) => $q->whereIn('account_head_id', $fa))->orderByDesc('doc_date')->limit(100)->get();
+            ->whereHas('lines', fn ($q) => $q->whereIn('account_head_id', $fa))->orderByDesc('doc_date')->limit(100)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return [
             'a' => $a,
-            'categories' => AssetCategory::where('is_active', true)->orWhere('id', $a->asset_category_id)->orderBy('name')->get(),
+            'categories' => AssetCategory::where('is_active', true)->orWhere('id', $a->asset_category_id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rooms' => Room::orderBy('room_no')->pluck('room_no', 'id'),
             'staff' => Employee::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'suppliers' => \App\Models\Supplier::orderBy('name')->pluck('name', 'id'),

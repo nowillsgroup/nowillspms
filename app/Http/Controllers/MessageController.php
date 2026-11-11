@@ -52,7 +52,7 @@ class MessageController extends Controller
         }
         foreach (MessageService::SECRETS as $k) {
             if (in_array($k, $data['clear_secrets'] ?? [], true)) {
-                Setting::where('key', $k)->get()->each->delete();
+                Setting::where('key', $k)->limit((int) config('pms.max_list_rows', 5000))->get()->each->delete();
             } else {
                 MessageService::storeSecret($k, $data[$k] ?? null);
             }

@@ -69,7 +69,7 @@ class LostFoundController extends Controller
     public function show(LostFoundItem $item)
     {
         $item->load('room', 'stay.room', 'stay.reservation', 'guest', 'finder', 'releaser', 'disposer', 'witness', 'report');
-        $openReports = $item->isStored() ? LostReport::where('status', 'open')->orderByDesc('id')->get()
+        $openReports = $item->isStored() ? LostReport::where('status', 'open')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($r) => LostFoundService::candidates($r, 20)->contains('id', $item->id))->values() : collect();
 
         return view('lostfound.show', ['i' => $item, 'openReports' => $openReports]);

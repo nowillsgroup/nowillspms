@@ -17,15 +17,16 @@ class RateController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d']);
         $request->validate(['from' => 'nullable|date', 'days' => 'nullable|integer|in:14,21,30,45,60']);
         $from = Carbon::parse($request->input('from', bdate()->toDateString()))->startOfDay();
         $days = (int) $request->input('days', 30);
-        $types = RoomType::where('is_active', true)->orderBy('base_rate')->get();
+        $types = RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('rates.index', [
             'from' => $from, 'days' => $days, 'types' => $types,
             'grid' => RateService::calendar($types, $from, $days),
-            'overrides' => RateOverride::with('roomType', 'creator')->where('source', '!=', 'rm')->whereDate('date_to', '>=', bdate()->toDateString())->orderBy('date_from')->get(),
+            'overrides' => RateOverride::with('roomType', 'creator')->where('source', '!=', 'rm')->whereDate('date_to', '>=', bdate()->toDateString())->orderBy('date_from')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rmCount' => RateOverride::where('source', 'rm')->whereDate('date_to', '>=', bdate()->toDateString())->count(),
             'rmMode' => \App\Services\RevenueService::mode(),
         ]);

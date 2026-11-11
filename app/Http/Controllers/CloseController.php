@@ -77,7 +77,7 @@ class CloseController extends Controller
 
         return view('close.show', [
             'p' => $p, 'tasks' => $p->tasks, 'due' => $p->status === 'open' ? CS::due($month) : collect(),
-            'postings' => PeriodPosting::with('journal', 'accrual', 'recurring')->where(fn ($q) => $q->where('period', $month)->orWhere(fn ($b) => $b->whereDate('date', '>=', $p->start()->toDateString())->whereDate('date', '<=', $E)))->orderBy('date')->orderBy('id')->get(),
+            'postings' => PeriodPosting::with('journal', 'accrual', 'recurring')->where(fn ($q) => $q->where('period', $month)->orWhere(fn ($b) => $b->whereDate('date', '>=', $p->start()->toDateString())->whereDate('date', '<=', $E)))->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'blockers' => $p->status === 'open' ? CS::blockers($p) : [], 'lock' => LedgerService::lockDate(), 'lastClosed' => CS::lastClosed(),
             'prev' => $month > CS::startPeriod() ? CS::prev($month) : null, 'next' => $month < CS::currentPeriod() ? CS::next($month) : null, 'prevRow' => $prevRow,
             'pnl' => \App\Services\GlReportService::profitLoss($p->start()->toDateString(), $E), 'yearClose' => $p->isYearEnd() ? CS::yearClose((int) $p->fiscal_year) : null,
@@ -201,7 +201,7 @@ class CloseController extends Controller
 
     protected function accountLists(): array
     {
-        $a = AccountHead::where('is_active', true)->orderBy('code')->get();
+        $a = AccountHead::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return ['expense' => $a->where('type', 'expense')->values(), 'income' => $a->where('type', 'income')->values(), 'balance' => $a->whereIn('type', ['asset', 'liability'])->values(), 'all' => $a];
     }
@@ -211,8 +211,8 @@ class CloseController extends Controller
         $q = Accrual::with('plAccount', 'balanceAccount', 'supplier', 'creator', 'approver')
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status), fn ($q) => $q->whereNotIn('status', ['rejected']));
-        $rows = $q->orderByRaw("FIELD(status, 'pending', 'active', 'completed', 'cancelled', 'rejected')")->orderByDesc('id')->get();
-        $all = Accrual::whereIn('status', ['active', 'completed'])->get();
+        $rows = $q->orderByRaw("FIELD(status, 'pending', 'active', 'completed', 'cancelled', 'rejected')")->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $all = Accrual::whereIn('status', ['active', 'completed'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $asOf = bdate()->toDateString();
 
         return view('close.accruals', [
@@ -274,7 +274,7 @@ class CloseController extends Controller
 
     public function recurring(Request $request)
     {
-        $rows = RecurringJournal::with('creator', 'approver', 'postings.journal')->orderByRaw("FIELD(status, 'pending', 'active', 'paused', 'ended', 'rejected')")->orderBy('code')->get();
+        $rows = RecurringJournal::with('creator', 'approver', 'postings.journal')->orderByRaw("FIELD(status, 'pending', 'active', 'paused', 'ended', 'rejected')")->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('close.recurring', ['rows' => $rows, 'accounts' => $this->accountLists()['all'], 'names' => AccountHead::pluck('name', 'id'), 'codes' => AccountHead::pluck('code', 'id'),
             'minStart' => CS::startPeriod(), 'curPeriod' => CS::currentPeriod(), 'open' => $request->integer('open')]);
@@ -322,11 +322,11 @@ class CloseController extends Controller
         $cur = BudgetService::currentFy();
         $fy = max($first, min($cur, $request->integer('fy') ?: $cur));
         $months = collect(BudgetService::months($fy))->map(fn ($d) => $d->format('Y-m'));
-        $rows = ClosePeriod::whereIn('period', $months->all())->get()->keyBy('period');
+        $rows = ClosePeriod::whereIn('period', $months->all())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('period');
 
         return view('close.yearend', [
             'fy' => $fy, 'years' => range($cur, $first), 'preview' => CS::yearEndPreview($fy), 'close' => CS::yearClose($fy),
-            'history' => FiscalYearClose::with('journal', 'closer')->orderByDesc('fiscal_year')->orderByDesc('id')->get(),
+            'history' => FiscalYearClose::with('journal', 'closer')->orderByDesc('fiscal_year')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'months' => $months, 'rows' => $rows, 'start' => CS::startPeriod(), 'label' => BudgetService::fyLabel($fy), 'retained' => AccountHead::find(AccountHead::sys('retained')),
         ]);
     }

@@ -319,7 +319,7 @@ trait FeedbackReputationReports
         $a = Carbon::parse($from)->startOfDay();
         $b = Carbon::parse($to)->endOfDay();
         $s = \App\Services\FeedbackService::stats($a, $b);
-        $cases = \App\Models\FeedbackCase::whereBetween('created_at', [$a, $b])->get();
+        $cases = \App\Models\FeedbackCase::whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = collect($s['departments'])->map(function ($d, $k) use ($cases) {
             $c = $cases->where('department', $k);
             $res = $c->filter(fn ($x) => $x->resolved_at)->map(fn ($x) => $x->created_at->diffInMinutes($x->resolved_at) / 60);
@@ -337,7 +337,7 @@ trait FeedbackReputationReports
 
     protected function r_feedback_answers($from, $to): array
     {
-        $rows = FeedbackAnswer::with('feedbackCase.question')->whereBetween('answered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FeedbackAnswer::with('feedbackCase.question')->whereBetween('answered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'case' => optional($r->feedbackCase)->reference, 'question' => optional($r->question)->text,
             'answer' => $r->answer, 'score' => $r->score, 'comment' => $r->comment,
             'answered' => $r->answered_at, 'guest' => optional($r->feedbackCase)->guest_id,
@@ -348,7 +348,7 @@ trait FeedbackReputationReports
     protected function r_feedback_case_events($from, $to): array
     {
         // Rewritten against the real schema: case_id/user_id/type/note; there is no feedbackCase relation on the event model.
-        $rows = FeedbackCaseEvent::with('user')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FeedbackCaseEvent::with('user')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'case_id' => $r->case_id, 'type' => $r->type,
             'note' => $r->note, 'created' => $r->created_at, 'user' => optional($r->user)->name,
         ]);
@@ -358,7 +358,7 @@ trait FeedbackReputationReports
     protected function r_feedback_cases($from, $to): array
     {
         $h = fn ($a, $b) => $a && $b ? round($a->diffInMinutes($b) / 60, 1) : '';
-        $rows = \App\Models\FeedbackCase::with('assignee', 'guest')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
+        $rows = \App\Models\FeedbackCase::with('assignee', 'guest')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($c) use ($h) {
                 $done = $c->resolved_at ?? $c->closed_at;
                 $onTime = $done ? ($done->lte($c->due_at) ? 'Yes' : 'Late') : ($c->due_at->isPast() ? 'Overdue' : 'Open');
@@ -383,7 +383,7 @@ trait FeedbackReputationReports
 
     protected function r_feedback_register($from, $to): array
     {
-        $rows = \App\Models\GuestFeedback::with('recoveryCase', 'stay.room', 'reservation')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
+        $rows = \App\Models\GuestFeedback::with('recoveryCase', 'stay.room', 'reservation')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($f) => ['date' => $f->created_at->format('d M Y H:i'), 'guest' => $f->guest_name ?: 'Anonymous', 'res' => $f->reservation?->reservation_no, 'room' => $f->stay?->room?->room_no,
                 'src' => \App\Models\GuestFeedback::SOURCES[$f->source] ?? $f->source, 'nps' => $f->nps ?? '', 'grp' => $f->nps_group ? ucfirst($f->nps_group) : '', 'overall' => $f->rating_overall,
                 'sent' => ucfirst((string) $f->sentiment), 'neg' => collect((array) $f->aspects)->filter(fn ($s) => in_array($s, ['negative', 'mixed'], true))->keys()->map(fn ($d) => \App\Services\FeedbackService::DEPTS[$d] ?? $d)->implode(', '),
@@ -422,7 +422,7 @@ trait FeedbackReputationReports
 
     protected function r_online_reviews($from, $to): array
     {
-        $rows = \App\Models\OnlineReview::with('guest', 'poster', 'recoveryCase')->whereDate('review_date', '>=', Carbon::parse($from)->toDateString())->whereDate('review_date', '<=', Carbon::parse($to)->toDateString())->orderBy('review_date')->get()
+        $rows = \App\Models\OnlineReview::with('guest', 'poster', 'recoveryCase')->whereDate('review_date', '>=', Carbon::parse($from)->toDateString())->whereDate('review_date', '<=', Carbon::parse($to)->toDateString())->orderBy('review_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['date' => $r->review_date->format('d M Y'), 'site' => $r->sourceName(), 'rev' => $r->reviewer_name, 'rating' => rtrim(rtrim(number_format((float) $r->rating, 1), '0'), '.').' / '.$r->rating_scale,
                 'r5' => (float) $r->rating5, 'title' => \Illuminate\Support\Str::limit((string) ($r->title ?: $r->body), 80), 'sent' => ucfirst((string) $r->sentiment), 'guest' => $r->guest?->full_name,
                 'status' => \App\Models\OnlineReview::STATUSES[$r->status], 'by' => $r->poster?->name, 'hrs' => $r->responseHours() ?? '', 'case' => $r->recoveryCase?->case_no,
@@ -439,7 +439,7 @@ trait FeedbackReputationReports
 
     protected function r_survey_invitations($from, $to): array
     {
-        $rows = SurveyInvitation::with('survey.guest')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SurveyInvitation::with('survey.guest')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'survey' => optional($r->survey)->name, 'guest' => optional($r->guest)->name,
             'sent' => $r->sent_at, 'responded' => $r->responded_at, 'status' => $r->status,
         ]);
@@ -449,7 +449,7 @@ trait FeedbackReputationReports
     protected function r_survey_questions($from, $to): array
     {
         // Rewritten against the real schema: label/type/department/options/required/sort/is_active; there is no question type table.
-        $rows = SurveyQuestion::with('survey')->orderBy('survey_id')->orderBy('sort')->get()->map(fn ($r) => [
+        $rows = SurveyQuestion::with('survey')->orderBy('survey_id')->orderBy('sort')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'survey' => optional($r->survey)->name, 'question' => $r->label,
             'type' => $r->type, 'department' => $r->department, 'required' => $r->required ? 'Yes' : 'No',
             'sort' => $r->sort, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -459,7 +459,7 @@ trait FeedbackReputationReports
 
     protected function r_surveys($from, $to): array
     {
-        $rows = Survey::with('surveyType.department')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = Survey::with('surveyType.department')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => optional($r->surveyType)->name,
             'dept' => optional($r->department)->name, 'status' => $r->status,
             'created' => $r->created_at, 'opens' => $r->open_date, 'closes' => $r->close_date,

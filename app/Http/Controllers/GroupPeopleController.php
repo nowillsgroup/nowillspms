@@ -34,7 +34,7 @@ class GroupPeopleController extends Controller
             $people = $people->filter(fn (User $u) => str_contains(strtolower($u->name.' '.$u->username.' '.($u->email ?? '')), $needle));
         }
 
-        $hotels = $group->hotels()->orderBy('sort_order')->orderBy('name')->get();
+        $hotels = $group->hotels()->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $homeOptions = $hotels->reject(fn (Hotel $h) => $h->isArchived())->mapWithKeys(fn (Hotel $h) => [$h->id => $h->name.' ('.$h->code.')'])->all();
 
         return view('group.people', [

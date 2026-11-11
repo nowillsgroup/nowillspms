@@ -45,17 +45,17 @@ class UpsellController extends Controller
         }
         if ($tab === 'overview') {
             $v += ['top' => UpsellOrder::with('offer')->where('status', 'confirmed')->where('created_at', '>=', $bd->copy()->startOfMonth())
-                ->groupBy('upsell_offer_id')->selectRaw('upsell_offer_id, count(*) n, sum(amount) amt')->orderByDesc('amt')->limit(6)->get(),
+                ->groupBy('upsell_offer_id')->selectRaw('upsell_offer_id, count(*) n, sum(amount) amt')->orderByDesc('amt')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
                 'today' => UpsellOrder::with('offer', 'stay.room', 'reservation.guest')->where('status', 'confirmed')->whereIn('kind', ['early_checkin', 'late_checkout'])
-                    ->whereDate('service_date', $bd->toDateString())->get(),
+                    ->whereDate('service_date', $bd->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get(),
                 'arrivals' => Reservation::with('guest')->where('status', 'confirmed')
                     ->whereDate('arrival_date', '>=', $bd->copy()->addDay()->toDateString())->whereDate('arrival_date', '<=', $bd->copy()->addDays($v['cfg']['days_before'])->toDateString())
                     ->withExists(['upsellPresentations as offered' => fn ($q) => $q->where('channel', 'pre_arrival')->whereNotNull('sent_at')])
                     ->withCount(['upsellOrders as upsells' => fn ($q) => $q->whereIn('status', ['requested', 'confirmed'])])
-                    ->orderBy('arrival_date')->limit(25)->get()];
+                    ->orderBy('arrival_date')->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get()];
         } elseif ($tab === 'requests') {
             $v += ['requests' => UpsellOrder::with('offer', 'stay.room', 'stay.roomType', 'reservation.guest')->where('status', 'requested')
-                ->orderBy('service_date')->orderBy('id')->get()];
+                ->orderBy('service_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()];
         } elseif ($tab === 'orders') {
             $v += ['orders' => UpsellOrder::with('offer', 'reservation.guest', 'stay.room', 'seller', 'charge')
                 ->when(array_key_exists((string) $request->query('status'), UpsellOrder::STATUSES), fn ($q) => $q->where('status', $request->query('status')))
@@ -65,9 +65,9 @@ class UpsellController extends Controller
                     ->orWhereHas('reservation', fn ($r) => $r->where('reservation_no', 'like', "%{$s}%"))))
                 ->orderByDesc('id')->paginate(30)->withQueryString(), 'offerNames' => UpsellOffer::orderBy('name')->pluck('name', 'id')];
         } elseif ($tab === 'offers') {
-            $v += ['offers' => UpsellOffer::with('toRoomType')->orderBy('sort')->orderBy('name')->get(),
+            $v += ['offers' => UpsellOffer::with('toRoomType')->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
                 'offerStats' => UpsellOrder::where('created_at', '>=', $bd->copy()->subDays(29)->startOfDay())->groupBy('upsell_offer_id')
-                    ->selectRaw("upsell_offer_id, sum(status = 'confirmed') n, sum(case when status = 'confirmed' then amount else 0 end) amt")->get()->keyBy('upsell_offer_id')];
+                    ->selectRaw("upsell_offer_id, sum(status = 'confirmed') n, sum(case when status = 'confirmed' then amount else 0 end) amt")->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('upsell_offer_id')];
         }
 
         return view('upsell.index', $v);

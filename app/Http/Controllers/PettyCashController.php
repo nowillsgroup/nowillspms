@@ -39,9 +39,9 @@ class PettyCashController extends Controller
     protected function lookups(): array
     {
         return [
-            'heads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($h) => [$h->id => $h->label])->all(),
+            'heads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($h) => [$h->id => $h->label])->all(),
             'modes' => PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'bank', 'wallet'])->orderBy('name')->pluck('name', 'id')->all(),
-            'employees' => Employee::where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')'])->all(),
+            'employees' => Employee::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')'])->all(),
             'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all(),
             'departments' => Department::orderBy('name')->pluck('name', 'id')->all(),
         ];
@@ -106,7 +106,7 @@ class PettyCashController extends Controller
         $evidence = PettyTxn::with('float', 'head', 'employee')->whereIn('type', ['expense', 'settle'])->whereIn('status', ['posted', 'pending'])
             ->where(fn ($q) => $q->where(fn ($w) => $w->where('type', 'expense')->where('amount', '>', $threshold))
                 ->orWhere(fn ($w) => $w->where('type', 'settle')->where('spent', '>', $threshold)))
-            ->orderByDesc('date')->orderByDesc('id')->get()
+            ->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->date->toDateString(), 'age' => $ageOf($t->date), 'float' => $t->float?->name ?? '—',
                 'txn_no' => $t->txn_no, 'payee' => $t->party() ?? '—', 'head' => $t->head?->label,
                 'amount' => round((float) ($t->type === 'settle' ? $t->spent : $t->amount), 2),
@@ -131,7 +131,7 @@ class PettyCashController extends Controller
         return view('petty.index', $this->lookups() + [
             'floats' => $floats, 'stats' => $stats, 'register' => $register, 'tie' => $tie, 'receipt' => $receipt, 'evidence' => $pager,
             'approvals' => Petty::approvals(),
-            'overdue' => PettyTxn::with('float', 'employee')->where('type', 'advance')->where('status', 'posted')->whereNull('settled_at')->whereDate('due_date', '<', bdate()->toDateString())->orderBy('due_date')->get(),
+            'overdue' => PettyTxn::with('float', 'employee')->where('type', 'advance')->where('status', 'posted')->whereNull('settled_at')->whereDate('due_date', '<', bdate()->toDateString())->orderBy('due_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cfg' => collect(Petty::DEFAULTS)->map(fn ($v, $k) => Petty::cfg($k))->all(),
         ]);
     }
@@ -145,11 +145,11 @@ class PettyCashController extends Controller
         return view('petty.show', $this->lookups() + [
             'f' => $pfloat->load('custodian', 'account', 'department'), 'st' => Petty::stats($pfloat), 'can' => Petty::canOperate($pfloat),
             'from' => $from, 'to' => $to, 'open' => $open, 'rows' => $rows, 'close' => $close,
-            'pending' => PettyTxn::with('employee', 'head', 'creator')->where('petty_float_id', $pfloat->id)->where('status', 'pending')->orderBy('date')->get(),
-            'ious' => PettyTxn::with('employee', 'settlement')->where('petty_float_id', $pfloat->id)->where('type', 'advance')->whereIn('status', ['posted'])->orderByRaw('settled_at is not null')->orderByDesc('date')->limit(60)->get(),
-            'counts' => PettyCount::with('counter', 'witness', 'approver')->where('petty_float_id', $pfloat->id)->orderByDesc('date')->orderByDesc('id')->limit(30)->get(),
-            'repls' => PettyReplenishment::with('requester', 'approver', 'paymentMode')->withCount('txns')->where('petty_float_id', $pfloat->id)->orderByDesc('id')->limit(30)->get(),
-            'cancelled' => PettyTxn::with('employee', 'head')->where('petty_float_id', $pfloat->id)->whereIn('status', ['void', 'rejected'])->orderByDesc('updated_at')->limit(30)->get(),
+            'pending' => PettyTxn::with('employee', 'head', 'creator')->where('petty_float_id', $pfloat->id)->where('status', 'pending')->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'ious' => PettyTxn::with('employee', 'settlement')->where('petty_float_id', $pfloat->id)->where('type', 'advance')->whereIn('status', ['posted'])->orderByRaw('settled_at is not null')->orderByDesc('date')->limit(60)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'counts' => PettyCount::with('counter', 'witness', 'approver')->where('petty_float_id', $pfloat->id)->orderByDesc('date')->orderByDesc('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'repls' => PettyReplenishment::with('requester', 'approver', 'paymentMode')->withCount('txns')->where('petty_float_id', $pfloat->id)->orderByDesc('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'cancelled' => PettyTxn::with('employee', 'head')->where('petty_float_id', $pfloat->id)->whereIn('status', ['void', 'rejected'])->orderByDesc('updated_at')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'unrepl' => Petty::unreplenished($pfloat),
             'denoms' => Petty::DENOMS, 'cfg' => collect(Petty::DEFAULTS)->map(fn ($v, $k) => Petty::cfg($k))->all(),
         ]);

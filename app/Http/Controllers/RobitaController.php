@@ -31,7 +31,7 @@ class RobitaController extends Controller
             ->where('status', '!=', 'decommissioned')
             ->orderBy('device_type')
             ->orderBy('name')
-            ->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('robita.index', [
             'devices' => $devices,
@@ -41,7 +41,7 @@ class RobitaController extends Controller
                 ->where('hotel_id', Tenant::id())
                 ->latest('event_at')
                 ->limit(15)
-                ->get(),
+                ->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -55,7 +55,7 @@ class RobitaController extends Controller
             ->when($request->query('type'), fn ($q, $t) => $q->where('device_type', $t))
             ->orderBy('device_type')
             ->orderBy('name')
-            ->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('robita.devices', [
             'devices' => $devices,
@@ -142,7 +142,7 @@ class RobitaController extends Controller
         DB::transaction(function () use ($device, $newStatus): void {
             $device->update(['status' => $newStatus]);
             if ($newStatus === 'decommissioned') {
-                foreach ($device->activeCredentials()->get() as $credential) {
+                foreach ($device->activeCredentials()->limit((int) config('pms.max_list_rows', 5000))->get() as $credential) {
                     RobitaService::cancelCredential($credential, 'demo record decommissioned');
                 }
             }
@@ -280,7 +280,7 @@ class RobitaController extends Controller
         }
         $row = \App\Models\Setting::withoutGlobalScope('hotel')
             ->where('key', 'robita_webhook_token')
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->first(fn ($setting) => hash_equals((string) $setting->value, $token));
         if (! $row) {
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);

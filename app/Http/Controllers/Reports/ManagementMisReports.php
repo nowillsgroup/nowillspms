@@ -316,7 +316,7 @@ trait ManagementMisReports
 {
     protected function r_email_logs($from, $to): array
     {
-        $rows = EmailLog::with('emailTemplate.user.guest')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = EmailLog::with('emailTemplate.user.guest')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'template' => optional($r->emailTemplate)->name, 'subject' => $r->subject,
             'guest' => optional($r->guest)->name, 'sent' => $r->sent_at, 'status' => $r->status,
             'error' => $r->error_message, 'user' => optional($r->user)->name,
@@ -335,7 +335,7 @@ trait ManagementMisReports
     protected function r_guest_history($from, $to): array
     {
         $rows = Guest::withCount(['reservations as stays' => fn ($q) => $q->whereIn('status', ['checked_in', 'checked_out', 'partially_checked_in'])->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)])
-            ->with(['folios' => fn ($q) => $q->where('status', 'closed')->whereBetween('closed_at', [$from, $to->copy()->endOfDay()])])->get()
+            ->with(['folios' => fn ($q) => $q->where('status', 'closed')->whereBetween('closed_at', [$from, $to->copy()->endOfDay()])])->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($g) => $g->stays > 0)
             ->map(fn ($g) => ['guest' => $g->full_name, 'phone' => $g->phone, 'city' => $g->city, 'vip' => $g->is_vip ? 'VIP' : '', 'stays' => $g->stays, 'revenue' => $g->folios->sum(fn ($f) => $f->totals()['charges'] - $f->totals()['discount']), 'points' => $g->loyalty_points])
             ->sortByDesc('revenue')->take(100)->values();
@@ -346,7 +346,7 @@ trait ManagementMisReports
     protected function r_kpi_alert_log($from, $to): array
     {
         $rows = \App\Models\KpiAlertEvent::with('alert', 'acknowledger')->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())
-            ->orderBy('business_date')->orderBy('id')->get()
+            ->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($e) {
                 $fmt = \App\Services\KpiService::METRICS[$e->alert?->metric][1] ?? 'int';
 
@@ -366,7 +366,7 @@ trait ManagementMisReports
 
     protected function r_kpi_alerts($from, $to): array
     {
-        $rows = KpiAlert::with('kpi.department')->whereBetween('triggered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = KpiAlert::with('kpi.department')->whereBetween('triggered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'kpi' => optional($r->kpi)->name, 'dept' => optional($r->department)->name,
             'triggered' => $r->triggered_at, 'value' => $r->kpi_value, 'threshold' => $r->threshold_value,
             'direction' => $r->alert_direction, 'status' => $r->status, 'notes' => $r->notes,
@@ -376,7 +376,7 @@ trait ManagementMisReports
 
     protected function r_message_logs($from, $to): array
     {
-        $rows = MessageLog::with('messageType.guest.user')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = MessageLog::with('messageType.guest.user')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'type' => optional($r->messageType)->name, 'guest' => optional($r->guest)->name,
             'sent' => $r->sent_at, 'channel' => $r->channel, 'content' => $r->content,
             'status' => $r->status, 'user' => optional($r->user)->name,
@@ -386,7 +386,7 @@ trait ManagementMisReports
 
     protected function r_mis($from, $to): array
     {
-        $rows = NightAudit::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->get()
+        $rows = NightAudit::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($a) => ['date' => $a->business_date->format('d-m-Y'), 'sold' => $a->rooms_occupied.'/'.$a->rooms_total, 'occ' => (float) $a->occupancy_pct, 'arr' => $a->arrivals, 'dep' => $a->departures, 'ns' => $a->no_shows,
                 'room' => (float) $a->room_revenue, 'other' => (float) $a->other_revenue, 'tax' => (float) $a->tax_collected, 'coll' => (float) $a->collections, 'adr' => (float) $a->adr, 'revpar' => (float) $a->revpar]);
         $m = ['room', 'other', 'tax', 'coll', 'adr', 'revpar'];
@@ -398,7 +398,7 @@ trait ManagementMisReports
     protected function r_report_schedules($from, $to): array
     {
         // Rewritten against the real schema: name/report_key/range/frequency/send_time/format/recipient_*/is_active/next_run_at/last_run_at/last_status.
-        $rows = ReportSchedule::with('user', 'view')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = ReportSchedule::with('user', 'view')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'report' => $r->report_key, 'range' => $r->range,
             'frequency' => $r->frequency, 'send_time' => $r->send_time, 'format' => $r->format,
             'owner' => optional($r->user)->name, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -409,7 +409,7 @@ trait ManagementMisReports
 
     protected function r_report_views($from, $to): array
     {
-        $rows = ReportView::with('report.user')->whereBetween('viewed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ReportView::with('report.user')->whereBetween('viewed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'report' => optional($r->report)->name, 'viewed' => $r->viewed_at,
             'duration' => $r->view_duration_seconds, 'user' => optional($r->user)->name,
             'ip' => $r->ip_address, 'filters' => $r->filter_json,
@@ -419,7 +419,7 @@ trait ManagementMisReports
 
     protected function r_rpt_deliveries($from, $to): array
     {
-        $rows = \App\Models\ReportDelivery::with('schedule.user', 'user')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->get()
+        $rows = \App\Models\ReportDelivery::with('schedule.user', 'user')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($d) => ['at' => $d->created_at->format('d-m-Y H:i'), 'schedule' => $d->title, 'report' => self::REPORTS[$d->report_key][1] ?? $d->report_key,
                 'period' => $d->period_from ? $d->period_from->format('d-m-Y').($d->period_from->equalTo($d->period_to) ? '' : ' – '.$d->period_to->format('d-m-Y')) : '',
                 'trigger' => ['schedule' => 'Scheduled', 'after_audit' => 'After audit', 'manual' => 'Sent now'][$d->trigger] ?? $d->trigger,

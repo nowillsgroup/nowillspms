@@ -34,12 +34,12 @@ class KeyCardController extends Controller
                 ->when(trim((string) $request->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('card_no', 'like', "%{$t}%")->orWhere('holder', 'like', "%{$t}%")->orWhereHas('room', fn ($r) => $r->where('room_no', $t))))
                 ->orderByDesc('id')->paginate(50)->withQueryString();
         } elseif ($tab === 'master') {
-            $keys = MasterKey::with('openLoan')->orderBy('level')->orderBy('key_no')->get();
+            $keys = MasterKey::with('openLoan')->orderBy('level')->orderBy('key_no')->limit((int) config('pms.max_list_rows', 5000))->get();
         } else {
             $loans = KeyLoan::with('key', 'issuer', 'receiver')->when($request->query('status'), fn ($q, $s) => $s === 'overdue' ? $q->where('status', 'out')->where('due_at', '<', now()) : $q->where('status', $s))
                 ->orderByDesc('out_at')->paginate(50)->withQueryString();
         }
-        $inHouse = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->whereNotNull('room_id')->get()
+        $inHouse = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($s) => $s->room?->room_no)->values();
         $cardCounts = KeyCard::where('status', 'active')->whereIn('reservation_room_id', $inHouse->pluck('id'))->selectRaw('reservation_room_id, count(*) n')->groupBy('reservation_room_id')->pluck('n', 'reservation_room_id')->all();
 
@@ -47,7 +47,7 @@ class KeyCardController extends Controller
             'tab' => $tab, 'cards' => $cards, 'keys' => $keys, 'loans' => $loans, 'cfg' => InterfaceService::cfg(), 'counts' => InterfaceService::counts(),
             'inHouse' => $inHouse, 'cardCounts' => $cardCounts, 'read' => session('read_card') ? KeyCard::with('room', 'stay.guest')->find(session('read_card')) : null,
             'staff' => User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all(),
-            'lastCommands' => InterfaceCommand::where('system', 'lock')->with('user')->latest('id')->limit(8)->get(),
+            'lastCommands' => InterfaceCommand::where('system', 'lock')->with('user')->latest('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 

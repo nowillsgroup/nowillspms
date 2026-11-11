@@ -33,7 +33,7 @@ class LaundryController extends Controller
             ->paginate(25)->withQueryString();
         $day = bdate()->toDateString();
         $posted = fn ($from) => (float) FolioTransaction::where('source_type', 'laundry')->where('is_void', false)->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $day)->sum('amount');
-        $open = LaundryOrder::whereIn('status', LaundryOrder::OPEN)->selectRaw('status, COUNT(*) n, SUM(pieces) p')->groupBy('status')->get()->keyBy('status');
+        $open = LaundryOrder::whereIn('status', LaundryOrder::OPEN)->selectRaw('status, COUNT(*) n, SUM(pieces) p')->groupBy('status')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('status');
 
         return view('laundry.index', ['list' => $list, 'tab' => $tab, 'q' => $q, 'stats' => [
             'collected' => (int) ($open['collected']->n ?? 0), 'processing' => (int) ($open['processing']->n ?? 0), 'ready' => (int) ($open['ready']->n ?? 0),
@@ -52,7 +52,7 @@ class LaundryController extends Controller
 
     protected function stays()
     {
-        return ReservationRoom::with('room', 'guest')->where('status', 'checked_in')->whereNotNull('room_id')->get()
+        return ReservationRoom::with('room', 'guest')->where('status', 'checked_in')->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($s) => $s->room?->room_no)->values();
     }
 
@@ -62,7 +62,7 @@ class LaundryController extends Controller
 
         return view('laundry.create', [
             'stays' => $this->stays(), 'items' => LaundryService::priceList(), 'req' => $req,
-            'requests' => self::waiting(GuestRequest::with('room'))->orderBy('id')->get(),
+            'requests' => self::waiting(GuestRequest::with('room'))->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stayId' => (int) ($req?->reservation_room_id ?? $request->input('stay')), 'expressPct' => LaundryService::expressPct(),
             'hours' => ['normal' => LaundryService::hours('normal'), 'express' => LaundryService::hours('express')],
             'tax' => LaundryService::taxInfo(),
@@ -206,7 +206,7 @@ class LaundryController extends Controller
 
     public function prices()
     {
-        return view('laundry.prices', ['items' => LaundryItem::orderBy('category')->orderBy('sort_order')->orderBy('name')->get()->groupBy('category'),
+        return view('laundry.prices', ['items' => LaundryItem::orderBy('category')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('category'),
             'v' => Setting::whereIn('key', self::SETTINGS)->pluck('value', 'key'), 'tax' => LaundryService::taxInfo()]);
     }
 

@@ -28,7 +28,7 @@ class IncidentController extends Controller
     {
         return ['rooms' => Room::orderBy('room_no')->pluck('room_no', 'id'),
             'stays' => ReservationRoom::with('room', 'guest', 'reservation.guest')->where(fn ($q) => $q->where('status', 'checked_in')
-                ->orWhere(fn ($w) => $w->where('status', 'checked_out')->where('checked_out_at', '>=', now()->subDays(3))))->get()->sortBy(fn ($s) => $s->room?->room_no)
+                ->orWhere(fn ($w) => $w->where('status', 'checked_out')->where('checked_out_at', '>=', now()->subDays(3))))->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)
                 ->mapWithKeys(fn ($s) => [$s->id => ($s->room?->room_no ?? '—').' · '.($s->guest ?? $s->reservation?->guest)?->full_name.($s->status === 'checked_out' ? ' (departed)' : '')]),
             'users' => User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->pluck('name', 'id')];
     }

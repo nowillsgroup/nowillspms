@@ -46,7 +46,7 @@ class FormCController extends Controller
 
         return view('formc.show', ['f' => $formc, 'missing' => FormCService::missing($formc), 'warnings' => FormCService::warnings($formc), 'scans' => $scans,
             'cfg' => FormCService::cfg(), 'visaExempt' => FormCService::visaExempt($formc->nationality),
-            'others' => FormCRecord::where('reservation_room_id', $formc->reservation_room_id)->where('id', '!=', $formc->id)->get()]);
+            'others' => FormCRecord::where('reservation_room_id', $formc->reservation_room_id)->where('id', '!=', $formc->id)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function update(Request $request, FormCRecord $formc)
@@ -172,9 +172,10 @@ class FormCController extends Controller
 
     public function export(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $from = Carbon::parse($request->query('from', bdate()->copy()->subDays(30)->toDateString()))->startOfDay();
         $to = Carbon::parse($request->query('to', bdate()->toDateString()))->endOfDay();
-        $rows = FormCService::exportRows(FormCRecord::with('stay.room')->whereBetween('checked_in_at', [$from, $to])->orderBy('checked_in_at')->get());
+        $rows = FormCService::exportRows(FormCRecord::with('stay.room')->whereBetween('checked_in_at', [$from, $to])->orderBy('checked_in_at')->limit((int) config('pms.max_list_rows', 5000))->get());
         ActivityLogger::log('formc', 'export', 'Form C register exported '.$from->format('d M').' – '.$to->format('d M Y').' ('.(count($rows) - 1).' records)');
         PrivacyService::logAccess(null, 'export', 'Form C register '.$from->toDateString().' – '.$to->toDateString());
 

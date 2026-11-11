@@ -33,7 +33,7 @@ class LeaseBillingController extends Controller
         $today = LS::today();
         $from = $request->query('from', bdate()->copy()->startOfMonth()->toDateString());
         $to = $request->query('to', $today);
-        $upcoming = Lease::with('unit')->whereIn('status', ['active', 'notice'])->get()->map(function ($l) {
+        $upcoming = Lease::with('unit')->whereIn('status', ['active', 'notice'])->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($l) {
             $ps = $l->billed_to ? $l->billed_to->copy()->addDay() : $l->start_date->copy();
 
             return $ps->gt($l->lastDay()) ? null : ['lease' => $l, 'next' => $ps, 'amount' => LS::periodAmount((float) $l->rent + (float) $l->service_charge, $ps->toDateString(),
@@ -43,8 +43,8 @@ class LeaseBillingController extends Controller
         return view('leases.billing', [
             'arrears' => LB::arrears(),
             'upcoming' => $upcoming,
-            'charges' => LeaseCharge::with('lease.unit')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get(),
-            'receipts' => LeasePayment::with('lease.unit', 'paymentMode')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get(),
+            'charges' => LeaseCharge::with('lease.unit')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'receipts' => LeasePayment::with('lease.unit', 'paymentMode')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'receivable' => LB::controlBalance($to), 'deposits' => LB::depositControl($to),
             'from' => $from, 'to' => $to, 'grace' => (int) LS::cfg('lease_grace_days'), 'ahead' => (int) LS::cfg('lease_bill_ahead_days'),
         ]);
@@ -145,10 +145,10 @@ class LeaseBillingController extends Controller
     public static function lines(Lease $l, string $from, string $to): \Illuminate\Support\Collection
     {
         $lines = collect();
-        foreach (LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get() as $c) {
+        foreach (LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             $lines->push(['date' => $c->date, 'ref' => $c->charge_no, 'desc' => $c->description, 'debit' => max(0, (float) $c->total), 'credit' => max(0, -(float) $c->total), 'sort' => 0, 'id' => $c->id]);
         }
-        foreach (LeasePayment::with('paymentMode')->where('lease_id', $l->id)->whereNull('voided_at')->whereIn('kind', ['payment', 'refund', 'deposit_applied'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get() as $p) {
+        foreach (LeasePayment::with('paymentMode')->where('lease_id', $l->id)->whereNull('voided_at')->whereIn('kind', ['payment', 'refund', 'deposit_applied'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get() as $p) {
             $desc = LeasePayment::KINDS[$p->kind].($p->paymentMode ? ' – '.$p->paymentMode->name : '').($p->reference ? " ({$p->reference})" : '');
             $effect = $p->accountEffect();
             $lines->push(['date' => $p->date, 'ref' => $p->receipt_no, 'desc' => $desc.((float) $p->wht_amount > 0 ? ' incl. WHT '.money($p->wht_amount).($p->wht_cert_no ? " cert {$p->wht_cert_no}" : '') : ''),
@@ -171,10 +171,10 @@ class LeaseBillingController extends Controller
     public function settlement(Lease $lease)
     {
         $lease->load('unit', 'company', 'inspections');
-        $deps = LeasePayment::with('paymentMode')->where('lease_id', $lease->id)->whereNull('voided_at')->whereIn('kind', ['deposit', 'deposit_applied', 'deposit_refund'])->orderBy('date')->get();
+        $deps = LeasePayment::with('paymentMode')->where('lease_id', $lease->id)->whereNull('voided_at')->whereIn('kind', ['deposit', 'deposit_applied', 'deposit_refund'])->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('leases.print-settlement', ['l' => $lease, 'hotel' => Tenant::hotel(), 'deps' => $deps, 's' => LS::settlement($lease),
-            'finals' => LeaseCharge::where('lease_id', $lease->id)->whereNull('cancelled_at')->whereDate('date', '>=', ($lease->move_out_on ?? $lease->end_date)->copy()->subDays(1))->orderBy('id')->get()]);
+            'finals' => LeaseCharge::where('lease_id', $lease->id)->whereNull('cancelled_at')->whereDate('date', '>=', ($lease->move_out_on ?? $lease->end_date)->copy()->subDays(1))->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function invoice(LeaseCharge $leasecharge)
@@ -182,7 +182,7 @@ class LeaseBillingController extends Controller
         $leasecharge->load('lease.unit', 'lease.company', 'creditOf');
         $l = $leasecharge->lease;
         $group = in_array($leasecharge->type, ['rent', 'service_charge'], true) && $leasecharge->period_start
-            ? LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->whereIn('type', ['rent', 'service_charge'])->whereDate('period_start', $leasecharge->period_start)->orderBy('id')->get()
+            ? LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->whereIn('type', ['rent', 'service_charge'])->whereDate('period_start', $leasecharge->period_start)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect([$leasecharge]);
         $tax = (float) $group->sum('tax');
         $rate = (float) $leasecharge->tax_rate;

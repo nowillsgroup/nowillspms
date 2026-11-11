@@ -318,7 +318,7 @@ trait GeneralLedgerReports
     {
         $A = \App\Models\Accrual::class;
         $asOf = $to->format('Y-m');
-        $rows = $A::with('plAccount', 'balanceAccount', 'supplier')->whereIn('status', ['active', 'completed', 'cancelled'])->where('start_period', '<=', $asOf)->orderBy('type')->orderBy('number')->get()
+        $rows = $A::with('plAccount', 'balanceAccount', 'supplier')->whereIn('status', ['active', 'completed', 'cancelled'])->where('start_period', '<=', $asOf)->orderBy('type')->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($a) use ($asOf, $A) {
                 $posted = (float) \App\Models\PeriodPosting::where('source', 'accrual')->where('source_id', $a->id)->where('kind', 'post')->where('period', '<=', $asOf)->sum('amount');
                 $next = $a->status === 'active' ? collect($a->schedule())->keys()->first(fn ($m) => $m > ($a->last_period ?? '0000-00')) : null;
@@ -348,7 +348,7 @@ trait GeneralLedgerReports
     {
         $CP = \App\Models\ClosePeriod::class;
         $rows = $CP::with('preparer', 'closer')->withCount(['tasks', 'tasks as cleared_count' => fn ($q) => $q->whereIn('status', \App\Models\CloseTask::CLEARED), 'tasks as waived_count' => fn ($q) => $q->where('status', 'waived')])
-            ->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->get() // period is a 'Y-m' string
+            ->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->limit((int) config('pms.max_list_rows', 5000))->get() // period is a 'Y-m' string
             ->map(fn ($p) => ['period' => $p->label(), 'fy' => \App\Services\BudgetService::fyLabel($p->fiscal_year).' · M'.$p->fiscal_month, 'status' => $CP::STATUSES[$p->status],
                 'tasks' => $p->cleared_count.' / '.$p->tasks_count, 'waived' => $p->waived_count, 'prepared' => $p->preparer ? $p->preparer->name.' · '.$p->prepared_at?->format('d M Y') : '',
                 'closed' => $p->closer ? $p->closer->name.' · '.$p->closed_at?->format('d M Y') : '', 'days' => $p->closed_at ? max(0, (int) $p->end()->diffInDays($p->closed_at->copy()->startOfDay())) : null,
@@ -362,7 +362,7 @@ trait GeneralLedgerReports
 
     protected function r_fiscal_year_closes($from, $to): array
     {
-        $rows = FiscalYearClose::with('fiscalYear')->whereBetween('closed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FiscalYearClose::with('fiscalYear')->whereBetween('closed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'fiscal_year' => optional($r->fiscalYear)->name, 'closed' => $r->closed_at,
             'user' => optional($r->user)->name, 'status' => $r->status, 'notes' => $r->notes,
         ]);
@@ -371,7 +371,7 @@ trait GeneralLedgerReports
 
     protected function r_gl_journals($from, $to): array
     {
-        $rows = GlJournal::with('journalType.account.department')->whereBetween('posted_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = GlJournal::with('journalType.account.department')->whereBetween('posted_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'ref' => $r->journal_no, 'type' => optional($r->journalType)->name,
             'account' => optional($r->account)->name, 'dept' => optional($r->department)->name,
             'debit' => $r->debit_amount, 'credit' => $r->credit_amount, 'posted' => $r->posted_at,
@@ -391,7 +391,7 @@ trait GeneralLedgerReports
     protected function r_ia_authorisations($from, $to): array
     {
         $rows = \App\Models\RevenueAuthorisation::with('stay.room', 'stay.guest', 'stay.reservation', 'folio', 'requester', 'decider')
-            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->get()
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($a) => ['no' => $a->auth_no, 'date' => $a->created_at->format('d M Y'), 'kind' => \App\Models\RevenueAuthorisation::KINDS[$a->kind], 'for' => $a->subject(),
                 'nights' => $a->date_from ? dmy($a->date_from, 'd M').' – '.dmy($a->date_to, 'd M').' ('.$a->nights().')' : '', 'value' => \App\Services\RevenueAuthService::value($a),
                 'reason' => $a->reason, 'req' => $a->requester?->name, 'status' => $a->status === 'cancelled' ? 'withdrawn' : $a->status, 'dec' => $a->decider?->name, 'note' => $a->decision_note]);
@@ -405,7 +405,7 @@ trait GeneralLedgerReports
     {
         $checks = \App\Services\IncomeAuditService::CHECKS;
         $rows = \App\Models\AuditFinding::with('day', 'resolver')->where('status', '!=', 'cleared')
-            ->whereHas('day', fn ($q) => $q->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString()))->get()
+            ->whereHas('day', fn ($q) => $q->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString()))->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($f) => [$f->day->business_date->toDateString(), array_search($f->check, array_keys($checks))])->values()
             ->map(fn ($f) => ['date' => dmy($f->day->business_date), 'check' => $checks[$f->check][0] ?? $f->check, 'sev' => $f->severity, 'room' => $f->room_no, 'ref' => $f->ref_label,
                 'detail' => $f->detail, 'amount' => (float) $f->amount, 'status' => \App\Models\AuditFinding::STATUSES[$f->status], 'resolution' => $f->resolution, 'by' => $f->resolver?->name]);
@@ -425,7 +425,7 @@ trait GeneralLedgerReports
             $stays = \App\Services\IncomeAuditService::stayNights($date);
             $folioStay = \App\Models\Folio::whereIn('reservation_room_id', $stays->pluck('id'))->pluck('reservation_room_id', 'id');
             $posted = \App\Models\FolioTransaction::where('source_type', 'night')->where('reference', $date)->where('is_void', false)->where('category', 'room')
-                ->whereIn('folio_id', $folioStay->keys())->get()->groupBy(fn ($t) => $folioStay[$t->folio_id]);
+                ->whereIn('folio_id', $folioStay->keys())->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy(fn ($t) => $folioStay[$t->folio_id]);
             foreach ($stays as $s) {
                 $exp = \App\Services\IncomeAuditService::expectedRate($s, $date);
                 $charged = isset($posted[$s->id]) ? (float) $posted[$s->id]->first()->amount : null;
@@ -446,7 +446,7 @@ trait GeneralLedgerReports
     protected function r_ia_reconciliation($from, $to): array
     {
         $to = $to->copy()->min(bdate()->copy()->subDay());
-        $days = \App\Models\AuditDay::with('signer', 'closer')->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->get()->keyBy(fn ($d) => $d->business_date->toDateString());
+        $days = \App\Models\AuditDay::with('signer', 'closer')->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy(fn ($d) => $d->business_date->toDateString());
         $rows = collect();
         for ($d = $from->copy(); $d->lte($to) && $rows->count() < 92; $d->addDay()) {
             $date = $d->toDateString();
@@ -476,7 +476,7 @@ trait GeneralLedgerReports
 
     protected function r_period_end_postings($from, $to): array
     {
-        $rows = \App\Models\PeriodPosting::with('journal', 'accrual', 'recurring')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->get()
+        $rows = \App\Models\PeriodPosting::with('journal', 'accrual', 'recurring')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['date' => $p->date->format('d-m-Y'), 'source' => $p->source === 'accrual' ? \App\Models\Accrual::TYPES[$p->accrual?->type ?? 'accrual'] : 'Recurring journal',
                 'item' => $p->sourceLabel(), 'period' => Carbon::parse($p->period.'-01')->format('M Y'), 'kind' => $p->kind === 'reverse' ? 'Auto-reversal' : 'Posting', 'amount' => (float) $p->amount, 'journal' => $p->journal?->journal_no]);
 
@@ -488,7 +488,7 @@ trait GeneralLedgerReports
 
     protected function r_recurring_journals($from, $to): array
     {
-        $rows = RecurringJournal::with('journalType.account')->whereBetween('last_posted_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RecurringJournal::with('journalType.account')->whereBetween('last_posted_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'ref' => $r->template_no, 'type' => optional($r->journalType)->name,
             'account' => optional($r->account)->name, 'debit' => $r->debit_amount, 'credit' => $r->credit_amount,
             'frequency' => $r->frequency, 'last_posted' => $r->last_posted_at, 'next_posting' => $r->next_posting_date,

@@ -28,23 +28,23 @@ class ForexController extends Controller
             ->when($request->filled('q'), fn ($w) => $w->where(fn ($x) => $x->where('exchange_no', 'like', '%'.$request->q.'%')->orWhere('guest_name', 'like', '%'.$request->q.'%')
                 ->orWhere('passport_no', 'like', '%'.$request->q.'%')))
             ->orderByDesc('business_date')->orderByDesc('id');
-        $all = (clone $q)->whereNull('voided_at')->get();
+        $all = (clone $q)->whereNull('voided_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('forex.index', ['rows' => $q->paginate(30)->withQueryString(), 'from' => $from, 'to' => $to, 'alerts' => ForexService::alerts(),
-            'currencies' => Currency::orderBy('sort_order')->get(), 'enabled' => ForexService::enabled(),
+            'currencies' => Currency::orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get(), 'enabled' => ForexService::enabled(),
             'totals' => ['count' => $all->count(), 'inr' => $all->sum('inr_amount'), 'cash' => $all->where('payout', 'cash')->sum('net_amount'),
                 'folio' => $all->where('payout', 'folio')->sum('net_amount'), 'gst' => $all->sum('gst'), 'usd' => $all->sum('usd_equiv')]]);
     }
 
     public function create(Request $request)
     {
-        $stays = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->get()
+        $stays = ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($s) => ['stay' => $s, 'guest' => FormCService::stayGuest($s)])
             ->filter(fn ($r) => $r['guest'] && (FormCService::isForeign($r['guest']) || ForexService::cfg()['allow_residents'] === '1'))
             ->sortBy(fn ($r) => $r['stay']->room?->room_no)->values();
         $stay = $request->filled('stay') ? ReservationRoom::with('room')->find($request->stay) : null;
 
-        return view('forex.create', ['stays' => $stays, 'stay' => $stay, 'currencies' => Currency::where('is_active', true)->orderBy('sort_order')->get(),
+        return view('forex.create', ['stays' => $stays, 'stay' => $stay, 'currencies' => Currency::where('is_active', true)->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rates' => ForexService::todayRates(), 'cfg' => ForexService::cfg(), 'enabled' => ForexService::enabled(), 'payout' => $request->query('payout') === 'folio' ? 'folio' : 'cash']);
     }
 
@@ -117,11 +117,11 @@ class ForexController extends Controller
     public function rates(Request $request)
     {
         $date = bdate()->toDateString();
-        $currencies = Currency::orderBy('sort_order')->orderBy('code')->get();
+        $currencies = Currency::orderBy('sort_order')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
         // whereDate: the DATE column is stored with a 00:00:00 time part on SQLite,
         // so bare date-string comparisons miss today's rows.
-        $prev = ForexRate::whereDate('date', '<', $date)->orderByDesc('date')->get()->unique('currency_id')->keyBy('currency_id');
-        $history = ForexRate::with('currency')->whereDate('date', '>=', bdate()->copy()->subDays(13)->toDateString())->orderBy('date')->get()->groupBy('currency_id');
+        $prev = ForexRate::whereDate('date', '<', $date)->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get()->unique('currency_id')->keyBy('currency_id');
+        $history = ForexRate::with('currency')->whereDate('date', '>=', bdate()->copy()->subDays(13)->toDateString())->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('currency_id');
 
         return view('forex.rates', ['currencies' => $currencies, 'today' => ForexService::todayRates(), 'prev' => $prev, 'history' => $history,
             'cfg' => ForexService::cfg(), 'alerts' => ForexService::alerts(), 'canEdit' => can_do('forex.manage')]);
@@ -147,8 +147,8 @@ class ForexController extends Controller
     public function position()
     {
         return view('forex.position', ['position' => ForexService::position(), 'alerts' => ForexService::alerts(), 'cfg' => ForexService::cfg(),
-            'surrenders' => ForexSurrender::with('lines.currency', 'paymentMode', 'creator')->orderByDesc('date')->orderByDesc('id')->limit(20)->get(),
-            'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['forex', 'city_ledger', 'online', 'gift_voucher'])->orderBy('name')->get()]);
+            'surrenders' => ForexSurrender::with('lines.currency', 'paymentMode', 'creator')->orderByDesc('date')->orderByDesc('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['forex', 'city_ledger', 'online', 'gift_voucher'])->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function surrender(Request $request)

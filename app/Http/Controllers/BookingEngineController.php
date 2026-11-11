@@ -63,7 +63,7 @@ class BookingEngineController extends Controller
             $promoError = 'Promo codes cannot be combined with a corporate rate.';
             $promoCode = '';
         }
-        $types = RoomType::where('is_active', true)->where('show_online', true)->orderBy('base_rate')->get()
+        $types = RoomType::where('is_active', true)->where('show_online', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(function ($t) use ($arr, $dep, $promoCode, &$promoError, $contract, $adultsPerRoom) {
                 $t->quote = $contract ? ContractService::quote($contract, $t, $arr, $dep, $adultsPerRoom) : RateService::quote($t, $arr, $dep);
                 $t->promo = null;

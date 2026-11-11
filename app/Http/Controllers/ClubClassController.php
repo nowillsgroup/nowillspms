@@ -22,7 +22,7 @@ class ClubClassController extends Controller
     {
         $week = ClubClassService::week($request->query('week', bdate()->toDateString()));
 
-        return view('club.classes', ['week' => $week, 'classes' => ClubClass::with('employee')->orderBy('weekday')->orderBy('start_time')->get(),
+        return view('club.classes', ['week' => $week, 'classes' => ClubClass::with('employee')->orderBy('weekday')->orderBy('start_time')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'employees' => Employee::where('hotel_id', \App\Support\Tenant::id())->where('is_active', true)->orderBy('name')->get(['id', 'name', 'emp_code', 'designation'])]);
     }
 
@@ -48,7 +48,7 @@ class ClubClassController extends Controller
         $d = Carbon::parse($date);
         abort_unless((int) $d->isoWeekday() === (int) $clubclass->weekday, 404);
         $bookings = ClubBooking::with('member.membership', 'stay.room')->where('club_class_id', $clubclass->id)->whereDate('date', $d->toDateString())
-            ->orderByRaw("field(status,'booked','attended','no_show','waitlist','cancelled')")->orderBy('position')->orderBy('id')->get();
+            ->orderByRaw("field(status,'booked','attended','no_show','waitlist','cancelled')")->orderBy('position')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('club.session', ['c' => $clubclass->load('employee'), 'date' => $d, 'bookings' => $bookings, 'start' => ClubClassService::sessionStart($clubclass, $d->toDateString()),
             'taken' => $bookings->whereIn('status', ['booked', 'attended', 'no_show'])->count()]);

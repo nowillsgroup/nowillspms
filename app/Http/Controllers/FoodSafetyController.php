@@ -48,9 +48,9 @@ class FoodSafetyController extends Controller
         return view('foodsafety.index', [
             'c7' => FS::compliance(7), 'c30' => FS::compliance(30), 'att' => FS::attention(), 'board' => FS::board(), 'lists' => FS::checklistStatus(),
             'certs' => FS::certProblems(), 'allergens' => AllergenService::attention(), 'waste' => FoodWasteService::summary($from, bdate()->toDateString()),
-            'breaches' => FsTempLog::with('equipment', 'user')->where('in_range', false)->whereNull('reviewed_at')->latest('recorded_at')->take(8)->get(),
-            'cooling' => FsTempLog::with('user')->where('kind', 'cooling')->whereNull('reading2_c')->where('in_range', true)->where('recorded_at', '>=', now()->subDays(2))->orderBy('recorded_at')->get(),
-            'labels' => FsLabel::where('use_by', '>=', now())->where('use_by', '<=', now()->addDay())->orderBy('use_by')->take(8)->get(),
+            'breaches' => FsTempLog::with('equipment', 'user')->where('in_range', false)->whereNull('reviewed_at')->latest('recorded_at')->take(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'cooling' => FsTempLog::with('user')->where('kind', 'cooling')->whereNull('reading2_c')->where('in_range', true)->where('recorded_at', '>=', now()->subDays(2))->orderBy('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'labels' => FsLabel::where('use_by', '>=', now())->where('use_by', '<=', now()->addDay())->orderBy('use_by')->take(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -61,13 +61,13 @@ class FoodSafetyController extends Controller
         $day = $request->filled('date') ? Carbon::parse($request->date) : now();
         $kind = $request->input('kind');
         $logs = FsTempLog::with('equipment', 'user', 'reviewer', 'supplier')->whereBetween('recorded_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])
-            ->when($kind, fn ($q) => $q->where('kind', $kind))->orderByDesc('recorded_at')->get();
+            ->when($kind, fn ($q) => $q->where('kind', $kind))->orderByDesc('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('foodsafety.temps', ['day' => $day, 'kind' => $kind, 'board' => FS::board($day), 'logs' => $logs,
-            'equipment' => FsEquipment::with('outlet')->orderByDesc('is_active')->orderBy('name')->get(),
+            'equipment' => FsEquipment::with('outlet')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'suppliers' => Supplier::orderBy('name')->pluck('name', 'id'), 'outlets' => Outlet::orderBy('name')->pluck('name', 'id'),
-            'pending' => FsTempLog::with('equipment', 'user')->where('in_range', false)->whereNull('reviewed_at')->orderByDesc('recorded_at')->get(),
-            'coolingOpen' => FsTempLog::with('user')->where('kind', 'cooling')->whereNull('reading2_c')->where('in_range', true)->where('recorded_at', '>=', now()->subDays(2))->orderBy('recorded_at')->get(),
+            'pending' => FsTempLog::with('equipment', 'user')->where('in_range', false)->whereNull('reviewed_at')->orderByDesc('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'coolingOpen' => FsTempLog::with('user')->where('kind', 'cooling')->whereNull('reading2_c')->where('in_range', true)->where('recorded_at', '>=', now()->subDays(2))->orderBy('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'limits' => collect(FS::SETTINGS)->map(fn ($s, $k) => FS::num($k))]);
     }
 
@@ -115,8 +115,8 @@ class FoodSafetyController extends Controller
     {
         $from = $request->input('from', now()->subDays(13)->toDateString());
 
-        return view('foodsafety.checklists', ['lists' => FS::checklistStatus(), 'all' => FsChecklist::orderByDesc('is_active')->orderBy('name')->get(), 'from' => $from,
-            'runs' => FsChecklistRun::with('checklist', 'completer', 'signer')->whereDate('period', '>=', $from)->orderByDesc('period')->orderByDesc('completed_at')->get()]);
+        return view('foodsafety.checklists', ['lists' => FS::checklistStatus(), 'all' => FsChecklist::orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'from' => $from,
+            'runs' => FsChecklistRun::with('checklist', 'completer', 'signer')->whereDate('period', '>=', $from)->orderByDesc('period')->orderByDesc('completed_at')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function runForm(FsChecklist $fslist)
@@ -160,10 +160,10 @@ class FoodSafetyController extends Controller
 
     public function allergens(Request $request)
     {
-        $menu = MenuItem::with('category', 'recipes.inventoryItem')->orderBy('menu_category_id')->orderBy('name')->get();
+        $menu = MenuItem::with('category', 'recipes.inventoryItem')->orderBy('menu_category_id')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $food = InventoryItem::with('category')->where('is_active', true)
             ->where(fn ($q) => $q->whereHas('recipes')->orWhereNotNull('allergens')->orWhereHas('category', fn ($c) => $c->whereIn('name', ['Grocery', 'Beverages', 'Food', 'Dairy', 'Meat & Fish', 'Vegetables'])))
-            ->orderBy('name')->get();
+            ->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('foodsafety.allergens', ['menu' => $menu, 'map' => AllergenService::map($menu), 'food' => $food, 'att' => AllergenService::attention(), 'tab' => $request->input('tab', 'menu')]);
     }
@@ -198,7 +198,7 @@ class FoodSafetyController extends Controller
     {
         $menu = MenuItem::with('category', 'outlet', 'recipes.inventoryItem')->where('is_available', true)
             ->when($request->integer('outlet'), fn ($q, $o) => $q->where(fn ($w) => $w->whereNull('outlet_id')->orWhere('outlet_id', $o)))
-            ->orderBy('menu_category_id')->orderBy('name')->get();
+            ->orderBy('menu_category_id')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('foodsafety.allergens-print', ['menu' => $menu, 'map' => AllergenService::map($menu), 'outlet' => $request->integer('outlet') ? Outlet::find($request->integer('outlet')) : null]);
     }
@@ -211,9 +211,9 @@ class FoodSafetyController extends Controller
         $to = $request->input('to', bdate()->toDateString());
 
         return view('foodsafety.waste', ['from' => $from, 'to' => $to, 'summary' => FoodWasteService::summary($from, $to),
-            'rows' => FsWaste::with('item', 'menuItem', 'store', 'outlet', 'user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get(),
-            'stock' => InventoryItem::where('is_active', true)->whereHas('category', fn ($c) => $c->whereIn('name', ['Grocery', 'Beverages']))->orderBy('name')->get(),
-            'dishes' => MenuItem::withCount('recipes')->orderBy('name')->get(), 'stores' => Store::whereIn('type', ['kitchen', 'bar', 'main'])->pluck('name', 'id'),
+            'rows' => FsWaste::with('item', 'menuItem', 'store', 'outlet', 'user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'stock' => InventoryItem::where('is_active', true)->whereHas('category', fn ($c) => $c->whereIn('name', ['Grocery', 'Beverages']))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'dishes' => MenuItem::withCount('recipes')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'stores' => Store::whereIn('type', ['kitchen', 'bar', 'main'])->pluck('name', 'id'),
             'outlets' => Outlet::orderBy('name')->pluck('name', 'id'), 'defaultStore' => FoodWasteService::defaultStore()]);
     }
 
@@ -239,8 +239,8 @@ class FoodSafetyController extends Controller
     {
         $h = FS::handlers();
 
-        return view('foodsafety.certs', ['handlers' => $h, 'map' => FS::certMap($h->pluck('id')), 'history' => FsCertificate::with('employee')->latest('issued_on')->take(40)->get(),
-            'employees' => Employee::where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn ($e) => [$e->id => "{$e->name} ({$e->emp_code})"]),
+        return view('foodsafety.certs', ['handlers' => $h, 'map' => FS::certMap($h->pluck('id')), 'history' => FsCertificate::with('employee')->latest('issued_on')->take(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'employees' => Employee::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($e) => [$e->id => "{$e->name} ({$e->emp_code})"]),
             'departments' => Department::orderBy('name')->pluck('name', 'id'), 'handlerDepts' => FS::handlerDepartments()]);
     }
 
@@ -256,7 +256,7 @@ class FoodSafetyController extends Controller
 
     public function labels()
     {
-        return view('foodsafety.labels', ['recent' => FsLabel::with('user')->latest('id')->take(30)->get(), 'dishes' => MenuItem::orderBy('name')->pluck('name', 'id'),
+        return view('foodsafety.labels', ['recent' => FsLabel::with('user')->latest('id')->take(30)->limit((int) config('pms.max_list_rows', 5000))->get(), 'dishes' => MenuItem::orderBy('name')->pluck('name', 'id'),
             'shelf' => collect(FsLabel::STORAGE)->map(fn ($l, $k) => FS::shelfHours($k))]);
     }
 
@@ -305,9 +305,9 @@ class FoodSafetyController extends Controller
         }
 
         return view('foodsafety.pack', ['from' => $from, 'to' => $to,
-            'logs' => FsTempLog::with('equipment', 'user', 'reviewer', 'supplier')->whereBetween('recorded_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('recorded_at')->get(),
-            'runs' => FsChecklistRun::with('checklist', 'completer', 'signer')->whereDate('period', '>=', $from)->whereDate('period', '<=', $to)->orderBy('period')->get(),
-            'waste' => FsWaste::with('item', 'menuItem')->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderBy('date')->get(),
+            'logs' => FsTempLog::with('equipment', 'user', 'reviewer', 'supplier')->whereBetween('recorded_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'runs' => FsChecklistRun::with('checklist', 'completer', 'signer')->whereDate('period', '>=', $from)->whereDate('period', '<=', $to)->orderBy('period')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'waste' => FsWaste::with('item', 'menuItem')->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'compliance' => FS::compliance(max(1, (int) Carbon::parse($from)->diffInDays(now()->startOfDay())))]);
     }
 }

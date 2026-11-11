@@ -317,7 +317,7 @@ trait TaxStatutoryReports
     protected function r_credit_notes($from, $to): array
     {
         $rows = Folio::with('original:id,invoice_no,invoice_date', 'guest')->where('type', 'credit_note')->whereNotNull('invoice_no')
-            ->whereDate('invoice_date', '>=', Carbon::parse($from)->toDateString())->whereDate('invoice_date', '<=', Carbon::parse($to)->toDateString())->orderBy('invoice_date')->orderBy('id')->get()
+            ->whereDate('invoice_date', '>=', Carbon::parse($from)->toDateString())->whereDate('invoice_date', '<=', Carbon::parse($to)->toDateString())->orderBy('invoice_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($n) {
                 $x = $n->status === 'cancelled';
                 $c = \App\Services\GstService::componentTotals(\App\Services\GstService::lines($n));
@@ -339,7 +339,7 @@ trait TaxStatutoryReports
     protected function r_einvoice_logs($from, $to): array
     {
         // Rewritten against the real schema: doc_no/action/driver/ok/error_code/message/duration_ms; the e-invoice driver is on the log row itself.
-        $rows = EinvoiceLog::with('folio.guest', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->get()->map(fn ($r) => [
+        $rows = EinvoiceLog::with('folio.guest', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'folio' => optional($r->folio)->folio_no, 'guest' => optional(optional($r->folio)->guest)->name,
             'doc_no' => $r->doc_no, 'action' => $r->action, 'driver' => $r->driver,
             'ok' => $r->ok ? 'Yes' : 'No', 'error_code' => $r->error_code,
@@ -351,7 +351,7 @@ trait TaxStatutoryReports
     protected function r_einvoice_register($from, $to): array
     {
         $rows = Folio::whereNotNull('invoice_no')->whereIn('status', ['closed', 'cancelled'])
-            ->whereDate('invoice_date', '>=', Carbon::parse($from)->toDateString())->whereDate('invoice_date', '<=', Carbon::parse($to)->toDateString())->orderBy('invoice_date')->orderBy('id')->get()
+            ->whereDate('invoice_date', '>=', Carbon::parse($from)->toDateString())->whereDate('invoice_date', '<=', Carbon::parse($to)->toDateString())->orderBy('invoice_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($f) {
                 $t = $f->gstTotals();
 
@@ -370,7 +370,7 @@ trait TaxStatutoryReports
 
     protected function r_gst_cancelled_docs($from, $to): array
     {
-        $rows = GstCancelledDoc::with('gstPeriod.documentType')->whereBetween('cancelled_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = GstCancelledDoc::with('gstPeriod.documentType')->whereBetween('cancelled_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'period' => optional($r->gstPeriod)->name, 'type' => optional($r->documentType)->name,
             'cancelled' => $r->cancelled_at, 'document' => $r->document_no, 'amount' => $r->amount,
             'reason' => $r->cancellation_reason, 'status' => $r->status,
@@ -380,7 +380,7 @@ trait TaxStatutoryReports
 
     protected function r_gst_periods($from, $to): array
     {
-        $rows = GstPeriod::with('gstRegistration')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = GstPeriod::with('gstRegistration')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'registration' => optional($r->gstRegistration)->name,
             'period_start' => $r->period_start, 'period_end' => $r->period_end,
             'output_tax' => $r->output_tax, 'input_tax' => $r->input_tax, 'net_tax' => $r->net_tax,
@@ -403,7 +403,7 @@ trait TaxStatutoryReports
                 $acc[$k][$x] = round($acc[$k][$x] + $l[$x], 2);
             }
         };
-        foreach (Folio::where('status', 'closed')->whereNotNull('invoice_no')->whereDate('invoice_date', '>=', $f)->whereDate('invoice_date', '<=', $t)->get() as $d) {
+        foreach (Folio::where('status', 'closed')->whereNotNull('invoice_no')->whereDate('invoice_date', '>=', $f)->whereDate('invoice_date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get() as $d) {
             foreach (\App\Services\GstService::lines($d) as $l) {
                 $add($d->supply_type === 'B2B' ? 'B2B' : 'B2C', $l);
             }
@@ -421,7 +421,7 @@ trait TaxStatutoryReports
 
     protected function r_wht_periods($from, $to): array
     {
-        $rows = WhtPeriod::with('whtRegistration')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = WhtPeriod::with('whtRegistration')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'registration' => optional($r->whtRegistration)->name,
             'period_start' => $r->period_start, 'period_end' => $r->period_end,
             'tax_deducted' => $r->tax_deducted, 'tax_paid' => $r->tax_paid, 'net_due' => $r->net_tax_due,
@@ -434,7 +434,7 @@ trait TaxStatutoryReports
     protected function r_wht_register($from, $to): array
     {
         $rows = \App\Models\SupplierPayment::with('supplier:id,name,tax_number')->whereNull('cancelled_at')
-            ->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', Carbon::parse($to)->toDateString())->orderBy('date')->orderBy('id')->get()
+            ->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', Carbon::parse($to)->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['date' => $p->date->format('d-m-Y'), 'no' => $p->payment_no, 'supplier' => $p->supplier?->name, 'tin' => $p->supplier?->tax_number,
                 'nature' => \App\Services\WhtService::label($p->wht_category), 'gross' => (float) $p->amount, 'base' => (float) $p->wht_base,
                 'rate' => (float) $p->wht_amount > 0 ? rtrim(rtrim(number_format($p->wht_rate, 2), '0'), '.').'%' : '', 'wht' => (float) $p->wht_amount, 'wvat' => (float) $p->wvat_amount,

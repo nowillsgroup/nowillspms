@@ -103,9 +103,9 @@ class BankRecController extends Controller
 
         return view('bankrec.show', [
             's' => $bstmt, 'sum' => $sum, 'blockers' => $bstmt->isDraft() ? Rec::blockers($bstmt, $sum) : [],
-            'lines' => $bstmt->lines()->with('glLines.journal', 'entryAccount', 'matcher')->get(),
+            'lines' => $bstmt->lines()->with('glLines.journal', 'entryAccount', 'matcher')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'open' => $open, 'filter' => in_array($request->filter, ['unmatched', 'matched', 'ignored'], true) ? $request->filter : null,
-            'heads' => AccountHead::where('is_active', true)->where('id', '!=', $bstmt->account_head_id)->orderBy('code')->get()->mapWithKeys(fn ($h) => [$h->id => trim($h->code.' '.$h->name)]),
+            'heads' => AccountHead::where('is_active', true)->where('id', '!=', $bstmt->account_head_id)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($h) => [$h->id => trim($h->code.' '.$h->name)]),
             'isLatest' => Rec::last($bstmt->account_head_id)?->id === $bstmt->id,
         ]);
     }

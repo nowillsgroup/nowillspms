@@ -316,7 +316,7 @@ trait HousekeepingReports
 {
     protected function r_hk_productivity($from, $to): array
     {
-        $tasks = \App\Models\HousekeepingTask::with('employee')->whereDate('task_date', '>=', $from->toDateString())->whereDate('task_date', '<=', $to->toDateString())->get();
+        $tasks = \App\Models\HousekeepingTask::with('employee')->whereDate('task_date', '>=', $from->toDateString())->whereDate('task_date', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $tasks->groupBy(fn ($t) => $t->employee?->name ?? 'Unassigned')->map(function ($g, $name) {
             $done = $g->where('status', 'completed');
             $mins = $done->map->minutes()->filter(fn ($m) => $m !== null);
@@ -333,7 +333,7 @@ trait HousekeepingReports
 
     protected function r_maintenance($from, $to): array
     {
-        $rows = MaintenanceRequest::with('room', 'employee', 'reporter')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->get()
+        $rows = MaintenanceRequest::with('room', 'employee', 'reporter')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($m) => ['no' => $m->ticket_no, 'date' => $m->created_at->format('d-m-Y H:i'), 'loc' => $m->room?->room_no ?? $m->location, 'cat' => $m->category, 'title' => $m->title, 'priority' => $m->priority,
                 'status' => str_replace('_', ' ', $m->status), 'tech' => $m->employee?->name, 'resolved' => $m->resolved_at?->format('d-m-Y H:i'), 'cost' => (float) $m->cost]);
 
@@ -343,7 +343,7 @@ trait HousekeepingReports
     protected function r_minibar($from, $to): array
     {
         $rows = FolioTransaction::with('folio.guest', 'folio.stay.room', 'poster')->where('category', 'minibar')->where('type', 'charge')->where('is_void', false)
-            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->get()
+            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->business_date->format('d-m-Y'), 'room' => $t->folio?->stay?->room?->room_no, 'guest' => $t->folio?->guest?->full_name, 'desc' => $t->description,
                 'amount' => (float) $t->amount, 'tax' => (float) $t->tax_amount, 'by' => $t->poster?->name]);
 
@@ -353,7 +353,7 @@ trait HousekeepingReports
     protected function r_minibar_items($from, $to): array
     {
         // Rewritten against the real schema: name/price/inventory_item_id/sort_order/is_active.
-        $rows = MinibarItem::with('inventoryItem')->orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = MinibarItem::with('inventoryItem')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'price' => (float) $r->price,
             'inventory_item' => optional($r->inventoryItem)->name,
             'sort' => $r->sort_order, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -363,7 +363,7 @@ trait HousekeepingReports
 
     protected function r_room_status($from, $to): array
     {
-        $rows = Room::with('roomType', 'floor', 'currentStay.reservation.guest')->where('is_active', true)->orderBy('room_no')->get()
+        $rows = Room::with('roomType', 'floor', 'currentStay.reservation.guest')->where('is_active', true)->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['room' => $r->room_no, 'type' => $r->roomType->name, 'floor' => $r->floor?->name, 'status' => str_replace('_', ' ', $r->status), 'hk' => str_replace('_', ' ', $r->hk_status),
                 'guest' => $r->currentStay?->reservation?->guest?->full_name, 'dep' => $r->currentStay?->departure_date?->format('d-m-Y'), 'notes' => $r->notes]);
 

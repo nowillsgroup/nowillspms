@@ -50,8 +50,8 @@ class ReservationController extends Controller
     protected function formData(): array
     {
         return [
-            'roomTypes' => RoomType::where('is_active', true)->orderBy('base_rate')->get(),
-            'ratePlans' => RatePlan::where('is_active', true)->get(),
+            'roomTypes' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'ratePlans' => RatePlan::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'sources' => BusinessSource::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'companies' => Company::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
@@ -380,7 +380,7 @@ class ReservationController extends Controller
         $pending = $reservation->rooms->where('status', 'reserved');
         $noShowPending = $pending->filter(fn ($stay) => $stay->arrival_date->lte(bdate()))->values();
         $onlinePayments = can_do('payments.view')
-            ? OnlinePayment::where('reservation_id', $reservation->id)->latest('id')->get()
+            ? OnlinePayment::where('reservation_id', $reservation->id)->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
         $stayIds = $reservation->rooms->modelKeys();
         $paymentIds = $onlinePayments->modelKeys();
@@ -395,7 +395,7 @@ class ReservationController extends Controller
                 }
             })
             ->where(fn ($q) => $q->where('module', '!=', 'messages')->orWhere('action', '!=', 'send'))
-            ->orderByDesc('created_at')->orderByDesc('id')->limit(50)->get();
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get();
         $activityItems = $activityLogs->map(fn ($log) => (object) [
             'module' => $log->module,
             'action' => $log->action,
@@ -411,8 +411,8 @@ class ReservationController extends Controller
                     $q->orWhere(fn ($related) => $related->where('related_type', 'ReservationRoom')->whereIn('related_id', $stayIds));
                 }
             };
-            $emailLogs = EmailLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->get();
-            $messageLogs = MessageLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->get();
+            $emailLogs = EmailLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get();
+            $messageLogs = MessageLog::with('user')->where($relatedFilter)->latest('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get();
             foreach ($emailLogs as $log) {
                 $activityItems->push((object) [
                     'module' => 'Communication',
@@ -439,20 +439,20 @@ class ReservationController extends Controller
         return view('reservations.show', [
             'onlinePayments' => $onlinePayments,
             'activityLogs' => $activityItems,
-            'trips' => \App\Models\TransportTrip::with('vehicle', 'driver')->where('reservation_id', $reservation->id)->orderBy('scheduled_at')->get(),
-            'formCs' => \App\Models\FormCRecord::with('stay.room')->where('reservation_id', $reservation->id)->orderBy('id')->get(), // v3.4
-            'deskMessages' => \App\Models\GuestMessage::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->latest('id')->limit(10)->get(), // v3.5
-            'deskWakeups' => \App\Models\WakeupCall::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->where(fn ($q) => $q->where('status', 'scheduled')->orWhere('call_at', '>=', now()->subDays(2)))->orderBy('call_at')->limit(10)->get(),
+            'trips' => \App\Models\TransportTrip::with('vehicle', 'driver')->where('reservation_id', $reservation->id)->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'formCs' => \App\Models\FormCRecord::with('stay.room')->where('reservation_id', $reservation->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), // v3.4
+            'deskMessages' => \App\Models\GuestMessage::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(), // v3.5
+            'deskWakeups' => \App\Models\WakeupCall::whereIn('reservation_room_id', $reservation->rooms->pluck('id'))->where(fn ($q) => $q->where('status', 'scheduled')->orWhere('call_at', '>=', now()->subDays(2)))->orderBy('call_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'deskTraces' => \App\Services\TraceService::forReservation($reservation),
             'foreignGuest' => \App\Services\FormCService::isForeign($reservation->guest),
             'r' => $reservation,
             'cancelQuote' => CancellationService::quote($reservation, $pending, 'cancel'),
             'stayQuotes' => $pending->mapWithKeys(fn ($s) => [$s->id => CancellationService::quote($reservation, collect([$s]), 'cancel')['amount']]),
             'noshowQuote' => CancellationService::quote($reservation, $noShowPending, 'noshow'),
-            'commissions' => $reservation->commissions()->with('company')->get(),
+            'commissions' => $reservation->commissions()->with('company')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'advances' => $advances,
             'postedReservationBalance' => can_do('folio.view') ? ReservationBillingService::postedSummary($reservation) : null,
-            'amendments' => $reservation->amendments()->with('user')->get(),
+            'amendments' => $reservation->amendments()->with('user')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
             'freeRooms' => $reservation->rooms->where('status', 'reserved')->mapWithKeys(fn ($s) => [$s->id => AvailabilityService::reservationRooms($s->arrival_date, $s->departure_date, null, $s->id)]),
         ]);
@@ -498,7 +498,7 @@ class ReservationController extends Controller
             abort_unless(in_array($reservation->status, ['confirmed', 'tentative'], true), 403);
             abort_if($reservation->rooms()->where('status', '!=', 'reserved')->where('status', '!=', 'cancelled')->exists(), 403, 'Some rooms are already checked in. Use Front Desk → Amend stay.');
             $before = ReservationAmendmentService::snapshot($reservation);
-            $existingStays = $reservation->rooms()->where('status', 'reserved')->lockForUpdate()->get()->keyBy('id');
+            $existingStays = $reservation->rooms()->where('status', 'reserved')->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
             $submittedStayIds = collect($data['rooms'])->pluck('stay_id')->filter()->map(fn ($id) => (int) $id);
             if ($submittedStayIds->count() !== $submittedStayIds->unique()->count()
                 || $submittedStayIds->diff($existingStays->keys())->isNotEmpty()) {
@@ -567,7 +567,7 @@ class ReservationController extends Controller
         if (! empty($data['stay_id'])) {
             $q->where('id', $data['stay_id']);
         }
-        $stays = $q->get();
+        $stays = $q->limit((int) config('pms.max_list_rows', 5000))->get();
         abort_if($stays->isEmpty(), 422, 'Nothing to cancel.');
         try {
             [, $fee, , $channel] = CancellationService::cancel($reservation, $stays, $data['reason'], $request->boolean('waive_fee'), $data['waive_reason'] ?? null);
@@ -602,7 +602,7 @@ class ReservationController extends Controller
             // future room no-show just because another room in the same booking
             // arrived. Lock the selected lines so two agents cannot post the
             // same no-show fee concurrently.
-            $stays = $locked->rooms()->where('status', 'reserved')->whereDate('arrival_date', '<=', $businessDate)->lockForUpdate()->get();
+            $stays = $locked->rooms()->where('status', 'reserved')->whereDate('arrival_date', '<=', $businessDate)->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get();
             if ($stays->isEmpty()) {
                 throw new \Symfony\Component\HttpKernel\Exception\HttpException(422, 'No pending rooms due for no-show today.');
             }
@@ -768,7 +768,7 @@ class ReservationController extends Controller
                     $reservation->rooms()->whereKey($stayId)->where('status', 'reserved')->lockForUpdate()->first();
                 }
                 if ($roomIds->isNotEmpty()) {
-                    Room::whereIn('id', $roomIds)->orderBy('id')->lockForUpdate()->get();
+                    Room::whereIn('id', $roomIds)->orderBy('id')->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get();
                 }
                 foreach ($data['assign'] as $stayId => $roomId) {
                     $stay = $reservation->rooms()->whereKey($stayId)->where('status', 'reserved')->lockForUpdate()->first();
@@ -890,7 +890,7 @@ class ReservationController extends Controller
     {
         $data = $request->validate(['q' => 'nullable|string|max:100']);
 
-        return response()->json(Guest::whereNull('privacy_status')->where('is_blacklisted', false)->search($data['q'] ?? null)->take(10)->get()
+        return response()->json(Guest::whereNull('privacy_status')->where('is_blacklisted', false)->search($data['q'] ?? null)->take(10)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($g) => $g->only(['id', 'title', 'first_name', 'last_name', 'phone', 'email', 'nationality', 'city', 'id_type', 'id_number', 'company_id', 'is_vip', 'is_blacklisted'])));
     }
 }

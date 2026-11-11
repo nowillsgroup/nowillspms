@@ -48,8 +48,8 @@ class GroupReservationController extends Controller
         $defaultDeparture = $request->input('departure', bdate()->addDay()->toDateString());
 
         return view('reservations.group', [
-            'roomTypes' => RoomType::where('is_active', true)->orderBy('base_rate')->get(),
-            'ratePlans' => RatePlan::where('is_active', true)->get(),
+            'roomTypes' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'ratePlans' => RatePlan::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'sources' => BusinessSource::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'companies' => Company::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),

@@ -317,7 +317,7 @@ trait TalentManagementReports
     protected function r_talent_appraisals($from, $to): array
     {
         $list = \App\Models\TalentAppraisal::with(['cycle', 'employee.department', 'reviewer', 'signer'])
-            ->whereHas('cycle', fn ($q) => $q->whereDate('period_to', '>=', $from->toDateString())->whereDate('period_to', '<=', $to->toDateString()))->get()->sortBy(fn ($a) => $a->cycle_id.'|'.$a->employee->name)->values();
+            ->whereHas('cycle', fn ($q) => $q->whereDate('period_to', '>=', $from->toDateString())->whereDate('period_to', '<=', $to->toDateString()))->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($a) => $a->cycle_id.'|'.$a->employee->name)->values();
         $rows = $list->map(fn ($a) => ['cycle' => $a->cycle->name, 'emp' => $a->employee->name, 'dept' => $a->employee->department?->name ?? '', 'rev' => $a->reviewer?->name ?? '',
             'goals' => $a->goals_score !== null ? (float) $a->goals_score : null, 'comp' => $a->comp_score !== null ? (float) $a->comp_score : null,
             'overall' => $a->overall !== null ? number_format($a->overall, 2) : '', 'band' => $a->bandLabel() ?? '', 'pip' => $a->pip ? 'PIP' : '',
@@ -334,7 +334,7 @@ trait TalentManagementReports
 
     protected function r_talent_cycles($from, $to): array
     {
-        $rows = TalentCycle::with('cycleType.department')->whereBetween('cycle_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentCycle::with('cycleType.department')->whereBetween('cycle_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => optional($r->cycleType)->name, 'dept' => optional($r->department)->name,
             'start' => $r->cycle_start, 'end' => $r->cycle_end, 'status' => $r->status, 'notes' => $r->notes,
         ]);
@@ -344,7 +344,7 @@ trait TalentManagementReports
     protected function r_talent_discipline($from, $to): array
     {
         $u = auth()->user();
-        $list = \App\Models\TalentCase::with(['employee.department', 'raiser', 'decider'])->whereDate('incident_on', '>=', $from->toDateString())->whereDate('incident_on', '<=', $to->toDateString())->orderByDesc('incident_on')->get();
+        $list = \App\Models\TalentCase::with(['employee.department', 'raiser', 'decider'])->whereDate('incident_on', '>=', $from->toDateString())->whereDate('incident_on', '<=', $to->toDateString())->orderByDesc('incident_on')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($c) use ($u) {
             $see = \App\Services\TalentService::canSeeCase($c, $u);
 
@@ -365,7 +365,7 @@ trait TalentManagementReports
 
     protected function r_talent_exits($from, $to): array
     {
-        $list = \App\Models\TalentExit::with('employee.department')->where('status', '!=', 'withdrawn')->whereDate('last_day', '>=', $from->toDateString())->whereDate('last_day', '<=', $to->toDateString())->orderBy('last_day')->get();
+        $list = \App\Models\TalentExit::with('employee.department')->where('status', '!=', 'withdrawn')->whereDate('last_day', '>=', $from->toDateString())->whereDate('last_day', '<=', $to->toDateString())->orderBy('last_day')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($x) => ['no' => $x->number, 'emp' => $x->employee->name, 'dept' => $x->employee->department?->name ?? '', 'type' => $x->typeLabel(),
             'service' => number_format(\App\Services\TalentService::serviceYears($x->employee, $x->last_day), 1), 'notice' => $x->notice_days, 'last' => $x->last_day->format('d M Y'),
             'pay' => $x->final_pay_due->format('d M Y'), 'pilon' => $x->pilon ? (float) $x->pilon_amount : null,
@@ -386,8 +386,8 @@ trait TalentManagementReports
         $y = $to->copy()->subYear()->addDay()->toDateString();
         $emps = \App\Models\Employee::get();
         $inPost = fn ($e, $on) => (! $e->joining_date || $e->joining_date->toDateString() <= $on) && ($e->leaving_date ? $e->leaving_date->toDateString() >= $on : $e->is_active);
-        $vac = \App\Models\TalentVacancy::whereIn('status', ['open', 'on_hold', 'pending'])->get()->groupBy('department_id');
-        $rows = \App\Models\Department::orderBy('name')->get()->map(function ($dep) use ($emps, $inPost, $d, $y, $vac) {
+        $vac = \App\Models\TalentVacancy::whereIn('status', ['open', 'on_hold', 'pending'])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('department_id');
+        $rows = \App\Models\Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($dep) use ($emps, $inPost, $d, $y, $vac) {
             $mine = $emps->where('department_id', $dep->id);
             $now = $mine->filter(fn ($e) => $inPost($e, $d))->count();
             $start = $mine->filter(fn ($e) => $inPost($e, $y))->count();
@@ -410,7 +410,7 @@ trait TalentManagementReports
 
     protected function r_talent_interviews($from, $to): array
     {
-        $rows = TalentInterview::with('vacancy.interviewer.applicant')->whereBetween('interview_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentInterview::with('vacancy.interviewer.applicant')->whereBetween('interview_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'vacancy' => optional($r->vacancy)->title, 'applicant' => optional($r->applicant)->name,
             'interviewer' => optional($r->interviewer)->name, 'date' => $r->interview_date,
             'time' => $r->interview_time, 'location' => $r->location, 'format' => $r->interview_format,
@@ -421,7 +421,7 @@ trait TalentManagementReports
 
     protected function r_talent_offers($from, $to): array
     {
-        $rows = TalentOffer::with('vacancy.applicant.offeredBy')->whereBetween('offered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentOffer::with('vacancy.applicant.offeredBy')->whereBetween('offered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'vacancy' => optional($r->vacancy)->title, 'applicant' => optional($r->applicant)->name,
             'salary' => $r->salary_offered, 'start_date' => $r->start_date, 'offered' => $r->offered_at,
             'accepted' => $r->accepted_at, 'status' => $r->status, 'notes' => $r->notes,
@@ -431,7 +431,7 @@ trait TalentManagementReports
 
     protected function r_talent_pipeline($from, $to): array
     {
-        $apps = \App\Models\TalentApplicant::with(['vacancy.department', 'interviews.scorecards', 'offers'])->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get();
+        $apps = \App\Models\TalentApplicant::with(['vacancy.department', 'interviews.scorecards', 'offers'])->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $apps->groupBy('vacancy_id')->map(function ($g) {
             $v = $g->first()->vacancy;
             $iv = $g->filter(fn ($a) => $a->interviews->isNotEmpty());
@@ -456,7 +456,7 @@ trait TalentManagementReports
 
     protected function r_talent_probations($from, $to): array
     {
-        $rows = TalentProbation::with('employee.department.probationer')->whereBetween('probation_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentProbation::with('employee.department.probationer')->whereBetween('probation_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'dept' => optional($r->department)->name,
             'start' => $r->probation_start, 'end' => $r->probation_end, 'review_date' => $r->review_date,
             'status' => $r->status, 'result' => $r->result, 'notes' => $r->notes,
@@ -466,7 +466,7 @@ trait TalentManagementReports
 
     protected function r_talent_scorecards($from, $to): array
     {
-        $rows = TalentScorecard::with('employee.cycle.scorer')->whereBetween('scored_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentScorecard::with('employee.cycle.scorer')->whereBetween('scored_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'cycle' => optional($r->cycle)->name,
             'scorer' => optional($r->scorer)->name, 'scored' => $r->scored_at,
             'overall_score' => $r->overall_score, 'rating' => $r->rating, 'status' => $r->status, 'notes' => $r->notes,
@@ -476,7 +476,7 @@ trait TalentManagementReports
 
     protected function r_talent_tasks($from, $to): array
     {
-        $rows = TalentTask::with('employee.taskType.assignedBy')->whereBetween('assigned_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TalentTask::with('employee.taskType.assignedBy')->whereBetween('assigned_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'type' => optional($r->taskType)->name,
             'assigned_by' => optional($r->assignedBy)->name, 'description' => $r->description,
             'due_date' => $r->due_date, 'completed' => $r->completed_at, 'status' => $r->status,
@@ -487,7 +487,7 @@ trait TalentManagementReports
     protected function r_talent_vacancies($from, $to): array
     {
         $list = \App\Models\TalentVacancy::with(['department', 'requester', 'approver'])->withCount(['applicants', 'applicants as hires_count' => fn ($q) => $q->where('stage', 'hired')])
-            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('id')->get();
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($v) {
             $days = $v->approved_at && $v->filled_on ? (int) $v->approved_at->copy()->startOfDay()->diffInDays($v->filled_on) : null;
 

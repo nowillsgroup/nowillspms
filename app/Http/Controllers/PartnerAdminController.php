@@ -22,7 +22,7 @@ class PartnerAdminController extends Controller
     public function accounts(Request $r)
     {
         $rows = Company::whereIn('type', ['corporate', 'travel_agent'])->withCount(['partnerUsers as users_count' => fn ($q) => $q->where('is_active', true)])
-            ->orderByDesc('portal_enabled')->orderBy('name')->get();
+            ->orderByDesc('portal_enabled')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $last = PartnerAudit::where('action', 'login')->selectRaw('company_id, max(created_at) as at')->groupBy('company_id')->pluck('at', 'company_id');
 
         return view('partner-admin.accounts', compact('rows', 'last'));
@@ -33,10 +33,10 @@ class PartnerAdminController extends Controller
         abort_unless(in_array($company->type, ['corporate', 'travel_agent'], true), 404);
 
         return view('partner-admin.company', [
-            'c' => $company, 'users' => PartnerUser::where('company_id', $company->id)->orderByDesc('is_active')->orderBy('name')->get(),
+            'c' => $company, 'users' => PartnerUser::where('company_id', $company->id)->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'position' => CreditService::position($company), 'contract' => \App\Services\ContractService::forCompany($company->id, bdate()),
-            'requests' => PartnerRequest::with('partnerUser', 'reservation')->where('company_id', $company->id)->orderByDesc('id')->limit(10)->get(),
-            'audit' => PartnerAudit::with('partnerUser')->where('company_id', $company->id)->orderByDesc('id')->limit(15)->get(),
+            'requests' => PartnerRequest::with('partnerUser', 'reservation')->where('company_id', $company->id)->orderByDesc('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'audit' => PartnerAudit::with('partnerUser')->where('company_id', $company->id)->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'loginUrl' => route('partner.login', ['h' => hotel()->code]),
         ]);
     }

@@ -30,7 +30,7 @@ class CampaignController extends Controller
             ->when($request->q, fn ($q, $t) => $q->where('name', 'like', "%$t%"))
             ->orderByRaw("FIELD(status, 'sending', 'scheduled', 'draft', 'sent', 'cancelled')")->latest('id')->paginate(20)->withQueryString();
         $campaigns->getCollection()->each(fn ($c) => $c->stats = in_array($c->status, ['sent', 'sending'], true) ? CrmService::stats($c) : null);
-        $sent = MarketingCampaign::where('status', 'sent')->where('sent_at', '>=', now()->subDays(90))->get();
+        $sent = MarketingCampaign::where('status', 'sent')->where('sent_at', '>=', now()->subDays(90))->limit((int) config('pms.max_list_rows', 5000))->get();
         $totals = $sent->map(fn ($c) => CrmService::stats($c));
 
         return view('crm.campaigns.index', ['campaigns' => $campaigns, 'tab' => $tab, 'summary' => [
@@ -43,7 +43,7 @@ class CampaignController extends Controller
     protected function options(): array
     {
         return ['segments' => MarketingSegment::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
-            'promos' => PromoCode::where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($p) => [$p->id => $p->code.' – '.$p->offerLabel()]),
+            'promos' => PromoCode::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($p) => [$p->id => $p->code.' – '.$p->offerLabel()]),
             'sample' => Guest::where('stays_count', '>', 0)->orderByDesc('total_revenue')->first() ?? Guest::first()];
     }
 
@@ -92,7 +92,7 @@ class CampaignController extends Controller
             ->latest('id')->paginate(25)->withQueryString();
 
         return view('crm.campaigns.show', ['c' => $campaign, 'stats' => CrmService::stats($campaign), 'breakdown' => $breakdown, 'preview' => $preview, 'sample' => $sample,
-            'recipients' => $recipients, 'bookings' => Reservation::with('guest', 'rooms.roomType')->where('campaign_id', $campaign->id)->latest('id')->limit(20)->get(),
+            'recipients' => $recipients, 'bookings' => Reservation::with('guest', 'rooms.roomType')->where('campaign_id', $campaign->id)->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'skipReasons' => $campaign->messages()->where('status', 'skipped')->groupBy('skip_reason')->selectRaw('skip_reason, count(*) n')->pluck('n', 'skip_reason')]);
     }
 

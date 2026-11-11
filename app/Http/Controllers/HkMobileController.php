@@ -37,15 +37,15 @@ class HkMobileController extends Controller
         $emp = $asId ? Employee::find($asId) : $me;
         $date = bdate()->toDateString();
         $tasks = $emp ? HousekeepingTask::with('room.roomType', 'room.floor', 'room.currentStay.reservation.guest')->whereDate('task_date', $date)->where('employee_id', $emp->id)
-            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END")->orderBy('priority')->orderBy('id')->get() : collect();
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END")->orderBy('priority')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
 
         return view('housekeeping.my', [
             'emp' => $emp, 'me' => $me, 'supervisor' => $supervisor, 'tasks' => $tasks,
             'inspect' => $supervisor ? HousekeepingTask::with('room', 'employee')->whereDate('task_date', $date)->where('status', 'completed')->whereNull('inspection_status')
-                ->whereNotNull('room_id')->where('task_type', '!=', 'inspection')->orderBy('completed_at')->get() : collect(),
+                ->whereNotNull('room_id')->where('task_type', '!=', 'inspection')->orderBy('completed_at')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'attendants' => $supervisor ? HousekeepingService::attendants()->pluck('name', 'id') : collect(),
             'checklist' => HousekeepingService::checklist(),
-            'minibar' => MinibarItem::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
+            'minibar' => MinibarItem::where('is_active', true)->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 

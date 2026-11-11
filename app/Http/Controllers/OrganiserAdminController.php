@@ -36,8 +36,8 @@ class OrganiserAdminController extends Controller
 
         return view('organiser-admin.event', ['e' => $bevent, 'money' => OS::money($bevent), 'live' => OS::beo($bevent),
             'changed' => OS::beoChanged($bevent), 'logins' => OS::loginsFor($bevent),
-            'requests' => OrganiserRequest::with('organiserUser', 'decider')->where('banquet_event_id', $bevent->id)->orderByDesc('id')->limit(10)->get(),
-            'audit' => OrganiserAudit::with('organiserUser')->where('banquet_event_id', $bevent->id)->orderByDesc('id')->limit(15)->get(),
+            'requests' => OrganiserRequest::with('organiserUser', 'decider')->where('banquet_event_id', $bevent->id)->orderByDesc('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'audit' => OrganiserAudit::with('organiserUser')->where('banquet_event_id', $bevent->id)->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'summary' => OS::attendeeSummary($bevent), 'loginUrl' => route('organiser.login', ['h' => hotel()->code])]);
     }
 
@@ -66,8 +66,8 @@ class OrganiserAdminController extends Controller
     public function organisers(Request $r)
     {
         $rows = OrganiserUser::with('company', 'creator')->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', '%'.$r->query('q').'%')->orWhere('email', 'like', '%'.$r->query('q').'%')));
-        $events = BanquetEvent::whereIn('status', ['enquiry', 'tentative', 'definite'])->orderBy('event_date')->get();
-        $companies = Company::where('is_active', true)->orderBy('name')->get();
+        $events = BanquetEvent::whereIn('status', ['enquiry', 'tentative', 'definite'])->orderBy('event_date')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $companies = Company::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('organiser-admin.organisers', ['rows' => $rows->orderByDesc('is_active')->orderBy('name')->paginate(25)->withQueryString(), 'events' => $events, 'companies' => $companies]);
     }
@@ -139,7 +139,7 @@ class OrganiserAdminController extends Controller
             ->when($r->filled('to'), fn ($w) => $w->where('created_at', '<=', $r->query('to').' 23:59:59'));
 
         return view('organiser-admin.activity', ['rows' => $q->orderByDesc('id')->paginate(40)->withQueryString(),
-            'events' => BanquetEvent::where('portal_enabled', true)->orderByDesc('event_date')->get(),
+            'events' => BanquetEvent::where('portal_enabled', true)->orderByDesc('event_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'actions' => OrganiserAudit::distinct()->orderBy('action')->pluck('action')]);
     }
 

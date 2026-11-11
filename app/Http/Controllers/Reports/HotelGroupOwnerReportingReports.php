@@ -326,7 +326,7 @@ trait HotelGroupOwnerReportingReports
         }
         $rows->push(['date' => $to->format('d M Y'), 'type' => 'Closing balance', 'detail' => '', 'in' => null, 'out' => null, 'balance' => $l['closing'], '_class' => 'bold-row']);
         $rows->push(['date' => '', 'type' => 'Capital projects', 'detail' => '', 'in' => null, 'out' => null, 'balance' => null, '_class' => 'bold-row']);
-        foreach ($CP::with('assets', 'entries')->orderBy('number')->get() as $p) {
+        foreach ($CP::with('assets', 'entries')->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get() as $p) {
             $rows->push(['date' => $p->number, 'type' => $CP::STATUSES[$p->status], 'detail' => $p->title.' · '.$CP::FUNDING[$p->funding].' · budget '.money((float) $p->budget), 'in' => null, 'out' => $p->spent() ?: null, 'balance' => null, '_class' => '']);
         }
         $all = collect($l['rows'])->pluck('entry');
@@ -354,8 +354,8 @@ trait HotelGroupOwnerReportingReports
             // runs, so that tenant's own group is the only group it may name.
             : collect([\App\Support\Tenant::hotel()?->hotel_group_id])->filter()->unique()->values();
 
-        $rows = HotelGroup::whereIn('id', $groupIds->all())->orderBy('name')->get()->map(function ($r) {
-            $properties = $r->hotels()->notArchived()->get();
+        $rows = HotelGroup::whereIn('id', $groupIds->all())->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($r) {
+            $properties = $r->hotels()->notArchived()->limit((int) config('pms.max_list_rows', 5000))->get();
             return [
                 'name' => $r->name, 'code' => $r->code, 'mc' => $r->managementCompanyName(),
                 'hotels' => $properties->count(),
@@ -378,7 +378,7 @@ trait HotelGroupOwnerReportingReports
             // A scheduled run has no reader: it serves one tenant, so that tenant's group is the
             // portfolio it reports on.
             : collect([\App\Support\Tenant::hotel()])->filter()
-                ->flatMap(fn ($h) => $h->group ? $h->group->hotels()->notArchived()->get() : [$h]);
+                ->flatMap(fn ($h) => $h->group ? $h->group->hotels()->notArchived()->limit((int) config('pms.max_list_rows', 5000))->get() : [$h]);
 
         // v10.10 the portfolio can be sliced: a region or a brand wants its own line of this report, and
         // asking for "all of it" was the only thing the screen could do. The slice is a query parameter,
@@ -562,7 +562,7 @@ trait HotelGroupOwnerReportingReports
     {
         // v10.0 the register reads the agreement's own dates and fee column, and the group through
         // the hotel's group relation, instead of four attributes that do not exist.
-        $rows = ManagementAgreement::with('hotel.group')->get()->map(fn ($r) => [
+        $rows = ManagementAgreement::with('hotel.group')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'hotel' => optional($r->hotel)->name, 'group' => optional(optional($r->hotel)->group)->name,
             'mc' => optional(optional($r->hotel)->group)->managementCompanyName(), 'start' => $r->effective_from,
             'end' => $r->ends_on, 'fee_pct' => $r->base_fee_pct,
@@ -574,7 +574,7 @@ trait HotelGroupOwnerReportingReports
     protected function r_management_fees($from, $to): array
     {
         $F = \App\Models\OwnerFee::class;
-        $fees = $F::with('paidAccount')->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->get(); // period is a 'Y-m' string
+        $fees = $F::with('paidAccount')->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->limit((int) config('pms.max_list_rows', 5000))->get(); // period is a 'Y-m' string
         $rows = $fees->map(fn ($f) => ['month' => $f->label(), 'revenue' => (float) $f->total_revenue, 'base' => (float) $f->base_fee, 'ffe' => (float) $f->ffe_amount, 'gop' => (float) $f->gop, 'agop' => (float) $f->agop,
             'agop_ytd' => (float) $f->agop_ytd, 'priority' => (float) $f->priority_ytd, 'incentive' => (float) $f->incentive_fee, 'total' => (float) $f->total_fee, 'status' => $F::STATUSES[$f->status],
             'paid' => $f->status === 'paid' ? $f->paid_on?->format('d M Y').' '.$f->paidAccount?->name : ($f->status === 'accrued' ? 'due '.$f->dueOn()->format('d M Y') : $f->reversal_note), '_class' => $f->status === 'reversed' ? 'muted' : '']);
@@ -588,7 +588,7 @@ trait HotelGroupOwnerReportingReports
 
     protected function r_owner_queries($from, $to): array
     {
-        $rows = OwnerQuery::with('owner.hotel')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = OwnerQuery::with('owner.hotel')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'owner' => optional($r->owner)->name, 'hotel' => optional($r->hotel)->name,
             'subject' => $r->subject, 'query' => $r->query_text, 'created' => $r->created_at,
             'status' => $r->status, 'response' => $r->response_text,
@@ -598,7 +598,7 @@ trait HotelGroupOwnerReportingReports
 
     protected function r_owner_statements($from, $to): array
     {
-        $rows = OwnerStatement::with('owner.hotel')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = OwnerStatement::with('owner.hotel')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'owner' => optional($r->owner)->name, 'hotel' => optional($r->hotel)->name,
             'period' => $r->period_start . ' to ' . $r->period_end, 'revenue' => $r->revenue_total,
             'expenses' => $r->expense_total, 'net' => $r->net_total, 'fees' => $r->management_fees,

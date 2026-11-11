@@ -39,9 +39,9 @@ class ParkingController extends Controller
         $modes = PS::walkInModes();
 
         return [
-            'zones' => ParkingZone::where('is_active', true)->orderBy('sort')->orderBy('code')->get(),
+            'zones' => ParkingZone::where('is_active', true)->orderBy('sort')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stays' => ReservationRoom::with(['guest', 'room'])->where(fn ($q) => $q->where('status', 'checked_in')
-                ->orWhere(fn ($w) => $w->where('status', 'reserved')->whereDate('arrival_date', '<=', bdate()->toDateString())))->get()->sortBy(fn ($s) => $s->room?->room_no ?? 'zzz')->values(),
+                ->orWhere(fn ($w) => $w->where('status', 'reserved')->whereDate('arrival_date', '<=', bdate()->toDateString())))->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no ?? 'zzz')->values(),
             'modes' => $modes, 'splitModes' => $modes->pluck('name', 'id'), 'cfg' => PS::cfg(), 'runners' => PS::runners(),
         ];
     }
@@ -59,22 +59,22 @@ class ParkingController extends Controller
                 $q->where(fn ($w) => $w->where('number', 'like', "%{$t}%")->orWhere('guest_name', 'like', "%{$t}%")->orWhere('key_tag', $t)
                     ->when($p !== '', fn ($x) => $x->orWhereHas('vehicle', fn ($v) => $v->where('plate', 'like', "%{$p}%"))));
             })
-            ->orderByRaw("FIELD(status, 'requested', 'ready', 'parked')")->orderByDesc('entered_at')->orderByDesc('id')->get();
+            ->orderByRaw("FIELD(status, 'requested', 'ready', 'parked')")->orderByDesc('entered_at')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $quotes = $active->mapWithKeys(fn ($s) => [$s->id => PS::quote($s)]);
 
         return view('parking.index', ['active' => $active, 'quotes' => $quotes, 'occ' => PS::occupancy(), 'k' => PS::kpis(), 'alerts' => PS::alerts(),
             'trend' => PS::revenueTrend(14), 'look' => $r->filled('plate') ? PS::lookup((string) $r->query('plate')) : null,
-            'departed' => ParkingSession::with(['stay.room'])->whereIn('status', ParkingSession::ACTIVE)->where('kind', 'guest')->whereHas('stay', fn ($q) => $q->whereIn('status', ['checked_out', 'cancelled', 'no_show']))->get(),
+            'departed' => ParkingSession::with(['stay.room'])->whereIn('status', ParkingSession::ACTIVE)->where('kind', 'guest')->whereHas('stay', fn ($q) => $q->whereIn('status', ['checked_out', 'cancelled', 'no_show']))->limit((int) config('pms.max_list_rows', 5000))->get(),
         ] + $this->lookups());
     }
 
     public function valet()
     {
-        $cars = ParkingSession::with(['zone', 'vehicle', 'stay.room', 'runner'])->where('is_valet', true)->whereIn('status', ParkingSession::ACTIVE)->orderBy('requested_at')->orderBy('entered_at')->get();
+        $cars = ParkingSession::with(['zone', 'vehicle', 'stay.room', 'runner'])->where('is_valet', true)->whereIn('status', ParkingSession::ACTIVE)->orderBy('requested_at')->orderBy('entered_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('parking.valet', ['requested' => $cars->where('status', 'requested')->values(), 'ready' => $cars->where('status', 'ready')->values(),
             'parked' => $cars->where('status', 'parked')->sortBy('key_tag', SORT_NATURAL)->values(), 'k' => PS::kpis(),
-            'recent' => ParkingSession::with(['vehicle', 'runner'])->where('is_valet', true)->where('status', 'out')->whereNotNull('requested_at')->orderByDesc('exited_at')->limit(10)->get(),
+            'recent' => ParkingSession::with(['vehicle', 'runner'])->where('is_valet', true)->where('status', 'out')->whereNotNull('requested_at')->orderByDesc('exited_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ] + $this->lookups());
     }
 
@@ -117,7 +117,7 @@ class ParkingController extends Controller
         $s = $parkingsession->load(['zone', 'vehicle.guest', 'stay.room', 'stay.guest', 'permit', 'charges.folio', 'folio', 'paymentMode', 'parker', 'runner', 'exiter', 'validator']);
 
         return view('parking.session', ['s' => $s, 'q' => $s->isActive() ? PS::quote($s) : null, 'qlost' => $s->isActive() ? PS::quote($s, null, true) : null,
-            'history' => ParkingSession::where('parking_vehicle_id', $s->parking_vehicle_id)->whereKeyNot($s->id)->orderByDesc('entered_at')->limit(8)->get()] + $this->lookups());
+            'history' => ParkingSession::where('parking_vehicle_id', $s->parking_vehicle_id)->whereKeyNot($s->id)->orderByDesc('entered_at')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get()] + $this->lookups());
     }
 
     public function ticket(ParkingSession $parkingsession)
@@ -255,7 +255,7 @@ class ParkingController extends Controller
 
     public function zones()
     {
-        return view('parking.zones', ['occ' => PS::occupancy(), 'all' => ParkingZone::withCount('activeSessions')->orderBy('sort')->orderBy('code')->get()] + $this->lookups());
+        return view('parking.zones', ['occ' => PS::occupancy(), 'all' => ParkingZone::withCount('activeSessions')->orderBy('sort')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()] + $this->lookups());
     }
 
     public function zoneSave(Request $r, ?ParkingZone $parkingzone = null)

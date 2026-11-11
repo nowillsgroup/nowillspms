@@ -316,7 +316,7 @@ trait TransportParkingReports
 {
     protected function r_car_rentals($from, $to): array
     {
-        $rows = CarRental::with('reservation.guest.vehicle')->whereBetween('pickup_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = CarRental::with('reservation.guest.vehicle')->whereBetween('pickup_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'vehicle' => optional($r->vehicle)->plate_number, 'pickup' => $r->pickup_date, 'dropoff' => $r->dropoff_date,
             'days' => $r->days, 'rate' => $r->daily_rate, 'amount' => $r->total_amount, 'status' => $r->status,
@@ -329,7 +329,7 @@ trait TransportParkingReports
         $f = Carbon::parse($from)->startOfDay();
         $t = Carbon::parse($to)->endOfDay();
         $days = (int) $f->diffInDays($t->copy()->startOfDay()) + 1;
-        $rows = \App\Models\ParkingZone::orderBy('sort')->orderBy('code')->get()->map(function ($z) use ($f, $t, $days) {
+        $rows = \App\Models\ParkingZone::orderBy('sort')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($z) use ($f, $t, $days) {
             $ss = \App\Models\ParkingSession::where('parking_zone_id', $z->id)->where('status', '!=', 'cancelled')->where('entered_at', '<=', $t)
                 ->where(fn ($q) => $q->whereNull('exited_at')->orWhere('exited_at', '>=', $f))->get(['id', 'entered_at', 'exited_at', 'kind', 'is_valet', 'fee']);
             $ev = [];
@@ -367,7 +367,7 @@ trait TransportParkingReports
 
     protected function r_parking_permits($from, $to): array
     {
-        $rows = \App\Models\ParkingPermit::with(['vehicle', 'zone', 'employee'])->orderByRaw("status = 'revoked'")->orderBy('valid_to')->get()->map(function ($p) {
+        $rows = \App\Models\ParkingPermit::with(['vehicle', 'zone', 'employee'])->orderByRaw("status = 'revoked'")->orderBy('valid_to')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($p) {
             [$state] = $p->stateBadge();
 
             return ['no' => $p->number, 'holder' => $p->holder_name, 'type' => \App\Models\ParkingPermit::HOLDERS[$p->holder_type] ?? $p->holder_type, 'emp' => $p->employee?->emp_code ?? '',
@@ -386,8 +386,8 @@ trait TransportParkingReports
 
     protected function r_parking_revenue($from, $to): array
     {
-        $ch = \App\Models\ParkingCharge::with('session')->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->get();
-        $waived = \App\Models\ParkingSession::where('fee_waived', '>', 0)->whereBetween('exited_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->get();
+        $ch = \App\Models\ParkingCharge::with('session')->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
+        $waived = \App\Models\ParkingSession::where('fee_waived', '>', 0)->whereBetween('exited_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $ch->groupBy(fn ($c) => $c->business_date->toDateString())->sortKeys()->map(function ($g, $d) use ($waived) {
             $n = $g->where('kind', 'night');
             $x = $g->where('kind', 'exit');
@@ -407,7 +407,7 @@ trait TransportParkingReports
 
     protected function r_parking_sessions($from, $to): array
     {
-        $rows = \App\Models\ParkingSession::with(['zone', 'stay.room'])->whereBetween('entered_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('entered_at')->orderBy('id')->get()
+        $rows = \App\Models\ParkingSession::with(['zone', 'stay.room'])->whereBetween('entered_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('entered_at')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($s) => ['in' => $s->entered_at->format('d M Y H:i'), 'no' => $s->number, 'plate' => $s->plate, 'type' => $s->kindLabel(), 'zone' => $s->zone?->code,
                 'who' => trim(($s->stay?->room ? 'Rm '.$s->stay->room->room_no.' · ' : '').($s->guest_name ?? '')), 'out' => $s->exited_at?->format('d M Y H:i') ?? '', 'dur' => $s->durationLabel(),
                 'valid' => $s->validation_hours ?: null, 'lost' => $s->lost_ticket ? 'Yes' : '', 'fee' => (float) $s->fee ?: null, 'waived' => (float) $s->fee_waived ?: null, 'status' => $s->statusLabel(),
@@ -424,7 +424,7 @@ trait TransportParkingReports
     {
         $sla = \App\Services\ParkingService::cfg()['sla_minutes'];
         $ss = \App\Models\ParkingSession::with('runner')->where('is_valet', true)->whereNotNull('requested_at')->whereNotNull('ready_at')
-            ->whereBetween('requested_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->get();
+            ->whereBetween('requested_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $mk = function ($g, string $name) use ($sla) {
             $w = $g->map(fn ($s) => $s->requested_at->diffInSeconds($s->ready_at, true) / 60);
 
@@ -445,7 +445,7 @@ trait TransportParkingReports
 
     protected function r_parking_vehicles($from, $to): array
     {
-        $rows = ParkingVehicle::with('zone.guest')->whereBetween('entered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ParkingVehicle::with('zone.guest')->whereBetween('entered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'plate' => $r->plate_number, 'zone' => optional($r->zone)->name, 'guest' => optional($r->guest)->name,
             'entered' => $r->entered_at, 'exited' => $r->exited_at, 'duration' => $r->duration_minutes,
             'rate' => $r->rate, 'amount' => $r->amount, 'payment' => $r->payment_method, 'status' => $r->status,
@@ -455,7 +455,7 @@ trait TransportParkingReports
 
     protected function r_rental_vehicles($from, $to): array
     {
-        $rows = RentalVehicle::with('vehicleType')->get()->map(fn ($r) => [
+        $rows = RentalVehicle::with('vehicleType')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'plate' => $r->plate_number, 'make' => $r->make, 'model' => $r->model,
             'year' => $r->year, 'type' => optional($r->vehicleType)->name, 'capacity' => $r->capacity,
             'seats' => $r->seats, 'transmission' => $r->transmission, 'ac' => $r->has_ac,
@@ -467,7 +467,7 @@ trait TransportParkingReports
     protected function r_transport_drivers($from, $to): array
     {
         $all = $this->trRows($from, $to)->whereNotNull('driver_id')->groupBy('driver_id');
-        $rows = \App\Models\Driver::orderBy('name')->get()->map(function ($d) use ($all) {
+        $rows = \App\Models\Driver::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($d) use ($all) {
             $t = $all[$d->id] ?? collect();
             if (! $t->count()) {
                 return null;
@@ -515,7 +515,7 @@ trait TransportParkingReports
     protected function r_transport_tariffs($from, $to): array
     {
         // Rewritten against the real schema: name/kind/vehicle_type/flat_rate/included_km/per_km/wait_per_hour/duration_min; there is no transport type table.
-        $rows = TransportTariff::orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = TransportTariff::orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'kind' => $r->kind, 'vehicle_type' => $r->vehicle_type,
             'flat_rate' => (float) $r->flat_rate, 'included_km' => $r->included_km,
             'per_km' => (float) $r->per_km, 'wait_per_hour' => (float) $r->wait_per_hour,
@@ -545,8 +545,8 @@ trait TransportParkingReports
     protected function r_transport_vehicles($from, $to): array
     {
         $trips = $this->trRows($from, $to)->where('status', 'completed')->whereNotNull('vehicle_id')->groupBy('vehicle_id');
-        $exp = \App\Models\VehicleExpense::whereBetween('date', [Carbon::parse($from)->toDateString(), Carbon::parse($to)->toDateString()])->get()->groupBy('vehicle_id');
-        $rows = \App\Models\Vehicle::orderBy('code')->get()->map(function ($v) use ($trips, $exp) {
+        $exp = \App\Models\VehicleExpense::whereBetween('date', [Carbon::parse($from)->toDateString(), Carbon::parse($to)->toDateString()])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('vehicle_id');
+        $rows = \App\Models\Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($trips, $exp) {
             $t = $trips[$v->id] ?? collect();
             $e = $exp[$v->id] ?? collect();
             $km = (int) $t->sum(fn ($x) => $x->km() ?? 0);
@@ -577,8 +577,8 @@ trait TransportParkingReports
     {
         $f = Carbon::parse($from)->toDateString();
         $t = Carbon::parse($to)->toDateString();
-        $records = \App\Models\VehicleMaintenanceRecord::whereDate('completed_at', '>=', $f)->whereDate('completed_at', '<=', $t)->get()->groupBy('vehicle_id');
-        $rows = \App\Models\Vehicle::orderBy('code')->get()->map(function ($v) use ($records, $f, $t) {
+        $records = \App\Models\VehicleMaintenanceRecord::whereDate('completed_at', '>=', $f)->whereDate('completed_at', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('vehicle_id');
+        $rows = \App\Models\Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($records, $f, $t) {
             $done = $records[$v->id] ?? collect();
             $state = \App\Services\FleetService::maintenanceState($v);
             if (! $done->count() && ! $state['open']->count() && ! $state['overdue']->count() && ! $v->is_active) {
@@ -610,8 +610,8 @@ trait TransportParkingReports
         $fixes = \App\Models\VehiclePosition::whereBetween('recorded_at', [$f, $t])
             ->selectRaw("vehicle_id, COUNT(*) n, MAX(recorded_at) last_at, AVG(CASE WHEN speed_kph IS NULL THEN 0 ELSE speed_kph END) avg_speed,
                 SUM(CASE WHEN speed_kph > 5 THEN 1 ELSE 0 END) moving, SUM(CASE WHEN speed_kph > {$limit} THEN 1 ELSE 0 END) overlimit")
-            ->groupBy('vehicle_id')->get()->keyBy('vehicle_id');
-        $rows = \App\Models\Vehicle::orderBy('code')->get()->map(function ($v) use ($fixes, $f, $t) {
+            ->groupBy('vehicle_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('vehicle_id');
+        $rows = \App\Models\Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($fixes, $f, $t) {
             $fx = $fixes[$v->id] ?? null;
             $tracker = \App\Models\VehicleTracker::where('vehicle_id', $v->id)->orderByDesc('is_active')->first();
             if (! $fx && ! $tracker && ! $v->is_active) {

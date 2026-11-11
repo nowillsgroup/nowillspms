@@ -42,6 +42,7 @@ class IptvController extends Controller
 
     protected function range(Request $r, string $defFrom): array
     {
+        $r->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $t = bdate()->toDateString();
         try {
             $from = $r->filled('from') ? Carbon::parse($r->query('from'))->toDateString() : $defFrom;
@@ -62,16 +63,16 @@ class IptvController extends Controller
 
     public function index()
     {
-        $rooms = Room::with(['floor', 'currentStay.guest', 'currentStay.reservation.guest'])->where('is_active', true)->orderBy('floor_id')->orderBy('room_no')->get();
-        $devices = TvDevice::where('status', '!=', 'pending')->get();
+        $rooms = Room::with(['floor', 'currentStay.guest', 'currentStay.reservation.guest'])->where('is_active', true)->orderBy('floor_id')->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $devices = TvDevice::where('status', '!=', 'pending')->limit((int) config('pms.max_list_rows', 5000))->get();
         $welcomed = TvSession::whereNull('ended_at')->whereNotNull('welcomed_at')->pluck('reservation_room_id')->all();
 
         return view('iptv.index', [
             'stats' => IS::stats(), 'alerts' => IS::alerts(), 'emergency' => IS::emergency(), 'rooms' => $rooms->groupBy(fn ($r) => $r->floor?->name ?? 'Rooms'),
             'byRoom' => $devices->where('kind', 'room')->groupBy('room_id'), 'signage' => $devices->where('kind', 'signage')->values(), 'welcomed' => $welcomed,
             'usage' => IS::analytics(bdate()->copy()->subDays(6)->toDateString(), bdate()->toDateString()),
-            'recent' => TvEvent::with('stay.room')->whereIn('event', ['rent', 'order', 'request', 'wakeup', 'checkout', 'feedback', 'welcome', 'language'])->latest('created_at')->latest('id')->limit(12)->get(),
-            'messages' => TvMessage::where('status', 'active')->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now()))->latest('id')->limit(6)->get(),
+            'recent' => TvEvent::with('stay.room')->whereIn('event', ['rent', 'order', 'request', 'wakeup', 'checkout', 'feedback', 'welcome', 'language'])->latest('created_at')->latest('id')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'messages' => TvMessage::where('status', 'active')->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now()))->latest('id')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cfg' => IS::cfg(),
         ]);
     }
@@ -87,8 +88,8 @@ class IptvController extends Controller
             ->when($r->query('state') === 'offline', fn ($q) => $q->where('status', 'active')->where(fn ($w) => $w->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $cut)))
             ->when(in_array($r->query('state'), ['pending', 'disabled'], true), fn ($q) => $q->where('status', $r->query('state')))
             ->when($r->query('state') !== 'pending', fn ($q) => $q->where(fn ($w) => $w->where('status', '!=', 'pending')->orWhere('pairing_expires_at', '>', now())))
-            ->orderByRaw("FIELD(status, 'pending', 'active', 'disabled')")->orderBy('kind')->orderBy('name')->get();
-        $stays = ReservationRoom::with(['guest', 'reservation.guest'])->where('status', 'checked_in')->whereIn('room_id', $list->pluck('room_id')->filter())->get()->keyBy('room_id');
+            ->orderByRaw("FIELD(status, 'pending', 'active', 'disabled')")->orderBy('kind')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $stays = ReservationRoom::with(['guest', 'reservation.guest'])->where('status', 'checked_in')->whereIn('room_id', $list->pluck('room_id')->filter())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('room_id');
 
         return view('iptv.devices', ['list' => $list, 'stays' => $stays, 'rooms' => $this->rooms(), 'setupUrl' => route('tv.setup', hotel()->code),
             'channels' => TvChannel::where('is_active', true)->orderBy('number')->get(['number', 'name']), 'cfg' => IS::cfg()]);
@@ -97,9 +98,9 @@ class IptvController extends Controller
     public function device(TvDevice $tvdevice)
     {
         return view('iptv.device', ['d' => $tvdevice->load('room', 'pairedBy'), 'stay' => IS::stayFor($tvdevice),
-            'commands' => TvCommand::with('issuer')->where('tv_device_id', $tvdevice->id)->latest('id')->limit(20)->get(),
-            'sessions' => TvSession::with(['stay.guest', 'stay.reservation.guest', 'template'])->where('tv_device_id', $tvdevice->id)->latest('id')->limit(15)->get(),
-            'events' => TvEvent::where('tv_device_id', $tvdevice->id)->latest('created_at')->latest('id')->limit(25)->get(),
+            'commands' => TvCommand::with('issuer')->where('tv_device_id', $tvdevice->id)->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'sessions' => TvSession::with(['stay.guest', 'stay.reservation.guest', 'template'])->where('tv_device_id', $tvdevice->id)->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'events' => TvEvent::where('tv_device_id', $tvdevice->id)->latest('created_at')->latest('id')->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rooms' => $this->rooms(), 'channels' => TvChannel::where('is_active', true)->orderBy('number')->get(['number', 'name'])]);
     }
 
@@ -169,7 +170,7 @@ class IptvController extends Controller
     public function stayReset(Request $r, ReservationRoom $stay)
     {
         return $this->attempt(function () use ($r, $stay) {
-            $list = TvDevice::where('room_id', $stay->room_id)->where('status', 'active')->get();
+            $list = TvDevice::where('room_id', $stay->room_id)->where('status', 'active')->limit((int) config('pms.max_list_rows', 5000))->get();
             if ($list->isEmpty()) {
                 throw new RuntimeException('There is no active TV in room '.$stay->room?->room_no.'.');
             }
@@ -186,7 +187,7 @@ class IptvController extends Controller
     public function channels(Request $r)
     {
         $list = TvChannel::withCount(['programmes as upcoming' => fn ($q) => $q->where('ends_at', '>', now())])
-            ->when($r->filled('category'), fn ($q) => $q->where('category', $r->query('category')))->orderBy('number')->get();
+            ->when($r->filled('category'), fn ($q) => $q->where('category', $r->query('category')))->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('iptv.channels', ['list' => $list, 'nn' => IS::nowNext(), 'alerts' => IS::alerts()]);
     }
@@ -250,9 +251,9 @@ class IptvController extends Controller
     public function movies(Request $r)
     {
         [$from, $to] = $this->range($r, bdate()->copy()->startOfMonth()->toDateString());
-        $rentals = TvPurchase::with(['room', 'stay.guest', 'stay.reservation.guest', 'refunder'])->whereBetween('starts_at', [$from.' 00:00:00', $to.' 23:59:59'])->latest('id')->get();
+        $rentals = TvPurchase::with(['room', 'stay.guest', 'stay.reservation.guest', 'refunder'])->whereBetween('starts_at', [$from.' 00:00:00', $to.' 23:59:59'])->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
-        return view('iptv.movies', ['list' => TvMovie::withCount('purchases')->orderBy('sort')->orderBy('title')->get(), 'rentals' => $rentals, 'from' => $from, 'to' => $to, 'cfg' => IS::cfg()]);
+        return view('iptv.movies', ['list' => TvMovie::withCount('purchases')->orderBy('sort')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get(), 'rentals' => $rentals, 'from' => $from, 'to' => $to, 'cfg' => IS::cfg()]);
     }
 
     protected function movieData(Request $r): array
@@ -285,7 +286,7 @@ class IptvController extends Controller
 
     public function welcome(Request $r)
     {
-        $stays = ReservationRoom::with(['room', 'guest', 'reservation.guest', 'reservation.company'])->where('status', 'checked_in')->whereNotNull('room_id')->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        $stays = ReservationRoom::with(['room', 'guest', 'reservation.guest', 'reservation.company'])->where('status', 'checked_in')->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
         $stay = $r->filled('stay') ? $stays->firstWhere('id', (int) $r->query('stay')) : $stays->first();
         $preview = null;
         if ($stay) {
@@ -297,7 +298,7 @@ class IptvController extends Controller
             $preview['portal'] = GuestPortalService::portalQrData($stay);
         }
 
-        return view('iptv.welcome', ['list' => TvWelcomeTemplate::orderBy('language')->orderByDesc('priority')->orderBy('name')->get(), 'stays' => $stays, 'preview' => $preview, 'welcomeImage' => IS::cfg()['welcome_image'], 'features' => IS::features(),
+        return view('iptv.welcome', ['list' => TvWelcomeTemplate::orderBy('language')->orderByDesc('priority')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'stays' => $stays, 'preview' => $preview, 'welcomeImage' => IS::cfg()['welcome_image'], 'features' => IS::features(),
             'shown' => TvSession::whereNotNull('tv_welcome_template_id')->selectRaw('tv_welcome_template_id, COUNT(*) n')->groupBy('tv_welcome_template_id')->pluck('n', 'tv_welcome_template_id')]);
     }
 
@@ -320,7 +321,7 @@ class IptvController extends Controller
 
     public function pages()
     {
-        return view('iptv.pages', ['list' => TvPage::orderBy('language')->orderBy('sort')->orderBy('title')->get(),
+        return view('iptv.pages', ['list' => TvPage::orderBy('language')->orderBy('sort')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'views' => TvEvent::where('event', 'page')->where('created_at', '>=', now()->subDays(30))->selectRaw('target, COUNT(*) n')->groupBy('target')->pluck('n', 'target')]);
     }
 
@@ -346,7 +347,7 @@ class IptvController extends Controller
     {
         $list = TvMessage::with(['sender', 'closer', 'stay.room'])->withCount('reads')
             ->when($r->filled('kind'), fn ($q) => $q->where('kind', $r->query('kind')))->latest('id')->paginate(30)->withQueryString();
-        $inhouse = ReservationRoom::with(['room', 'guest', 'reservation.guest'])->where('status', 'checked_in')->whereNotNull('room_id')->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        $inhouse = ReservationRoom::with(['room', 'guest', 'reservation.guest'])->where('status', 'checked_in')->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
         $groups = Reservation::whereHas('rooms', fn ($q) => $q->where('status', 'checked_in'), '>=', 2)->orderBy('reservation_no')->get(['id', 'reservation_no', 'group_name']);
 
         return view('iptv.messages', ['list' => $list, 'inhouse' => $inhouse, 'floors' => Floor::orderBy('id')->get(['id', 'name']), 'groups' => $groups, 'emergency' => IS::emergency(),

@@ -28,7 +28,7 @@ class MarketingPlanController extends Controller
 
     protected function owners()
     {
-        return \App\Models\User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->get()
+        return \App\Models\User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($u) => ((! $u->is_super_admin && ! $u->is_group_admin) || $u->id === auth()->id()) && ($u->hasPermission('sales.marketing') || $u->hasPermission('sales.manage')))->values();
     }
 
@@ -38,7 +38,7 @@ class MarketingPlanController extends Controller
         $year = (int) ($r->query('year') ?: $month->year);
         $events = MarketingEvent::with('owner')->whereYear('start_date', $year)
             ->when($r->filled('type'), fn ($q) => $q->where('type', $r->type))->when($r->filled('status'), fn ($q) => $q->where('status', $r->status))
-            ->orderBy('start_date')->get();
+            ->orderBy('start_date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $roi = MP::roi($events);
         $done = $events->where('status', 'done');
 
@@ -100,7 +100,7 @@ class MarketingPlanController extends Controller
     {
         $list = MarketingCollateral::with('uploader')->when($r->filled('kind'), fn ($q) => $q->where('kind', $r->kind))
             ->when($r->filled('q'), fn ($q) => $q->where('title', 'like', '%'.$r->q.'%'))
-            ->when(! $r->boolean('inactive'), fn ($q) => $q->where('is_active', true))->orderBy('kind')->orderBy('title')->get();
+            ->when(! $r->boolean('inactive'), fn ($q) => $q->where('is_active', true))->orderBy('kind')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('sales.collateral', ['list' => $list]);
     }

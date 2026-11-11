@@ -15,8 +15,9 @@ class SpaController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = Carbon::parse($request->input('date', bdate()->toDateString()))->toDateString();
-        $appts = SpaAppointment::with('service', 'therapist', 'spaRoom', 'stay.room')->whereDate('date', $date)->orderBy('start_time')->get();
+        $appts = SpaAppointment::with('service', 'therapist', 'spaRoom', 'stay.room')->whereDate('date', $date)->orderBy('start_time')->limit((int) config('pms.max_list_rows', 5000))->get();
         $therapists = SpaBookingService::therapists();
         $slots = SpaBookingService::slots();
         $step = max(15, (int) setting('spa_slot_min', 30));
@@ -40,10 +41,10 @@ class SpaController extends Controller
 
         return view('spa.index', [
             'date' => $date, 'appts' => $appts, 'cols' => $cols, 'slots' => $slots, 'grid' => $grid, 'step' => $step,
-            'services' => SpaService::where('is_active', true)->orderBy('category')->orderBy('name')->get(),
+            'services' => SpaService::where('is_active', true)->orderBy('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rooms' => SpaRoom::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'therapists' => $therapists->pluck('name', 'id'),
-            'stays' => ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->get()
+            'stays' => ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->mapWithKeys(fn ($s) => [$s->id => 'Room '.$s->room?->room_no.' – '.($s->guest ?? $s->reservation?->guest)?->full_name])->sort(),
             'paymentModes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->pluck('name', 'id'),
             'stats' => ['booked' => $appts->whereIn('status', ['booked', 'in_progress'])->count(), 'done' => $appts->where('status', 'completed')->count(),

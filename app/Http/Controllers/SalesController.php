@@ -49,10 +49,10 @@ class SalesController extends Controller
         $owner = $this->mineOnly($r);
         $t = bdate()->copy();
         $won = SalesOpportunity::where('stage', 'won')->when($owner, fn ($q) => $q->where('owner_id', $owner));
-        $decided = SalesOpportunity::whereIn('stage', ['won', 'lost'])->whereDate('closed_on', '>=', $t->copy()->subDays(90)->toDateString())->when($owner, fn ($q) => $q->where('owner_id', $owner))->get();
+        $decided = SalesOpportunity::whereIn('stage', ['won', 'lost'])->whereDate('closed_on', '>=', $t->copy()->subDays(90)->toDateString())->when($owner, fn ($q) => $q->where('owner_id', $owner))->limit((int) config('pms.max_list_rows', 5000))->get();
         $prod = SS::production($t->copy()->startOfYear(), $t->copy());
-        $top = Company::whereIn('id', $prod->keys())->get()->keyBy('id');
-        $marketingEvents = MarketingEvent::whereYear('start_date', $t->year)->whereIn('status', ['planned', 'confirmed', 'done', 'cancelled'])->get();
+        $top = Company::whereIn('id', $prod->keys())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
+        $marketingEvents = MarketingEvent::whereYear('start_date', $t->year)->whereIn('status', ['planned', 'confirmed', 'done', 'cancelled'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $marketingRoi = MP::roi($marketingEvents);
         $marketingBudgetRows = MP::budgetVsActual($t->year);
         $marketingSummary = [
@@ -65,22 +65,22 @@ class SalesController extends Controller
         ];
         $upcomingMarketing = MarketingEvent::with('owner')->whereIn('status', ['planned', 'confirmed'])
             ->whereDate('end_date', '>=', $t->toDateString())->whereDate('start_date', '<=', $t->copy()->addDays(30)->toDateString())
-            ->orderBy('start_date')->limit(5)->get();
+            ->orderBy('start_date')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
         $owners = (can_do('sales.marketing') || can_do('sales.manage'))
-            ? User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->get()
+            ? User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->filter(fn ($u) => ((! $u->is_super_admin && ! $u->is_group_admin) || $u->id === auth()->id()) && ($u->hasPermission('sales.marketing') || $u->hasPermission('sales.manage')))->values()
             : collect();
 
         return view('sales.index', $this->formData() + [
             'owners' => $owners, 'marketingSummary' => $marketingSummary, 'upcomingMarketing' => $upcomingMarketing, 'marketingYear' => $t->year,
             'owner' => $owner, 'pipe' => SS::pipeline($owner), 'alerts' => SS::alerts($owner), 'cfg' => SS::cfg(),
-            'wonMonth' => (clone $won)->whereDate('closed_on', '>=', $t->copy()->startOfMonth()->toDateString())->get(),
-            'wonYear' => (clone $won)->whereDate('closed_on', '>=', $t->copy()->startOfYear()->toDateString())->get(),
+            'wonMonth' => (clone $won)->whereDate('closed_on', '>=', $t->copy()->startOfMonth()->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'wonYear' => (clone $won)->whereDate('closed_on', '>=', $t->copy()->startOfYear()->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get(),
             'winRate' => $decided->count() ? round($decided->where('stage', 'won')->count() * 100 / $decided->count()) : null, 'decided' => $decided->count(),
             'agenda' => SalesActivity::with('company', 'owner', 'opportunity')->where('status', 'planned')->where('due_at', '<=', $t->copy()->addDays(7)->endOfDay())
-                ->when($owner, fn ($q) => $q->where('owner_id', $owner))->orderBy('due_at')->limit(12)->get(),
+                ->when($owner, fn ($q) => $q->where('owner_id', $owner))->orderBy('due_at')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'closing' => SalesOpportunity::with('company', 'owner')->whereIn('stage', SalesOpportunity::OPEN)->whereDate('expected_close', '<=', $t->copy()->addDays(30)->toDateString())
-                ->when($owner, fn ($q) => $q->where('owner_id', $owner))->orderBy('expected_close')->limit(8)->get(),
+                ->when($owner, fn ($q) => $q->where('owner_id', $owner))->orderBy('expected_close')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stale' => SS::staleOpportunities($owner)->take(6), 'dormant' => SS::dormantAccounts($owner)->take(6), 'birthdays' => SS::birthdays()->take(6),
             'top' => $prod->sortByDesc('revenue')->take(8)->map(fn ($p, $id) => $p + ['company' => $top[$id] ?? null])->filter(fn ($p) => $p['company']),
         ]);
@@ -97,10 +97,10 @@ class SalesController extends Controller
             ->when($r->filled('industry'), fn ($q) => $q->where('industry', $r->industry))
             ->when($r->query('manager') === 'none', fn ($q) => $q->whereNull('account_manager_id'))
             ->when($r->filled('manager') && $r->manager !== 'none', fn ($q) => $q->where('account_manager_id', $r->manager === 'me' ? auth()->id() : (int) $r->manager));
-        $list = $q->orderByRaw("FIELD(tier, 'key', 'major', 'standard')")->orderBy('name')->get();
+        $list = $q->orderByRaw("FIELD(tier, 'key', 'major', 'standard')")->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $t = bdate()->copy();
         $prod = SS::production($t->copy()->startOfYear(), $t->copy(), $list->pluck('id')->all());
-        $pipe = SalesOpportunity::whereIn('stage', SalesOpportunity::OPEN)->whereIn('company_id', $list->pluck('id'))->get()->groupBy('company_id')->map(fn ($g) => $g->sum(fn ($o) => $o->weighted()));
+        $pipe = SalesOpportunity::whereIn('stage', SalesOpportunity::OPEN)->whereIn('company_id', $list->pluck('id'))->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('company_id')->map(fn ($g) => $g->sum(fn ($o) => $o->weighted()));
 
         return view('sales.accounts', $this->formData() + ['list' => $list, 'prod' => $prod, 'pipe' => $pipe, 'touch' => SS::lastTouch(), 'next' => SS::nextPlanned(),
             'dormantCut' => $t->copy()->subDays(SS::cfg()['dormant_days'])]);
@@ -111,9 +111,9 @@ class SalesController extends Controller
         $c = $saccount->load('accountManager', 'contacts');
 
         return view('sales.account', $this->formData() + ['c' => $c, 'ytd' => SS::ytd($c), 'monthly' => SS::monthly($c), 'canEdit' => SS::canEdit(auth()->user(), $c->account_manager_id),
-            'opps' => $c->opportunities()->with('owner')->orderByRaw("FIELD(stage, 'negotiation', 'proposal', 'qualified', 'prospect', 'won', 'lost')")->latest('id')->get(),
-            'acts' => $c->salesActivities()->with('owner', 'contact', 'opportunity')->orderByRaw("status = 'planned' DESC")->orderByDesc('due_at')->limit(40)->get(),
-            'contracts' => RateContract::where('company_id', $c->id)->latest('valid_from')->get(),
+            'opps' => $c->opportunities()->with('owner')->orderByRaw("FIELD(stage, 'negotiation', 'proposal', 'qualified', 'prospect', 'won', 'lost')")->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'acts' => $c->salesActivities()->with('owner', 'contact', 'opportunity')->orderByRaw("status = 'planned' DESC")->orderByDesc('due_at')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'contracts' => RateContract::where('company_id', $c->id)->latest('valid_from')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'credit' => \App\Services\CreditService::position($c)]);
     }
 
@@ -164,7 +164,7 @@ class SalesController extends Controller
             $opps = $q->orderByRaw("FIELD(stage, 'negotiation', 'proposal', 'qualified', 'prospect', 'won', 'lost')")->orderBy('expected_close')->paginate(40)->withQueryString();
         } else {
             $since = bdate()->copy()->subDays(60)->toDateString();
-            $opps = $q->where(fn ($w) => $w->whereIn('stage', SalesOpportunity::OPEN)->orWhereDate('closed_on', '>=', $since))->orderBy('expected_close')->get()->groupBy('stage');
+            $opps = $q->where(fn ($w) => $w->whereIn('stage', SalesOpportunity::OPEN)->orWhereDate('closed_on', '>=', $since))->orderBy('expected_close')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('stage');
         }
 
         return view('sales.opportunities', $this->formData() + ['opps' => $opps, 'list' => $list, 'owner' => $owner, 'pipe' => SS::pipeline($owner), 'cfg' => SS::cfg()]);
@@ -175,10 +175,10 @@ class SalesController extends Controller
         $o = $opp->load('company.contacts', 'contact', 'owner', 'contract', 'block', 'event');
 
         return view('sales.opportunity', $this->formData() + ['o' => $o, 'canEdit' => SS::canEdit(auth()->user(), $o->owner_id),
-            'acts' => $o->activities()->with('owner', 'contact')->orderByRaw("status = 'planned' DESC")->orderByDesc('due_at')->get(),
-            'blocks' => $o->stage === 'won' ? RoomBlock::where(fn ($q) => $q->where('company_id', $o->company_id)->orWhereNull('company_id'))->latest('arrival_date')->limit(30)->get() : collect(),
-            'events' => $o->stage === 'won' ? BanquetEvent::where(fn ($q) => $q->where('company_id', $o->company_id)->orWhereNull('company_id'))->latest('event_date')->limit(30)->get() : collect(),
-            'contracts' => $o->stage === 'won' ? RateContract::where('company_id', $o->company_id)->latest('valid_from')->get() : collect()]);
+            'acts' => $o->activities()->with('owner', 'contact')->orderByRaw("status = 'planned' DESC")->orderByDesc('due_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'blocks' => $o->stage === 'won' ? RoomBlock::where(fn ($q) => $q->where('company_id', $o->company_id)->orWhereNull('company_id'))->latest('arrival_date')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'events' => $o->stage === 'won' ? BanquetEvent::where(fn ($q) => $q->where('company_id', $o->company_id)->orWhereNull('company_id'))->latest('event_date')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'contracts' => $o->stage === 'won' ? RateContract::where('company_id', $o->company_id)->latest('valid_from')->limit((int) config('pms.max_list_rows', 5000))->get() : collect()]);
     }
 
     public function proposal(SalesOpportunity $opp)

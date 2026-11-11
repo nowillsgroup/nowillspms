@@ -29,8 +29,9 @@ class FleetController extends Controller
     /** Fleet overview: utilisation, running cost, fuel efficiency and workshop status per vehicle. */
     public function index(Request $request)
     {
+        $request->validate(['month' => 'nullable|date_format:Y-m']);
         $month = Carbon::parse(($request->input('month') ?: now()->format('Y-m')).'-01')->startOfMonth();
-        $vehicles = Vehicle::with('asset')->orderByDesc('is_active')->orderBy('code')->get();
+        $vehicles = Vehicle::with('asset')->orderByDesc('is_active')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         $cost = [];
         $maintenance = [];
@@ -68,24 +69,24 @@ class FleetController extends Controller
             'v' => $vehicle->load('asset'),
             'cost' => FS::runningCost($vehicle, $month->copy(), now()),
             'state' => FS::maintenanceState($vehicle),
-            'trackers' => $vehicle->trackers()->orderByDesc('is_active')->get(),
-            'positions' => $vehicle->positions()->orderByDesc('recorded_at')->orderByDesc('id')->limit(40)->get(),
-            'plans' => $vehicle->maintenancePlans()->orderByRaw('due_date IS NULL')->orderBy('due_date')->get(),
-            'records' => $vehicle->maintenanceRecords()->with('plan')->orderByDesc('id')->limit(20)->get(),
-            'expenses' => $vehicle->expenses()->with('driver')->orderByDesc('date')->orderByDesc('id')->limit(20)->get(),
-            'trips' => $vehicle->trips()->with('driver')->orderByDesc('scheduled_at')->limit(10)->get(),
+            'trackers' => $vehicle->trackers()->orderByDesc('is_active')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'positions' => $vehicle->positions()->orderByDesc('recorded_at')->orderByDesc('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'plans' => $vehicle->maintenancePlans()->orderByRaw('due_date IS NULL')->orderBy('due_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'records' => $vehicle->maintenanceRecords()->with('plan')->orderByDesc('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'expenses' => $vehicle->expenses()->with('driver')->orderByDesc('date')->orderByDesc('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'trips' => $vehicle->trips()->with('driver')->orderByDesc('scheduled_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'month' => $month,
             'trackedKm' => FS::gpsKm($vehicle->id, $month->copy(), now()),
             'speedLimit' => FS::cfg()['speed_limit_kph'],
             'speedFixes' => $vehicle->positions()->whereNotNull('speed_kph')->where('speed_kph', '>', FS::cfg()['speed_limit_kph'])
-                ->where('recorded_at', '>=', now()->subDays(30))->orderByDesc('speed_kph')->orderByDesc('recorded_at')->limit(10)->get(),
+                ->where('recorded_at', '>=', now()->subDays(30))->orderByDesc('speed_kph')->orderByDesc('recorded_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'tripCheck' => FS::tripVerification(30, 10, $vehicle->id),
-            'inspections' => $vehicle->inspections()->orderByDesc('inspected_at')->orderByDesc('id')->limit(5)->get(),
+            'inspections' => $vehicle->inspections()->orderByDesc('inspected_at')->orderByDesc('id')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'incidents' => VehicleIncident::where('vehicle_id', $vehicle->id)
-                ->orderByDesc('occurred_at')->orderByDesc('id')->limit(10)->get(),
+                ->orderByDesc('occurred_at')->orderByDesc('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'inspectionDays' => (int) FS::cfg()['inspection_days'],
             'crossings' => FleetGeofenceEvent::with('geofence')->where('vehicle_id', $vehicle->id)
-                ->orderByDesc('occurred_at')->orderByDesc('id')->limit(15)->get(),
+                ->orderByDesc('occurred_at')->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -94,8 +95,8 @@ class FleetController extends Controller
     {
         return view('fleet.tracking', [
             'rows' => FS::liveTrackers(),
-            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->get(),
-            'fences' => FleetGeofence::orderByDesc('is_active')->orderByRaw("CASE kind WHEN 'yard' THEN 0 WHEN 'zone' THEN 1 ELSE 2 END")->orderBy('name')->get(),
+            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'fences' => FleetGeofence::orderByDesc('is_active')->orderByRaw("CASE kind WHEN 'yard' THEN 0 WHEN 'zone' THEN 1 ELSE 2 END")->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'fenceBoard' => FS::geofenceBoard(),
             'events' => FS::geofenceAlerts(3, 60)->take(12),
             'cfg' => FS::cfg(),
@@ -162,7 +163,7 @@ class FleetController extends Controller
 
         // One device per car: two active units on the same vehicle would ingest two trails into one
         // distance figure. Replacing is explicit, and the old device stops reporting immediately.
-        $existing = VehicleTracker::where('vehicle_id', $vehicle->id)->where('is_active', true)->get();
+        $existing = VehicleTracker::where('vehicle_id', $vehicle->id)->where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         if ($existing->isNotEmpty() && ! $request->boolean('replace')) {
             return back()->withInput()->with('error',
                 "{$vehicle->code} already has an active device ({$existing->pluck('device_uid')->implode(', ')}). "
@@ -285,16 +286,16 @@ class FleetController extends Controller
             ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END")
             ->orderBy('due_date')->orderByDesc('id')->paginate(40)->withQueryString();
 
-        $vehicles = Vehicle::orderBy('code')->get();
+        $vehicles = Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
         $plans = VehicleMaintenancePlan::with('vehicle')->where('is_active', true)
-            ->orderByRaw('due_date IS NULL')->orderBy('due_date')->get();
+            ->orderByRaw('due_date IS NULL')->orderBy('due_date')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('fleet.maintenance', [
             'records' => $records, 'vehicles' => $vehicles, 'plans' => $plans, 'status' => $status,
             'states' => $vehicles->mapWithKeys(fn ($v) => [$v->id => FS::maintenanceState($v)]),
             'stats' => FS::workshopStats(90),
             'openJobs' => VehicleMaintenanceRecord::with('vehicle')->whereIn('status', ['scheduled', 'in_progress'])
-                ->orderBy('due_date')->orderBy('id')->limit(8)->get(),
+                ->orderBy('due_date')->orderBy('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'inspectionDue' => FS::inspectionDue((int) FS::cfg()['inspection_days']),
             'inspections' => $this->inspectionLog($request),
             'inspectionResult' => $this->inspectionFilter($request),
@@ -398,6 +399,7 @@ class FleetController extends Controller
 
     public function fuel(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $from = Carbon::parse(($request->input('from') ?: now()->startOfMonth()->toDateString()))->startOfDay();
         $to = Carbon::parse(($request->input('to') ?: now()->toDateString()))->startOfDay();
         if ($to->lt($from)) {
@@ -407,13 +409,13 @@ class FleetController extends Controller
             $from = $to->copy()->subDays(366);
         }
 
-        $vehicles = Vehicle::orderBy('code')->get();
+        $vehicles = Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
         $only = $request->integer('vehicle') ?: null;
         $rows = VehicleExpense::with('vehicle', 'driver')
             ->where('kind', 'fuel')
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->when($only, fn ($q, $v) => $q->where('vehicle_id', $v))
-            ->orderByDesc('date')->orderByDesc('id')->limit(300)->get();
+            ->orderByDesc('date')->orderByDesc('id')->limit(300)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         // A single-vehicle filter scopes the distance and averages too, so the headline figures always describe the rows above them.
         $stats = $vehicles->when($only, fn ($c) => $c->where('id', $only))
@@ -513,6 +515,7 @@ class FleetController extends Controller
     /** Inspection record as a spreadsheet: what was checked, what failed and what it raised. */
     public function exportInspections(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         // A hand-edited URL must not 500 the download: fall back to the default window instead.
         try {
             $from = Carbon::parse((string) ($request->query('from') ?: now()->subDays(90)->toDateString()))->startOfDay();
@@ -668,9 +671,9 @@ class FleetController extends Controller
     {
         $record->load(['vehicle', 'plan']);
         $inspections = VehicleInspection::where('work_order_id', $record->id)
-            ->orderBy('inspected_at')->orderBy('id')->get();
+            ->orderBy('inspected_at')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $expenses = VehicleExpense::where('maintenance_record_id', $record->id)
-            ->orderBy('date')->orderBy('id')->get();
+            ->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('fleet.work-order', [
             'record' => $record, 'hotel' => Tenant::hotel(), 'inspections' => $inspections, 'expenses' => $expenses,
@@ -726,8 +729,9 @@ class FleetController extends Controller
     /** Fleet status and running cost for one month — the overview table, download-ready. */
     public function exportVehicles(Request $request)
     {
+        $request->validate(['month' => 'nullable|date_format:Y-m']);
         $month = Carbon::parse(($request->input('month') ?: now()->format('Y-m')).'-01')->startOfMonth();
-        $vehicles = Vehicle::with('asset')->orderBy('code')->get();
+        $vehicles = Vehicle::with('asset')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return response()->streamDownload(function () use ($vehicles, $month) {
             $out = fopen('php://output', 'w');
@@ -777,6 +781,7 @@ class FleetController extends Controller
     /** Fuel fills for the selected period and vehicle — the same rows the fuel screen shows. */
     public function exportFuel(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $from = Carbon::parse(($request->input('from') ?: now()->startOfMonth()->toDateString()))->startOfDay();
         $to = Carbon::parse(($request->input('to') ?: now()->toDateString()))->startOfDay();
         if ($to->lt($from)) {

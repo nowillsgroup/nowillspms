@@ -316,7 +316,7 @@ trait BanquetEventsReports
 {
     protected function r_banquet($from, $to): array
     {
-        $rows = BanquetEvent::with('functions.hall', 'functions.items', 'company', 'salesUser')->whereDate('event_date', '>=', $from)->whereDate('event_date', '<=', $to)->orderBy('event_date')->get()
+        $rows = BanquetEvent::with('functions.hall', 'functions.items', 'company', 'salesUser')->whereDate('event_date', '>=', $from)->whereDate('event_date', '<=', $to)->orderBy('event_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($e) => ['no' => $e->event_no, 'date' => $e->event_date->format('d-m-Y'), 'title' => $e->title, 'type' => BanquetEvent::TYPES[$e->event_type] ?? $e->event_type,
                 'client' => $e->company?->name ?? $e->contact_name, 'venues' => $e->functions->pluck('hall.name')->unique()->join(', '), 'fns' => $e->functions->count(),
                 'pax' => $e->pax(), 'net' => $e->net(), 'tax' => $e->tax(), 'deposit' => $e->depositsReceived(), 'sales' => $e->salesUser?->name,
@@ -328,7 +328,7 @@ trait BanquetEventsReports
 
     protected function r_banquet_pipeline($from, $to): array
     {
-        $rows = BanquetEvent::with('functions.items')->whereDate('event_date', '>=', $from)->whereDate('event_date', '<=', $to)->orderBy('event_date')->get()
+        $rows = BanquetEvent::with('functions.items')->whereDate('event_date', '>=', $from)->whereDate('event_date', '<=', $to)->orderBy('event_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($e) => $e->event_date->format('Y-m'))
             ->map(function ($g, $m) {
                 $by = fn ($st) => $g->whereIn('status', (array) $st);
@@ -351,7 +351,7 @@ trait BanquetEventsReports
     protected function r_function_forecast($from, $to): array
     {
         $rows = \App\Models\BanquetFunction::with('event.company', 'hall', 'package', 'barPackage', 'items')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
-            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite']))->inTimeOrder()->get()
+            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite']))->inTimeOrder()->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($f) => ['date' => $f->date->format('d-m-Y D'), 'time' => $f->timeRange(), 'venue' => $f->hall->name, 'event' => $f->event->event_no.' '.$f->event->title,
                 'fn' => $f->name, 'setup' => \App\Models\BanquetFunction::SETUPS[$f->setup_style] ?? $f->setup_style, 'pax' => $f->guaranteed_pax ?? $f->expected_pax,
                 'guar' => $f->guaranteed_pax !== null ? 'Yes' : 'due '.$f->guaranteeCutoff()->format('d M'), 'menu' => ($f->package?->name ?? ($f->rate_per_pax > 0 ? 'Custom' : '—')).($f->barPackage ? ' + '.$f->barPackage->name : ''),
@@ -363,7 +363,7 @@ trait BanquetEventsReports
 
     protected function r_organiser_attendees($from, $to): array
     {
-        $rows = OrganiserAttendee::with('event.organiser')->whereBetween('registered_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = OrganiserAttendee::with('event.organiser')->whereBetween('registered_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'event' => optional($r->event)->name, 'organiser' => optional($r->event->organiser)->name,
             'name' => $r->name, 'email' => $r->email, 'phone' => $r->phone,
             'company' => $r->company, 'country' => $r->country, 'role' => $r->role,
@@ -376,8 +376,8 @@ trait BanquetEventsReports
     {
         $days = Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1;
         $fns = \App\Models\BanquetFunction::with('items', 'event')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
-            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite', 'completed']))->inTimeOrder()->get()->groupBy('banquet_hall_id');
-        $rows = \App\Models\BanquetHall::orderBy('sort')->orderBy('name')->get()->map(function ($h) use ($fns, $days) {
+            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite', 'completed']))->inTimeOrder()->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('banquet_hall_id');
+        $rows = \App\Models\BanquetHall::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($h) use ($fns, $days) {
             $all = $fns->get($h->id, collect());
             $firm = $all->filter(fn ($f) => $f->event->status !== 'tentative');
             $hours = $firm->sum(fn ($f) => $f->hours());

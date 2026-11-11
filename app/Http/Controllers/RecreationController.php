@@ -22,7 +22,7 @@ class RecreationController extends Controller
 {
     private function modes()
     {
-        return PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'card', 'bank', 'wallet'])->orderBy('id')->get();
+        return PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'card', 'bank', 'wallet'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ───────────────────────── ticket outlet (POS) ─────────────────────────
@@ -35,7 +35,7 @@ class RecreationController extends Controller
         $modes = $this->modes();
 
         return view('recreation.outlet', [
-            'types' => ClubTicketType::where('is_active', true)->orderBy('sort')->orderBy('id')->get()->groupBy('category'),
+            'types' => ClubTicketType::where('is_active', true)->orderBy('sort')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('category'),
             'modesJson' => $modes->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'type' => $m->type])->values()->all(),
             'stats' => RecreationService::todayStats(),
             'rate' => \App\Services\ClubBillingService::tax(100)['rate'],
@@ -59,7 +59,7 @@ class RecreationController extends Controller
                 ->where('status', 'open')->findOrFail((int) $request->query('shift_id'));
         }
         $latest = \App\Models\DepartmentShiftSession::with('user')->where('department', RecreationShiftService::DEPARTMENT)
-            ->orderByDesc('opened_at')->limit(12)->get();
+            ->orderByDesc('opened_at')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         // The history shows a closed shift's frozen snapshot; an open one is summarised live.
         $live = $latest->where('status', 'open')->mapWithKeys(fn ($s) => [$s->id => RecreationShiftService::summary($s)]);
@@ -229,7 +229,7 @@ class RecreationController extends Controller
             'sumTotal' => (clone $scope)->where('status', 'paid')->sum('total'),
             'sumTax' => (clone $scope)->where('status', 'paid')->sum('tax'),
             'sumCount' => (clone $scope)->where('status', 'paid')->count(),
-            'sumTickets' => (clone $scope)->where('status', 'paid')->withSum('passes as pax', \DB::raw('adults + children'))->get()->sum('pax'),
+            'sumTickets' => (clone $scope)->where('status', 'paid')->withSum('passes as pax', \DB::raw('adults + children'))->limit((int) config('pms.max_list_rows', 5000))->get()->sum('pax'),
         ]);
     }
 
@@ -256,7 +256,7 @@ class RecreationController extends Controller
     public function types()
     {
         return view('recreation.types', [
-            'rows' => ClubTicketType::orderBy('sort')->orderBy('id')->get(),
+            'rows' => ClubTicketType::orderBy('sort')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rate' => \App\Services\ClubBillingService::tax(100)['rate'],
         ]);
     }

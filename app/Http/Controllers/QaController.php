@@ -49,8 +49,8 @@ class QaController extends Controller
     protected function lookups(): array
     {
         return ['departments' => Department::orderBy('name')->get(['id', 'name']), 'people' => QA::people(), 'auditors' => QA::auditors(),
-            'templates' => QaTemplate::where('is_active', true)->withCount('standards')->orderBy('name')->get(),
-            'standardList' => QaStandard::where('is_active', true)->orderBy('area')->orderBy('sort')->orderBy('code')->get()];
+            'templates' => QaTemplate::where('is_active', true)->withCount('standards')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'standardList' => QaStandard::where('is_active', true)->orderBy('area')->orderBy('sort')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()];
     }
 
     // ------------------------------------------------------------------ dashboard
@@ -61,9 +61,9 @@ class QaController extends Controller
 
         return view('qa.index', ['from' => $from, 'to' => $to, 'k' => QA::kpis($from, $to), 'trend' => QA::trend(6), 'depts' => QA::departmentScores($from, $to),
             'failures' => QA::topFailures($from, $to, 8), 'due' => QA::due(), 'alerts' => QA::alerts(), 'cfg' => QA::cfg(),
-            'recent' => QaAudit::with(['template', 'department', 'auditor'])->where('status', 'completed')->orderByDesc('completed_at')->limit(6)->get(),
-            'upcoming' => QaAudit::with(['template', 'auditor'])->whereIn('status', ['scheduled', 'in_progress'])->orderBy('scheduled_for')->limit(6)->get(),
-            'overdue' => QaAction::with(['department', 'owner'])->whereIn('status', QaAction::OPEN)->whereDate('due_date', '<', bdate()->toDateString())->orderBy('due_date')->limit(8)->get(),
+            'recent' => QaAudit::with(['template', 'department', 'auditor'])->where('status', 'completed')->orderByDesc('completed_at')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'upcoming' => QaAudit::with(['template', 'auditor'])->whereIn('status', ['scheduled', 'in_progress'])->orderBy('scheduled_for')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'overdue' => QaAction::with(['department', 'owner'])->whereIn('status', QaAction::OPEN)->whereDate('due_date', '<', bdate()->toDateString())->orderBy('due_date')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ] + $this->lookups());
     }
 
@@ -94,7 +94,7 @@ class QaController extends Controller
         $u = auth()->user();
 
         return view('qa.audit', ['a' => $a, 'prev' => $prev, 'canConduct' => QA::canConduct($a, $u), 'canManage' => QA::canManage($u),
-            'areas' => $a->items->groupBy('area'), 'history' => QaAudit::where('qa_template_id', $a->qa_template_id)->where('status', 'completed')->orderByDesc('completed_at')->limit(8)->get()->reverse()->values()]
+            'areas' => $a->items->groupBy('area'), 'history' => QaAudit::where('qa_template_id', $a->qa_template_id)->where('status', 'completed')->orderByDesc('completed_at')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get()->reverse()->values()]
             + $this->lookups());
     }
 
@@ -211,7 +211,7 @@ class QaController extends Controller
         [$from, $to] = [bdate()->copy()->subDays(179), bdate()->copy()];
         $fail = collect(QA::topFailures($from, $to, 500))->keyBy(fn ($f) => $f['standard']->id);
 
-        return view('qa.standards', ['standards' => $q->get(), 'fail' => $fail, 'sops' => SopDocument::orderBy('code')->get(['id', 'code', 'title']), 'canManage' => QA::canManage($r->user())]
+        return view('qa.standards', ['standards' => $q->limit((int) config('pms.max_list_rows', 5000))->get(), 'fail' => $fail, 'sops' => SopDocument::orderBy('code')->get(['id', 'code', 'title']), 'canManage' => QA::canManage($r->user())]
             + $this->lookups());
     }
 
@@ -224,9 +224,9 @@ class QaController extends Controller
 
     public function templates(Request $r)
     {
-        $templates = QaTemplate::with(['department', 'standards'])->withCount('audits')->orderByDesc('is_active')->orderBy('name')->get();
+        $templates = QaTemplate::with(['department', 'standards'])->withCount('audits')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $due = QA::due()->keyBy(fn ($d) => $d['template']->id);
-        $scores = QaAudit::where('status', 'completed')->selectRaw('qa_template_id, AVG(score_pct) avg, SUM(passed = 1) passed, COUNT(*) n')->groupBy('qa_template_id')->get()->keyBy('qa_template_id');
+        $scores = QaAudit::where('status', 'completed')->selectRaw('qa_template_id, AVG(score_pct) avg, SUM(passed = 1) passed, COUNT(*) n')->groupBy('qa_template_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('qa_template_id');
 
         return view('qa.templates', ['list' => $templates, 'due' => $due, 'scores' => $scores, 'canManage' => QA::canManage($r->user()), 'canAudit' => QA::canAudit($r->user()), 'cfg' => QA::cfg()]
             + $this->lookups());

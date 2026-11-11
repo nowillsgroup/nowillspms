@@ -41,7 +41,7 @@ class StatutoryController extends Controller
         return view('payroll.statutory', [
             'period' => $period, 'periods' => $periods, 'tab' => $tab, 'o' => Stat::overview($period), 'alerts' => Stat::alerts(),
             'belowMin' => Stat::belowMinimumWage(), 'minWage' => Stat::minWageMonthly(),
-            'history' => StatutoryRemittance::with('paymentMode', 'creator')->latest('paid_on')->latest('id')->limit(30)->get(),
+            'history' => StatutoryRemittance::with('paymentMode', 'creator')->latest('paid_on')->latest('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher', 'forex', 'online'])->orderBy('name')->pluck('name', 'id'),
             'cfg' => collect(Stat::DEFAULTS)->map(fn ($v, $k) => Stat::cfg($k))->all(),
         ]);

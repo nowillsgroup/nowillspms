@@ -21,8 +21,8 @@ class LinenController extends Controller
         $monthStart = bdate()->copy()->startOfMonth()->toDateString();
 
         return view('linen.index', [
-            'types' => $types, 'all' => LinenType::orderBy('code')->get(),
-            'moves' => LinenMovement::with('linen', 'batch', 'user')->latest('id')->limit(30)->get(),
+            'types' => $types, 'all' => LinenType::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'moves' => LinenMovement::with('linen', 'batch', 'user')->latest('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'levels' => (float) setting('linen_par_levels', '4'), 'rooms' => \App\Models\Room::count(),
             'defaultSupplier' => setting('linen_default_supplier_id', ''),
             'suppliers' => Supplier::orderBy('name')->pluck('name', 'id'),
@@ -97,7 +97,7 @@ class LinenController extends Controller
         return view('linen.batches', [
             'list' => LinenBatch::with('lines', 'supplier', 'bill')->when($status, fn ($q) => $status === 'open' ? $q->where('status', '!=', 'closed') : $q->where('status', $status))
                 ->orderByRaw("status = 'closed'")->orderByDesc('sent_date')->orderByDesc('id')->paginate(25)->withQueryString(),
-            'status' => $status, 'types' => LinenType::where('is_active', true)->orderBy('code')->get(),
+            'status' => $status, 'types' => LinenType::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'suppliers' => Supplier::orderBy('name')->get(['id', 'name']), 'vendorId' => (int) setting('linen_default_supplier_id'),
         ]);
     }
@@ -117,7 +117,7 @@ class LinenController extends Controller
     public function batch(LinenBatch $lbatch)
     {
         return view('linen.batch', ['b' => $lbatch->load('lines.linen', 'supplier', 'bill', 'creator'),
-            'moves' => LinenMovement::with('linen', 'user')->where('linen_batch_id', $lbatch->id)->orderBy('id')->get()]);
+            'moves' => LinenMovement::with('linen', 'user')->where('linen_batch_id', $lbatch->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function receive(Request $request, LinenBatch $lbatch)

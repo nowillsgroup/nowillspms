@@ -316,7 +316,7 @@ trait SystemAdministrationReports
 {
     protected function r_api_idempotency_keys($from, $to): array
     {
-        $rows = ApiIdempotencyKey::with('apiClient.endpoint')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ApiIdempotencyKey::with('apiClient.endpoint')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'client' => optional($r->apiClient)->name, 'endpoint' => $r->endpoint,
             'key' => $r->idempotency_key, 'created' => $r->created_at, 'used' => $r->used_at,
             'status' => $r->status, 'notes' => $r->notes,
@@ -326,7 +326,7 @@ trait SystemAdministrationReports
 
     protected function r_data_migration_batches($from, $to): array
     {
-        $rows = DataMigrationBatch::with('migrationType')->whereBetween('started_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = DataMigrationBatch::with('migrationType')->whereBetween('started_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'batch_no' => $r->batch_no, 'type' => optional($r->migrationType)->name,
             'started' => $r->started_at, 'completed' => $r->completed_at,
             'records_processed' => $r->records_processed, 'records_failed' => $r->records_failed,
@@ -338,7 +338,7 @@ trait SystemAdministrationReports
     protected function r_data_migration_rows($from, $to): array
     {
         // Rewritten against the real schema: batch() relation; the parent carries code/dataset/source_name/status/rows_total/rows_created/rows_failed; the row carries row_no/external_id/status/message/model_type.
-        $rows = DataMigrationRow::with('batch')->whereHas('batch', fn ($q) => $q->whereBetween('created_at', [$from, $to]))->orderBy('batch_id')->orderBy('row_no')->get()->map(fn ($r) => [
+        $rows = DataMigrationRow::with('batch')->whereHas('batch', fn ($q) => $q->whereBetween('created_at', [$from, $to]))->orderBy('batch_id')->orderBy('row_no')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'batch' => optional($r->batch)->code, 'dataset' => optional($r->batch)->dataset,
             'row_no' => $r->row_no, 'external_id' => $r->external_id,
             'model' => $r->model_type, 'status' => ucfirst((string) $r->status), 'message' => $r->message,
@@ -348,7 +348,7 @@ trait SystemAdministrationReports
 
     protected function r_log_entry_comments($from, $to): array
     {
-        $rows = LogEntryComment::with('logEntry.user')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LogEntryComment::with('logEntry.user')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'log' => optional($r->logEntry)->action, 'comment' => $r->comment, 'created' => $r->created_at,
             'user' => optional($r->user)->name, 'status' => $r->status,
         ]);
@@ -357,7 +357,7 @@ trait SystemAdministrationReports
 
     protected function r_log_entry_reads($from, $to): array
     {
-        $rows = LogEntryRead::with('logEntry.user')->whereBetween('read_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LogEntryRead::with('logEntry.user')->whereBetween('read_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'log' => optional($r->logEntry)->action, 'read' => $r->read_at,
             'user' => optional($r->user)->name, 'ip' => $r->ip_address,
         ]);
@@ -366,7 +366,7 @@ trait SystemAdministrationReports
 
     protected function r_offline_sync_operations($from, $to): array
     {
-        $rows = OfflineSyncOperation::with('syncType.device.syncStatus')->whereBetween('synced_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = OfflineSyncOperation::with('syncType.device.syncStatus')->whereBetween('synced_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'type' => optional($r->syncType)->name, 'device' => optional($r->device)->device_name,
             'synced' => $r->synced_at, 'records' => $r->records_synced, 'duration_ms' => $r->duration_ms,
             'status' => optional($r->syncStatus)->name, 'notes' => $r->notes,
@@ -377,7 +377,7 @@ trait SystemAdministrationReports
     protected function r_permissions($from, $to): array
     {
         // Rewritten against the real schema: permissions carry key/module/label; there is no group or guard table.
-        $rows = Permission::orderBy('module')->orderBy('key')->get()->map(fn ($r) => [
+        $rows = Permission::orderBy('module')->orderBy('key')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'key' => $r->key, 'module' => $r->module, 'label' => $r->label,
         ]);
         return ['cols' => ['key' => 'Key', 'module' => 'Module', 'label' => 'Label'], 'rows' => $rows, 'note' => 'System permission definitions.'];
@@ -386,7 +386,7 @@ trait SystemAdministrationReports
     protected function r_settings($from, $to): array
     {
         // Rewritten against the real schema: settings carry key/value only.
-        $rows = Setting::orderBy('key')->get()->map(fn ($r) => [
+        $rows = Setting::orderBy('key')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'key' => $r->key, 'value' => $r->value,
         ]);
         return ['cols' => ['key' => 'Key', 'value' => 'Value'], 'rows' => $rows, 'note' => 'System settings register.'];

@@ -316,7 +316,7 @@ trait InventoryPurchasingReports
 {
     protected function r_consumption($from, $to): array
     {
-        $rows = StockMovement::with('item')->whereIn('type', ['issue', 'wastage', 'consumption'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get()
+        $rows = StockMovement::with('item')->whereIn('type', ['issue', 'wastage', 'consumption'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($m) => $m->item->name.'|'.($m->department ?: '—'))
             ->map(function ($g, $k) {
                 [$i, $d] = explode('|', $k, 2);
@@ -331,8 +331,8 @@ trait InventoryPurchasingReports
     {
         $f = $from->toDateString();
         $t = $to->toDateString();
-        $issues = \App\Models\StoreIssue::whereBetween('date', [$f, $t])->get()->groupBy('department_id');
-        $adhoc = \App\Models\StockMovement::with('item')->where('type', 'issue')->whereNull('store_issue_id')->whereNotNull('department_id')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->get()
+        $issues = \App\Models\StoreIssue::whereBetween('date', [$f, $t])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('department_id');
+        $adhoc = \App\Models\StockMovement::with('item')->where('type', 'issue')->whereNull('store_issue_id')->whereNotNull('department_id')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy('department_id')->map(fn ($g) => round($g->sum(fn ($m) => -(float) $m->qty * ((float) $m->rate ?: (float) $m->item?->last_cost)), 2));
         $reqCount = \App\Models\Requisition::whereDate('req_date', '>=', $f)->whereDate('req_date', '<=', $t)->whereNotIn('status', ['draft', 'cancelled'])->selectRaw('department_id, COUNT(*) n')->groupBy('department_id')->pluck('n', 'department_id');
         $occupied = (int) \App\Models\NightAudit::whereDate('business_date', '>=', $f)->whereDate('business_date', '<=', $t)->sum('rooms_occupied');
@@ -343,7 +343,7 @@ trait InventoryPurchasingReports
             $b = $m->copy()->endOfMonth()->min($to);
             $factor += ($a->diffInDays($b) + 1) / $m->daysInMonth;
         }
-        $rows = \App\Models\Department::with('expenseHead')->orderBy('name')->get()->map(function ($d) use ($issues, $adhoc, $reqCount, $occupied, $factor) {
+        $rows = \App\Models\Department::with('expenseHead')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($d) use ($issues, $adhoc, $reqCount, $occupied, $factor) {
             $g = $issues[$d->id] ?? collect();
             $direct = round((float) $g->whereNull('to_store_id')->sum('value'), 2);
             $transfer = round((float) $g->whereNotNull('to_store_id')->sum('value'), 2);
@@ -369,7 +369,7 @@ trait InventoryPurchasingReports
     protected function r_goods_received($from, $to): array
     {
         $rows = collect();
-        foreach (\App\Models\GoodsReceipt::with('lines.item', 'order', 'supplier')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->get() as $g) {
+        foreach (\App\Models\GoodsReceipt::with('lines.item', 'order', 'supplier')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() as $g) {
             foreach ($g->lines as $l) {
                 $rows->push(['date' => $g->date->format('d-m-Y'), 'grn' => $g->grn_no, 'po' => $g->order?->po_no, 'supplier' => $g->supplier->name, 'item' => $l->item->name, 'unit' => $l->item->unit,
                     'del' => (float) $l->qty_delivered, 'rej' => (float) $l->qty_rejected ?: null, 'reason' => $l->reject_reason, 'acc' => (float) $l->qty_accepted, 'rate' => (float) $l->rate,
@@ -377,7 +377,7 @@ trait InventoryPurchasingReports
             }
         }
         foreach (PurchaseOrder::with('items.item', 'supplier')->where('status', 'received')->whereDoesntHave('receipts')
-            ->whereBetween('received_at', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])->get() as $po) {
+            ->whereBetween('received_at', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])->limit((int) config('pms.max_list_rows', 5000))->get() as $po) {
             foreach ($po->items as $l) {
                 $rows->push(['date' => $po->received_at->format('d-m-Y'), 'grn' => '(single-step)', 'po' => $po->po_no, 'supplier' => $po->supplier->name, 'item' => $l->item->name, 'unit' => $l->item->unit,
                     'del' => (float) $l->qty, 'rej' => null, 'reason' => null, 'acc' => (float) $l->qty, 'rate' => (float) $l->rate, 'value' => (float) $l->amount,
@@ -395,7 +395,7 @@ trait InventoryPurchasingReports
     protected function r_grn_lines($from, $to): array
     {
         // Rewritten against the real schema: receipt()/item() relations; qty_delivered/qty_accepted/qty_rejected/rate/amount; the parent's audit date is `date`.
-        $rows = GoodsReceiptLine::with('receipt.supplier', 'item')->whereHas('receipt', fn ($q) => $q->whereBetween('date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = GoodsReceiptLine::with('receipt.supplier', 'item')->whereHas('receipt', fn ($q) => $q->whereBetween('date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'grn_no' => optional($r->receipt)->grn_no, 'supplier' => optional(optional($r->receipt)->supplier)->name,
             'item' => optional($r->item)->name, 'qty' => (float) $r->qty_delivered,
             'accepted' => (float) $r->qty_accepted, 'rejected' => (float) $r->qty_rejected,
@@ -406,7 +406,7 @@ trait InventoryPurchasingReports
 
     protected function r_historical_stock_movement_archives($from, $to): array
     {
-        $rows = HistoricalStockMovementArchive::with('store.item.itemCategory')->whereBetween('archived_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = HistoricalStockMovementArchive::with('store.item.itemCategory')->whereBetween('archived_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'store' => optional($r->store)->name, 'item' => optional($r->item)->name,
             'category' => optional(optional($r->item)->itemCategory)->name,
             'movement_type' => $r->movement_type, 'quantity' => $r->quantity, 'rate' => $r->unit_rate,
@@ -418,7 +418,7 @@ trait InventoryPurchasingReports
     protected function r_inventory_items($from, $to): array
     {
         // Rewritten against the real schema: code/unit/reorder_level/last_cost/tax_rate/is_active/allergens/yield_pct; category() is the only relation used.
-        $rows = InventoryItem::with('category')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = InventoryItem::with('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'code' => $r->code, 'category' => optional($r->category)->name,
             'unit' => $r->unit, 'cost_price' => (float) $r->last_cost, 'tax_rate' => (float) $r->tax_rate,
             'reorder_level' => $r->reorder_level, 'yield_pct' => $r->yield_pct,
@@ -430,7 +430,7 @@ trait InventoryPurchasingReports
     protected function r_item_categories($from, $to): array
     {
         // Rewritten against the real schema: item_categories holds name and fb_class only; there is no parent or type.
-        $rows = ItemCategory::orderBy('name')->get()->map(fn ($r) => [
+        $rows = ItemCategory::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'fb_class' => $r->fb_class,
             'items' => $r->items()->count(),
         ]);
@@ -441,7 +441,7 @@ trait InventoryPurchasingReports
     {
         $on = $d->toDateString();
         $rows = collect();
-        foreach (PurchaseOrder::with('items.item', 'supplier')->whereIn('status', ['approved', 'partial'])->whereDate('po_date', '<=', $on)->orderBy('expected_date')->get() as $po) {
+        foreach (PurchaseOrder::with('items.item', 'supplier')->whereIn('status', ['approved', 'partial'])->whereDate('po_date', '<=', $on)->orderBy('expected_date')->limit((int) config('pms.max_list_rows', 5000))->get() as $po) {
             foreach ($po->items as $l) {
                 if ($l->outstanding() <= 0) {
                     continue;
@@ -461,7 +461,7 @@ trait InventoryPurchasingReports
     protected function r_po_items($from, $to): array
     {
         // Rewritten against the real schema: order()/item() relations; qty/rate/amount/received_qty; the parent's date is po_date.
-        $rows = PurchaseOrderItem::with('order.store', 'item')->whereHas('order', fn ($q) => $q->whereBetween('po_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = PurchaseOrderItem::with('order.store', 'item')->whereHas('order', fn ($q) => $q->whereBetween('po_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'po_no' => optional($r->order)->po_no, 'item' => optional($r->item)->name,
             'store' => optional(optional($r->order)->store)->name,
             'quantity' => (float) $r->qty, 'rate' => (float) $r->rate, 'tax_rate' => (float) $r->tax_rate,
@@ -473,7 +473,7 @@ trait InventoryPurchasingReports
 
     protected function r_purchases($from, $to): array
     {
-        $rows = PurchaseOrder::with('supplier', 'store')->whereDate('po_date', '>=', $from)->whereDate('po_date', '<=', $to)->orderBy('po_date')->get()
+        $rows = PurchaseOrder::with('supplier', 'store')->whereDate('po_date', '>=', $from)->whereDate('po_date', '<=', $to)->orderBy('po_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['po' => $p->po_no, 'date' => $p->po_date->format('d-m-Y'), 'supplier' => $p->supplier->name, 'store' => $p->store->name, 'inv' => $p->invoice_no, 'sub' => (float) $p->subtotal, 'tax' => (float) $p->tax, 'total' => (float) $p->total, 'status' => $p->status]);
 
         return ['cols' => ['po' => 'PO No', 'date' => 'Date', 'supplier' => 'Supplier', 'store' => 'Store', 'inv' => 'Supplier inv.', 'sub' => 'Subtotal', 'tax' => 'Tax', 'total' => 'Total', 'status' => 'Status'], 'rows' => $rows, 'money' => ['sub', 'tax', 'total'], 'sum' => ['sub', 'tax', 'total']];
@@ -482,8 +482,8 @@ trait InventoryPurchasingReports
     protected function r_req_pending($from, $to): array
     {
         $qf = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.');
-        $reqs = \App\Models\Requisition::with('department', 'fromStore', 'lines.item')->whereIn('status', \App\Models\Requisition::OPEN_FOR_ISSUE)->orderBy('req_date')->get();
-        $stock = \App\Models\StockMovement::groupBy('inventory_item_id', 'store_id')->selectRaw('inventory_item_id, store_id, SUM(qty) q')->get()->keyBy(fn ($m) => $m->inventory_item_id.':'.$m->store_id);
+        $reqs = \App\Models\Requisition::with('department', 'fromStore', 'lines.item')->whereIn('status', \App\Models\Requisition::OPEN_FOR_ISSUE)->orderBy('req_date')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $stock = \App\Models\StockMovement::groupBy('inventory_item_id', 'store_id')->selectRaw('inventory_item_id, store_id, SUM(qty) q')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy(fn ($m) => $m->inventory_item_id.':'.$m->store_id);
         $rows = collect();
         foreach ($reqs as $r) {
             foreach ($r->lines as $l) {
@@ -509,7 +509,7 @@ trait InventoryPurchasingReports
     {
         $qf = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.');
         $reqs = \App\Models\Requisition::with('department', 'fromStore', 'toStore', 'raiser', 'approver', 'lines.item', 'issues')
-            ->whereDate('req_date', '>=', $from->toDateString())->whereDate('req_date', '<=', $to->toDateString())->orderBy('req_date')->orderBy('id')->get();
+            ->whereDate('req_date', '>=', $from->toDateString())->whereDate('req_date', '<=', $to->toDateString())->orderBy('req_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $reqs->map(function ($r) {
             $approvedQty = $r->lines->sum(fn ($l) => (float) ($l->qty_approved ?? 0));
             $issuedQty = $r->lines->sum(fn ($l) => (float) $l->qty_issued);
@@ -537,7 +537,7 @@ trait InventoryPurchasingReports
     protected function r_requisition_lines($from, $to): array
     {
         // Rewritten against the real schema: requisition()/item() relations; qty_requested/qty_approved/qty_issued; the parent's date is req_date and the requester is raised_by.
-        $rows = RequisitionLine::with('requisition.raiser', 'item')->whereHas('requisition', fn ($q) => $q->whereBetween('req_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = RequisitionLine::with('requisition.raiser', 'item')->whereHas('requisition', fn ($q) => $q->whereBetween('req_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'req_no' => optional($r->requisition)->req_no, 'item' => optional($r->item)->name,
             'requested_by' => optional(optional($r->requisition)->raiser)->name,
             'qty_requested' => (float) $r->qty_requested, 'qty_approved' => (float) $r->qty_approved,
@@ -550,7 +550,7 @@ trait InventoryPurchasingReports
     protected function r_rfq_lines($from, $to): array
     {
         // Rewritten against the real schema: rfq()/item() relations; lines carry qty + specification; store is on the parent rfq.
-        $rows = RfqLine::with('rfq.store', 'item')->orderBy('rfq_id')->get()->map(fn ($r) => [
+        $rows = RfqLine::with('rfq.store', 'item')->orderBy('rfq_id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'rfq_no' => optional($r->rfq)->rfq_no, 'item' => optional($r->item)->name,
             'store' => optional(optional($r->rfq)->store)->name,
             'qty' => (float) $r->qty, 'specification' => $r->specification,
@@ -562,7 +562,7 @@ trait InventoryPurchasingReports
     protected function r_rfq_quote_lines($from, $to): array
     {
         // Rewritten against the real schema: quote()/line() relations; rate/tax_rate/qty_offered; the parent quote carries quote_date and quote_ref.
-        $rows = RfqQuoteLine::with('quote.rfq', 'line.item')->whereHas('quote', fn ($q) => $q->whereBetween('quote_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = RfqQuoteLine::with('quote.rfq', 'line.item')->whereHas('quote', fn ($q) => $q->whereBetween('quote_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'quote' => optional($r->quote)->quote_ref, 'rfq_no' => optional(optional($r->quote)->rfq)->rfq_no,
             'item' => optional(optional($r->line)->item)->name,
             'qty_offered' => (float) $r->qty_offered, 'rate' => (float) $r->rate,
@@ -573,7 +573,7 @@ trait InventoryPurchasingReports
 
     protected function r_rfq_quotes($from, $to): array
     {
-        $rows = RfqQuote::with('rfq.supplier')->whereBetween('quoted_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RfqQuote::with('rfq.supplier')->whereBetween('quoted_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'rfq_no' => optional($r->rfq)->rfq_no, 'supplier' => optional($r->supplier)->name,
             'quoted' => $r->quoted_at, 'total_amount' => $r->total_amount,
             'valid_days' => $r->valid_days, 'status' => $r->status, 'notes' => $r->notes,
@@ -584,7 +584,7 @@ trait InventoryPurchasingReports
     protected function r_rfq_register($from, $to): array
     {
         // Rewritten against the real schema: rfq_no/title/store_id/rfq_date/respond_by/needed_by/status/created_by; there is no requester or budget.
-        $rows = Rfq::with('store', 'creator')->whereBetween('rfq_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderByDesc('rfq_date')->get()->map(fn ($r) => [
+        $rows = Rfq::with('store', 'creator')->whereBetween('rfq_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderByDesc('rfq_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'rfq_no' => $r->rfq_no, 'title' => $r->title, 'store' => optional($r->store)->name,
             'rfq_date' => $r->rfq_date, 'respond_by' => $r->respond_by, 'needed_by' => $r->needed_by,
             'created_by' => optional($r->creator)->name, 'status' => $r->status,
@@ -595,7 +595,7 @@ trait InventoryPurchasingReports
     protected function r_rfq_suppliers($from, $to): array
     {
         // Rewritten against the real schema: rfq()/supplier() relations + state(); email_status/invited_at/viewed_at/responded_at/declined_at are the audit columns.
-        $rows = RfqSupplier::with('rfq', 'supplier')->whereHas('rfq', fn ($q) => $q->whereBetween('rfq_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->orderBy('rfq_id')->get()->map(fn ($r) => [
+        $rows = RfqSupplier::with('rfq', 'supplier')->whereHas('rfq', fn ($q) => $q->whereBetween('rfq_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->orderBy('rfq_id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'rfq_no' => optional($r->rfq)->rfq_no, 'supplier' => optional($r->supplier)->name,
             'email_status' => $r->email_status, 'invited_at' => $r->invited_at,
             'viewed_at' => $r->viewed_at, 'responded_at' => $r->responded_at,
@@ -607,7 +607,7 @@ trait InventoryPurchasingReports
     protected function r_stock_take_lines($from, $to): array
     {
         // Rewritten against the real schema: stockTake()/item() relations; system_qty/counted_qty/unit_cost; variance from the model methods; the parent's date is count_date.
-        $rows = StockTakeLine::with('stockTake.store', 'item')->whereHas('stockTake', fn ($q) => $q->whereBetween('count_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = StockTakeLine::with('stockTake.store', 'item')->whereHas('stockTake', fn ($q) => $q->whereBetween('count_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'take_no' => optional($r->stockTake)->take_no, 'store' => optional(optional($r->stockTake)->store)->name,
             'item' => optional($r->item)->name,
             'system_qty' => (float) $r->system_qty, 'counted_qty' => $r->counted_qty !== null ? (float) $r->counted_qty : null,
@@ -620,7 +620,7 @@ trait InventoryPurchasingReports
 
     protected function r_stock_takes($from, $to): array
     {
-        $rows = StockTake::with('store.storeType')->whereBetween('taken_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = StockTake::with('store.storeType')->whereBetween('taken_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'store' => optional($r->store)->name, 'taken' => $r->taken_at, 'user' => $r->user_id,
             'items' => $r->item_count, 'book_qty' => $r->book_quantity, 'actual_qty' => $r->actual_quantity,
             'value_book' => $r->value_book, 'value_actual' => $r->value_actual, 'diff_value' => $r->diff_value,
@@ -632,7 +632,7 @@ trait InventoryPurchasingReports
     protected function r_store_issue_lines($from, $to): array
     {
         // Rewritten against the real schema: issue()/item() relations; qty/rate/amount; the parent's date is `date`; stores via fromStore()/toStore().
-        $rows = StoreIssueLine::with('issue.fromStore', 'issue.toStore', 'item')->whereHas('issue', fn ($q) => $q->whereBetween('date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = StoreIssueLine::with('issue.fromStore', 'issue.toStore', 'item')->whereHas('issue', fn ($q) => $q->whereBetween('date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'issue_no' => optional($r->issue)->issue_no,
             'from_store' => optional(optional($r->issue)->fromStore)->name,
             'to_store' => optional(optional($r->issue)->toStore)->name,
@@ -644,7 +644,7 @@ trait InventoryPurchasingReports
 
     protected function r_store_pars($from, $to): array
     {
-        $rows = StorePar::with('store.parType')->whereBetween('filled_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = StorePar::with('store.parType')->whereBetween('filled_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'store' => optional($r->store)->name, 'date' => $r->filled_at, 'user' => $r->user_id,
             'par_value' => $r->par_value, 'actual_value' => $r->actual_value, 'variance' => $r->variance,
             'status' => $r->status, 'notes' => $r->notes,
@@ -655,7 +655,7 @@ trait InventoryPurchasingReports
     protected function r_supplier_invoice_lines($from, $to): array
     {
         // Rewritten against the real schema: invoice()/head() relations; lines are account-head expenses with amount/tax_rate/tax_amount; the parent's date is doc_date and its number is doc_no.
-        $rows = SupplierInvoiceLine::with('invoice.supplier', 'head')->whereHas('invoice', fn ($q) => $q->whereBetween('doc_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = SupplierInvoiceLine::with('invoice.supplier', 'head')->whereHas('invoice', fn ($q) => $q->whereBetween('doc_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'invoice_no' => optional($r->invoice)->doc_no, 'supplier' => optional(optional($r->invoice)->supplier)->name,
             'head' => optional($r->head)->name, 'description' => $r->description,
             'amount' => (float) $r->amount, 'tax_rate' => (float) $r->tax_rate, 'tax_amount' => (float) $r->tax_amount,
@@ -666,7 +666,7 @@ trait InventoryPurchasingReports
 
     protected function r_supplier_prices($from, $to): array
     {
-        $rows = SupplierPrice::with('supplier.item.itemCategory')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SupplierPrice::with('supplier.item.itemCategory')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'supplier' => optional($r->supplier)->name, 'item' => optional($r->item)->name,
             'category' => optional(optional($r->item)->itemCategory)->name,
             'old_price' => $r->old_price, 'new_price' => $r->new_price, 'change' => $r->price_change,

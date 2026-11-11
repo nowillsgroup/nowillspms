@@ -23,11 +23,11 @@ class KotPrinterController extends Controller
             ->prepend('Kitchen')->unique()->values();
 
         return view('pos.printers', [
-            'printers' => KotPrinter::with('outlet')->orderBy('sort_order')->orderBy('name')->get(),
+            'printers' => KotPrinter::with('outlet')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'outlets' => Outlet::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'stations' => $stations,
-            'categories' => MenuCategory::with('outlet', 'printer')->withCount('items')->orderBy('sort_order')->orderBy('name')->get(),
-            'jobs' => KotPrintJob::with('printer', 'order', 'user')->latest('id')->limit(25)->get(),
+            'categories' => MenuCategory::with('outlet', 'printer')->withCount('items')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'jobs' => KotPrintJob::with('printer', 'order', 'user')->latest('id')->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -68,7 +68,7 @@ class KotPrinterController extends Controller
             'category.*' => 'nullable|integer',
         ]);
         $allowed = KotPrinter::pluck('id')->all();
-        foreach (MenuCategory::orderBy('id')->get() as $cat) {
+        foreach (MenuCategory::orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() as $cat) {
             $id = (int) ($data['category'][$cat->id] ?? 0);
             $cat->update(['kot_printer_id' => $id && in_array($id, $allowed, true) ? $id : null]);
         }

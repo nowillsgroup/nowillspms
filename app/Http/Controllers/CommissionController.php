@@ -47,7 +47,7 @@ class CommissionController extends Controller
         // the due population, aged once: the summary and the buckets are read off this, so they cannot disagree with it
         $due = AgentCommission::with('company')->where('status', 'due')
             ->when($request->integer('company_id'), fn ($q, $c) => $q->where('company_id', $c))
-            ->get()->each(function ($c) use ($age) {
+            ->limit((int) config('pms.max_list_rows', 5000))->get()->each(function ($c) use ($age) {
                 $c->days = $age($c);
                 $c->bucket = ArService::bucketOf($c->days);
             });
@@ -64,7 +64,7 @@ class CommissionController extends Controller
         }
 
         // v9.12 the document control: paid means a voucher paid it, void means nothing did, due means nothing yet.
-        $all = AgentCommission::with('voucher', 'company')->get();
+        $all = AgentCommission::with('voucher', 'company')->limit((int) config('pms.max_list_rows', 5000))->get();
         $paid = $all->where('status', 'paid');
         $undocumented = $paid->filter(fn ($c) => ! $c->voucher)->values();
         $wronglyDocumented = $all->where('status', '!=', 'paid')->filter(fn ($c) => (bool) $c->voucher)->values();

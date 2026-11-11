@@ -46,7 +46,7 @@ class CroController extends Controller
 
     protected function lookups(): array
     {
-        return ['types' => RoomType::where('is_active', true)->orderBy('base_rate')->get(), 'competitors' => BdCompetitor::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        return ['types' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get(), 'competitors' => BdCompetitor::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'companies' => Company::orderBy('name')->get(['id', 'name'])];
     }
 
@@ -87,7 +87,7 @@ class CroController extends Controller
 
         return view('cro.index', ['hotels' => $hotels, 'q' => $q, 'results' => $results, 'error' => $error, 'enq' => $enq, 'nights' => $nights,
             'kpi' => CRO::kpis(bdate()->copy()->startOfMonth(), bdate()->copy()), 'alerts' => CRO::alerts(), 'canBook' => CRO::canBook($u), 'group' => $hotels->count() > 1,
-            'due' => CroEnquiry::with('agent')->where('status', 'open')->orderByRaw('follow_up_at IS NULL, follow_up_at')->limit(6)->get(),
+            'due' => CroEnquiry::with('agent')->where('status', 'open')->orderByRaw('follow_up_at IS NULL, follow_up_at')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'booked' => session('cro_booked'), 'prefill' => $prefill] + $this->lookups());
     }
 

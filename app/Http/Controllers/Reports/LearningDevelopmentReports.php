@@ -337,7 +337,7 @@ trait LearningDevelopmentReports
 
     protected function r_sop_acknowledgements($from, $to): array
     {
-        $rows = SopAcknowledgement::with('sopVersion.employee.department')->whereBetween('acknowledged_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SopAcknowledgement::with('sopVersion.employee.department')->whereBetween('acknowledged_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'sop' => optional($r->sopVersion->sopDocument)->title, 'employee' => optional($r->employee)->name,
             'dept' => optional($r->department)->name, 'acknowledged' => $r->acknowledged_at,
             'acknowledged_by' => optional($r->employee)->name, 'status' => $r->status, 'notes' => $r->notes,
@@ -348,7 +348,7 @@ trait LearningDevelopmentReports
     protected function r_sop_documents($from, $to): array
     {
         // Rewritten against the real schema: code/title/category/version/status/owner_id/created_by; no sopType relation.
-        $rows = \App\Models\SopDocument::with('department', 'owner')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = \App\Models\SopDocument::with('department', 'owner')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'title' => $r->title, 'dept' => optional($r->department)->name,
             'category' => $r->categoryLabel(), 'version' => $r->version,
             'owner' => optional($r->owner)->name, 'status' => $r->statusLabel(),
@@ -360,7 +360,7 @@ trait LearningDevelopmentReports
     protected function r_sop_versions($from, $to): array
     {
         // Rewritten against the real schema: document() relation; published_by is a user id, publisher() resolves it.
-        $rows = \App\Models\SopVersion::with('document.department', 'publisher')->orderByDesc('published_at')->get()->map(fn ($r) => [
+        $rows = \App\Models\SopVersion::with('document.department', 'publisher')->orderByDesc('published_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'sop' => optional($r->document)->title, 'dept' => optional(optional($r->document)->department)->name,
             'version' => $r->version, 'published' => $r->published_at,
             'publisher' => optional($r->publisher)->name, 'change_note' => $r->change_note,
@@ -393,7 +393,7 @@ trait LearningDevelopmentReports
     protected function r_training_courses($from, $to): array
     {
         // Rewritten against the real schema: category/delivery/duration_hours/cost_per_head/provider/is_active; there is no training type or instructor on the course.
-        $rows = TrainingCourse::orderBy('name')->get()->map(fn ($r) => [
+        $rows = TrainingCourse::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'name' => $r->name, 'category' => $r->categoryLabel(),
             'delivery' => $r->delivery, 'duration' => $r->duration_hours,
             'cost' => (float) $r->cost_per_head, 'provider' => $r->provider,
@@ -407,8 +407,8 @@ trait LearningDevelopmentReports
         $f = Carbon::parse($from)->toDateString();
         $t = Carbon::parse($to)->toDateString();
         $recs = \App\Models\TrainingRecord::with('course', 'employee.department')->whereIn('status', ['passed', 'exempt'])->whereNotNull('expires_on')->whereDate('expires_on', '>=', $f)->whereDate('expires_on', '<=', $t)
-            ->whereHas('employee', fn ($q) => $q->where('is_active', true))->orderBy('expires_on')->get();
-        $booked = \App\Models\TrainingRecord::with('session')->where('status', 'enrolled')->whereHas('session', fn ($q) => $q->where('status', 'scheduled'))->get()
+            ->whereHas('employee', fn ($q) => $q->where('is_active', true))->orderBy('expires_on')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $booked = \App\Models\TrainingRecord::with('session')->where('status', 'enrolled')->whereHas('session', fn ($q) => $q->where('status', 'scheduled'))->limit((int) config('pms.max_list_rows', 5000))->get()
             ->mapWithKeys(fn ($r) => [$r->employee_id.'-'.$r->training_course_id => $r->session]);
         $rows = $recs->filter(function ($r) {   // only the latest certificate per employee & course (a renewal supersedes it)
             return ! \App\Models\TrainingRecord::where('employee_id', $r->employee_id)->where('training_course_id', $r->training_course_id)->whereIn('status', ['passed', 'exempt'])
@@ -431,7 +431,7 @@ trait LearningDevelopmentReports
     protected function r_training_hours($from, $to): array
     {
         $recs = \App\Models\TrainingRecord::with('course', 'employee.department')->whereIn('status', ['passed', 'failed'])
-            ->whereDate('completed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('completed_on', '<=', Carbon::parse($to)->toDateString())->get();
+            ->whereDate('completed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('completed_on', '<=', Carbon::parse($to)->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $staff = \App\Services\LearningService::employees()->groupBy(fn ($e) => $e->department?->name ?? '—');
         $rows = $staff->keys()->merge($recs->map(fn ($r) => $r->employee->department?->name ?? '—'))->unique()->sort()->map(function ($d) use ($recs, $staff) {
             $g = $recs->filter(fn ($r) => ($r->employee->department?->name ?? '—') === $d);
@@ -457,7 +457,7 @@ trait LearningDevelopmentReports
     {
         $R = \App\Models\TrainingRecord::class;
         $rows = \App\Models\TrainingRecord::with('course', 'employee.department', 'session')->whereIn('status', ['passed', 'failed', 'no_show'])
-            ->whereDate('completed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('completed_on', '<=', Carbon::parse($to)->toDateString())->orderBy('completed_on')->orderBy('id')->get()
+            ->whereDate('completed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('completed_on', '<=', Carbon::parse($to)->toDateString())->orderBy('completed_on')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['date' => $r->completed_on->format('d M Y'), 'emp' => $r->employee->name, 'dept' => $r->employee->department?->name ?? '—', 'course' => $r->course->name,
                 'source' => $r->session ? $r->session->number : ($R::SOURCES[$r->source] ?? $r->source), 'provider' => (string) ($r->provider ?: ($r->session?->trainerLabel() ?? '')),
                 'result' => $r->statusLabel(), 'score' => $r->score !== null ? (float) $r->score : '', 'hours' => $r->status === 'passed' ? (float) $r->course->duration_hours : 0.0,
@@ -474,7 +474,7 @@ trait LearningDevelopmentReports
     protected function r_training_requirements($from, $to): array
     {
         // Rewritten against the real schema: requirements link a course to a department + designation with a due window.
-        $rows = TrainingRequirement::with('course', 'department')->orderBy('department_id')->get()->map(fn ($r) => [
+        $rows = TrainingRequirement::with('course', 'department')->orderBy('department_id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'dept' => optional($r->department)->name, 'designation' => $r->designation,
             'course' => optional($r->course)->name, 'due_days' => $r->due_days,
         ]);
@@ -483,7 +483,7 @@ trait LearningDevelopmentReports
 
     protected function r_training_sessions($from, $to): array
     {
-        $rows = TrainingSession::with('course.instructor')->whereBetween('session_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TrainingSession::with('course.instructor')->whereBetween('session_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'course' => optional($r->course)->name, 'instructor' => optional($r->instructor)->name,
             'date' => $r->session_date, 'start' => $r->start_time, 'end' => $r->end_time,
             'location' => $r->location, 'capacity' => $r->capacity, 'enrolled' => $r->enrolled,

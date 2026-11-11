@@ -30,9 +30,9 @@ class PackageController extends Controller
     public function index()
     {
         $d = bdate();
-        $pkgs = Package::where('is_allowance', true)->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+        $pkgs = Package::where('is_allowance', true)->where('is_active', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $forecast = PS::forecast($d->copy(), $d->copy()->addDays(6));
-        $today = PackageEntitlement::with('package')->whereDate('service_date', $d->toDateString())->whereIn('status', ['open', 'partial', 'consumed'])->where('is_allowance', true)->get();
+        $today = PackageEntitlement::with('package')->whereDate('service_date', $d->toDateString())->whereIn('status', ['open', 'partial', 'consumed'])->where('is_allowance', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         $mtd = [$d->copy()->startOfMonth()->toDateString(), $d->toDateString()];
         $stats = [
             'covers_today' => (int) $today->sum('qty'),
@@ -42,18 +42,18 @@ class PackageController extends Controller
             'breakage_mtd' => (float) PackageEntitlement::whereDate('expired_date', '>=', $mtd[0])->whereDate('expired_date', '<=', $mtd[1])->sum('breakage_amount'),
             'extras_mtd' => (float) PackageRedemption::whereDate('business_date', '>=', $mtd[0])->whereDate('business_date', '<=', $mtd[1])->whereNull('voided_at')->where('overage_mode', 'folio')->sum('extra_amount'),
         ];
-        $recent = PackageRedemption::with('package', 'stay.room', 'stay.guest', 'recorder')->orderByDesc('id')->limit(12)->get();
+        $recent = PackageRedemption::with('package', 'stay.room', 'stay.guest', 'recorder')->orderByDesc('id')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get();
         $byPkg = PackageEntitlement::whereDate('night_date', '>=', $mtd[0])->whereDate('night_date', '<=', $mtd[1])->where('status', '!=', 'cancelled')
             ->selectRaw('package_id, SUM(amount) allocated, SUM(consumed_amount) consumed, SUM(breakage_amount) breakage, SUM(qty) covers, SUM(consumed_qty) used')
-            ->groupBy('package_id')->get()->keyBy('package_id');
+            ->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
 
-        return view('packages.index', compact('pkgs', 'forecast', 'today', 'stats', 'recent', 'byPkg') + ['allPkgs' => Package::orderBy('sort')->orderBy('name')->get()->keyBy('id')]);
+        return view('packages.index', compact('pkgs', 'forecast', 'today', 'stats', 'recent', 'byPkg') + ['allPkgs' => Package::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id')]);
     }
 
     /** Restaurant door: rooms entitled to today's meal, covers still to serve, record usage. */
     public function desk(Request $request)
     {
-        $pkgs = Package::where('is_allowance', true)->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+        $pkgs = Package::where('is_allowance', true)->where('is_active', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $pkg = $pkgs->firstWhere('id', (int) $request->input('package')) ?? $pkgs->first();
         $q = trim((string) $request->input('q'));
         $rows = collect();
@@ -61,15 +61,15 @@ class PackageController extends Controller
             $rows = PS::usable()->with('stay.room', 'stay.guest', 'stay.folio', 'stay.ratePlan')->where('package_id', $pkg->id)
                 ->when($q !== '', fn ($w) => $w->whereHas('stay', fn ($s) => $s->whereHas('room', fn ($r) => $r->where('room_no', 'like', "%{$q}%"))
                     ->orWhereHas('guest', fn ($g) => $g->where('first_name', 'like', "%{$q}%")->orWhere('last_name', 'like', "%{$q}%"))))
-                ->get()->sortBy(fn ($e) => $e->stay?->room?->room_no)->values();
+                ->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($e) => $e->stay?->room?->room_no)->values();
         }
         $served = $pkg ? PackageRedemption::with('stay.room', 'stay.guest', 'recorder')->where('package_id', $pkg->id)->whereDate('business_date', bdate()->toDateString())
-            ->orderByDesc('id')->get() : collect();
+            ->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         // in-house rooms without the package (walk-in to breakfast, charged to the room)
-        $inHouse = ReservationRoom::with('room', 'guest')->where('status', 'checked_in')->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        $inHouse = ReservationRoom::with('room', 'guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
         $counts = $pkgs->mapWithKeys(fn ($p) => [$p->id => (int) PS::usable()->where('package_id', $p->id)->selectRaw('COALESCE(SUM(qty - consumed_qty),0) n')->value('n')]);
 
-        return view('packages.desk', compact('pkgs', 'pkg', 'rows', 'served', 'inHouse', 'q', 'counts') + ['outlets' => Outlet::orderBy('name')->get()]);
+        return view('packages.desk', compact('pkgs', 'pkg', 'rows', 'served', 'inHouse', 'q', 'counts') + ['outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function redeem(Request $request)
@@ -121,16 +121,16 @@ class PackageController extends Controller
             ->where('status', '!=', 'cancelled')
             ->selectRaw('COUNT(*) n, COALESCE(SUM(amount),0) allocated, COALESCE(SUM(consumed_amount),0) consumed, COALESCE(SUM(breakage_amount),0) breakage, COALESCE(SUM(qty),0) covers, COALESCE(SUM(consumed_qty),0) used')->first();
 
-        return view('packages.register', compact('rows', 'from', 'to', 'tot') + ['pkgs' => Package::orderBy('name')->get()]);
+        return view('packages.register', compact('rows', 'from', 'to', 'tot') + ['pkgs' => Package::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function catalogue()
     {
-        $pkgs = Package::with('outlet')->withCount('ratePlans')->orderByDesc('is_active')->orderBy('sort')->orderBy('name')->get();
-        $plans = RatePlan::with('roomType', 'packages')->orderBy('room_type_id')->orderBy('rate')->get();
+        $pkgs = Package::with('outlet')->withCount('ratePlans')->orderByDesc('is_active')->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $plans = RatePlan::with('roomType', 'packages')->orderBy('room_type_id')->orderBy('rate')->limit((int) config('pms.max_list_rows', 5000))->get();
         $settings = collect(self::SETTINGS)->mapWithKeys(fn ($d, $k) => [$k => setting($k, $d[0])]);
 
-        return view('packages.catalogue', compact('pkgs', 'plans', 'settings') + ['outlets' => Outlet::orderBy('name')->get()]);
+        return view('packages.catalogue', compact('pkgs', 'plans', 'settings') + ['outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function store(Request $request)
@@ -170,7 +170,7 @@ class PackageController extends Controller
         $valid = Package::pluck('id')->all();
         $changed = 0;
         DB::transaction(function () use ($inc, $valid, &$changed) {
-            foreach (RatePlan::with('packages')->get() as $plan) {
+            foreach (RatePlan::with('packages')->limit((int) config('pms.max_list_rows', 5000))->get() as $plan) {
                 $ids = array_values(array_intersect(array_map('intval', (array) ($inc[$plan->id] ?? [])), $valid));
                 $before = $plan->packages->pluck('id')->sort()->values()->all();
                 sort($ids);

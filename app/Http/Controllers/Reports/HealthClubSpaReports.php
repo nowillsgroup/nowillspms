@@ -316,7 +316,7 @@ trait HealthClubSpaReports
 {
     protected function r_club_attendance($from, $to): array
     {
-        $v = \App\Models\ClubVisit::whereBetween('checked_in_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get();
+        $v = \App\Models\ClubVisit::whereBetween('checked_in_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = collect();
         for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
             $day = $v->filter(fn ($x) => $x->checked_in_at->isSameDay($d));
@@ -346,7 +346,7 @@ trait HealthClubSpaReports
     protected function r_club_classes($from, $to): array
     {
         // Rewritten against the real schema: facility/employee_id/instructor/weekday/start_time/duration_min/capacity/residents.
-        $rows = \App\Models\ClubClass::with('employee')->orderBy('weekday')->orderBy('start_time')->get()->map(fn ($r) => [
+        $rows = \App\Models\ClubClass::with('employee')->orderBy('weekday')->orderBy('start_time')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'facility' => $r->facility, 'weekday' => $r->weekday,
             'start_time' => $r->start_time, 'duration' => $r->duration_min,
             'instructor' => $r->instructorName(), 'capacity' => $r->capacity,
@@ -360,7 +360,7 @@ trait HealthClubSpaReports
         $f = $from->toDateString();
         $t = $to->toDateString();
         $ms = \App\Models\ClubMembership::with('plan', 'company')->withCount(['members' => fn ($q) => $q->where('is_active', true)])
-            ->whereDate('start_date', '<=', $t)->where(fn ($q) => $q->whereDate('end_date', '>=', $f)->orWhereIn('status', ['active', 'frozen']))->orderBy('membership_no')->get();
+            ->whereDate('start_date', '<=', $t)->where(fn ($q) => $q->whereDate('end_date', '>=', $f)->orWhereIn('status', ['active', 'frozen']))->orderBy('membership_no')->limit((int) config('pms.max_list_rows', 5000))->get();
         $visits = \App\Models\ClubVisit::join('club_members as cm', 'cm.id', '=', 'club_visits.club_member_id')->where('club_visits.denied', false)
             ->whereBetween('club_visits.checked_in_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->selectRaw('cm.club_membership_id m, COUNT(*) n')->groupBy('cm.club_membership_id')->pluck('n', 'm');
         $rows = $ms->map(fn ($m) => ['no' => $m->membership_no, 'holder' => $m->holder_name.($m->company ? ' ('.$m->company->name.')' : ''), 'plan' => $m->plan->name, 'cards' => $m->members_count,
@@ -378,9 +378,9 @@ trait HealthClubSpaReports
     {
         $f = $from->toDateString();
         $t = $to->toDateString();
-        $ch = \App\Models\ClubCharge::with('creditOf')->whereNull('cancelled_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->get();
-        $dp = \App\Models\ClubDayPass::whereNull('cancelled_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->get();
-        $pay = \App\Models\ClubPayment::whereNull('voided_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->get();
+        $ch = \App\Models\ClubCharge::with('creditOf')->whereNull('cancelled_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $dp = \App\Models\ClubDayPass::whereNull('cancelled_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $pay = \App\Models\ClubPayment::whereNull('voided_at')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get();
         $subCredits = $ch->where('type', 'credit')->filter(fn ($c) => $c->creditOf?->type === 'subscription');
         $otherCredits = $ch->where('type', 'credit')->reject(fn ($c) => $c->creditOf?->type === 'subscription');
         $rows = collect([
@@ -402,7 +402,7 @@ trait HealthClubSpaReports
 
     protected function r_club_ticket_payments($from, $to): array
     {
-        $rows = ClubTicketPayment::with('ticketSale.paymentMode')->whereBetween('paid_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ClubTicketPayment::with('ticketSale.paymentMode')->whereBetween('paid_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'sale' => optional($r->ticketSale)->reference, 'mode' => optional($r->paymentMode)->name,
             'amount' => $r->amount, 'paid' => $r->paid_at, 'status' => $r->status, 'notes' => $r->notes,
         ]);
@@ -412,7 +412,7 @@ trait HealthClubSpaReports
     protected function r_club_ticket_sale_items($from, $to): array
     {
         // Rewritten against the real schema: sale()/type() relations; the parent carries sale_no/sold_at/guest_name/status; lines are qty/unit_price/line_total.
-        $rows = ClubTicketSaleItem::with('sale', 'type')->whereHas('sale', fn ($q) => $q->whereBetween('sold_at', [$from, $to]))->get()->map(fn ($r) => [
+        $rows = ClubTicketSaleItem::with('sale', 'type')->whereHas('sale', fn ($q) => $q->whereBetween('sold_at', [$from, $to]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'sale' => optional($r->sale)->sale_no, 'guest' => optional($r->sale)->guest_name,
             'type' => optional($r->type)->name, 'description' => $r->description,
             'quantity' => $r->qty, 'unit_price' => (float) $r->unit_price,
@@ -423,7 +423,7 @@ trait HealthClubSpaReports
 
     protected function r_club_ticket_sales($from, $to): array
     {
-        $rows = ClubTicketSale::with('guest.ticketType.paymentMode')->whereBetween('sold_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ClubTicketSale::with('guest.ticketType.paymentMode')->whereBetween('sold_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'type' => optional($r->ticketType)->name,
             'mode' => optional($r->paymentMode)->name, 'quantity' => $r->quantity,
             'amount' => $r->total_amount, 'sold' => $r->sold_at, 'status' => $r->status, 'notes' => $r->notes,
@@ -434,7 +434,7 @@ trait HealthClubSpaReports
     protected function r_club_ticket_types($from, $to): array
     {
         // Rewritten against the real schema: club_ticket_types (code, category, pax_type, price, tax_rate, issues_pass, is_active, sort) — no clubPlan relation exists.
-        $rows = ClubTicketType::orderBy('sort')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = ClubTicketType::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'name' => $r->name,
             'category' => ClubTicketType::CATEGORIES[$r->category] ?? $r->category,
             'pax_type' => ClubTicketType::PAX_TYPES[$r->pax_type] ?? $r->pax_type,
@@ -446,7 +446,7 @@ trait HealthClubSpaReports
 
     protected function r_spa_revenue($from, $to): array
     {
-        $appts = \App\Models\SpaAppointment::with('service', 'therapist')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->get();
+        $appts = \App\Models\SpaAppointment::with('service', 'therapist')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $appts->groupBy(fn ($a) => $a->service->name.'|'.($a->therapist?->name ?? '—'))->map(function ($g) {
             $done = $g->where('status', 'completed');
             $paid = $done->where('settlement', '!=', 'complimentary');

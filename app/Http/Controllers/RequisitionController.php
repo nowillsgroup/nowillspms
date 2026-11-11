@@ -31,7 +31,7 @@ class RequisitionController extends Controller
             ->when($request->department, fn ($q, $d) => $q->where('department_id', $d))
             ->when($request->q, fn ($q, $t) => $q->where(fn ($w) => $w->where('req_no', 'like', "%$t%")->orWhere('purpose', 'like', "%$t%")))
             ->when($request->boolean('mine'), fn ($q) => $q->where('raised_by', $u->id));
-        $all = $q->orderByDesc('id')->get();
+        $all = $q->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $needs = fn ($r) => (RequisitionService::canApprove($u, $r)) || (RequisitionService::canIssue($u, $r))
             || ($u->hasPermission('requisitions.raise') && (int) $r->raised_by === (int) $u->id && $r->issues->contains(fn ($i) => ! $i->received_at))
             || ($r->status === 'draft' && (int) $r->raised_by === (int) $u->id);
@@ -67,7 +67,7 @@ class RequisitionController extends Controller
         });
 
         // 1. the two queues that wait on a person, aged from the day the requisition reached them — the whole book, not the tab
-        $ledger = Requisition::with('department')->get();
+        $ledger = Requisition::with('department')->limit((int) config('pms.max_list_rows', 5000))->get();
         $queue = function ($statuses, $stamp) use ($ledger, $ageOf) {
             $rows = $ledger->whereIn('status', $statuses)->map(function ($r) use ($stamp, $ageOf) {
                 $since = $stamp === 'approved_at' ? ($r->approved_at ?? $r->submitted_at ?? $r->req_date) : ($r->submitted_at ?? $r->req_date);
@@ -82,7 +82,7 @@ class RequisitionController extends Controller
         $age = ['head' => $queue(['submitted'], 'submitted_at'), 'store' => $queue(['approved', 'partial'], 'approved_at')];
 
         // 2. the month's allowance, per department: issued + still committed against the budget the department answers to
-        $budgetRows = Department::orderBy('name')->get()->map(function ($d) {
+        $budgetRows = Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($d) {
             $b = RequisitionService::budgetStatus($d);
 
             return $b['budget'] === null ? null : ['name' => $d->name, 'budget' => round((float) $b['budget'], 2), 'issued' => $b['issued'],
@@ -96,11 +96,11 @@ class RequisitionController extends Controller
             'total_budget' => round((float) $budgetRows->sum('budget'), 2), 'total_used' => round((float) $budgetRows->sum('used'), 2)];
 
         // 3. what left the store and nobody signed for — the mirror of the goods-receipts screen, goods going the other way
-        $unsigned = StoreIssue::with('requisition', 'department', 'fromStore', 'issuer')->whereNull('received_at')->get()
+        $unsigned = StoreIssue::with('requisition', 'department', 'fromStore', 'issuer')->whereNull('received_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($i) => ['req_no' => $i->requisition?->req_no, 'department' => $i->department?->name, 'store' => $i->fromStore?->name,
                 'date' => $i->date, 'days' => $ageOf($i->date), 'value' => round((float) $i->value, 2), 'by' => $i->issuer?->name])
             ->sortByDesc('days')->values();
-        $signDays = StoreIssue::whereNotNull('received_at')->whereDate('date', '>=', bdate()->copy()->subDays(30)->toDateString())->get()
+        $signDays = StoreIssue::whereNotNull('received_at')->whereDate('date', '>=', bdate()->copy()->subDays(30)->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($i) => max(0, (int) round((\Carbon\Carbon::parse($i->received_at)->startOfDay()->timestamp - \Carbon\Carbon::parse($i->date)->startOfDay()->timestamp) / 86400)));
         $handover = ['count' => $unsigned->count(), 'value' => round((float) $unsigned->sum('value'), 2),
             'oldest' => $unsigned->first(), 'rows' => $unsigned->take(10)->all(),
@@ -277,13 +277,13 @@ class RequisitionController extends Controller
 
     public function setup()
     {
-        $depts = Department::with('hod', 'expenseHead', 'defaultStore')->orderBy('name')->get()
+        $depts = Department::with('hod', 'expenseHead', 'defaultStore')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(fn ($d) => $d->budget_status = RequisitionService::budgetStatus($d));
 
         return view('requisitions.setup', [
             'departments' => $depts,
             'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->pluck('name', 'id'),
-            'heads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' – '.$h->name]),
+            'heads' => AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' – '.$h->name]),
             'stores' => Store::orderBy('name')->pluck('name', 'id'),
             'settings' => Setting::whereIn('key', ['req_auto_approve_below', 'req_over_budget'])->pluck('value', 'key'),
         ]);
@@ -315,14 +315,14 @@ class RequisitionController extends Controller
 
     public function pars(Request $request)
     {
-        $stores = Store::where('type', '!=', 'main')->orderBy('name')->get();
+        $stores = Store::where('type', '!=', 'main')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $store = $stores->firstWhere('id', (int) $request->input('store')) ?? $stores->first();
         $rows = collect();
         if ($store) {
             $pars = StorePar::where('store_id', $store->id)->pluck('par_qty', 'inventory_item_id');
             $stock = StockMovement::where('store_id', $store->id)->groupBy('inventory_item_id')->selectRaw('inventory_item_id, SUM(qty) q')->pluck('q', 'inventory_item_id');
             $sugg = RequisitionService::parSuggestions($store->id)->keyBy(fn ($s) => $s->item->id);
-            $rows = InventoryItem::with('category')->where('is_active', true)->orderBy('name')->get()
+            $rows = InventoryItem::with('category')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->map(fn ($i) => (object) ['item' => $i, 'par' => isset($pars[$i->id]) ? (float) $pars[$i->id] : null, 'stock' => round((float) ($stock[$i->id] ?? 0), 2),
                     'pending' => $sugg[$i->id]->pending ?? 0, 'suggest' => $sugg[$i->id]->suggest ?? 0])
                 ->sortBy(fn ($r) => [$r->par === null ? 1 : 0, $r->item->name])->values();
@@ -372,11 +372,11 @@ class RequisitionController extends Controller
 
     protected function formData(Requisition $r, array $lines): array
     {
-        $stores = Store::orderBy('name')->get();
-        $stock = StockMovement::groupBy('inventory_item_id', 'store_id')->selectRaw('inventory_item_id, store_id, SUM(qty) q')->get()
+        $stores = Store::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $stock = StockMovement::groupBy('inventory_item_id', 'store_id')->selectRaw('inventory_item_id, store_id, SUM(qty) q')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy('inventory_item_id')->map(fn ($g) => $g->mapWithKeys(fn ($m) => [$m->store_id => round((float) $m->q, 2)]));
-        $items = InventoryItem::with('category')->where('is_active', true)->orderBy('name')->get();
-        $depts = Department::orderBy('name')->get();
+        $items = InventoryItem::with('category')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $depts = Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return [
             'r' => $r, 'lines' => $lines ?: [['item_id' => null, 'qty' => null, 'remarks' => null]],

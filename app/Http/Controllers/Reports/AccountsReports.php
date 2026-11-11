@@ -320,7 +320,7 @@ trait AccountsReports
         $t = Carbon::parse($to)->startOfDay();
         $today = bdate()->copy()->startOfDay();
         $rows = \App\Models\ContractAllotment::with('contract.company', 'roomType')->whereDate('date_from', '<=', $t)->whereDate('date_to', '>=', $f)
-            ->whereHas('contract', fn ($q) => $q->whereIn('status', ['active', 'suspended']))->get()
+            ->whereHas('contract', fn ($q) => $q->whereIn('status', ['active', 'suspended']))->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($a) use ($f, $t, $today) {
                 $stays = \App\Models\ReservationRoom::where('room_type_id', $a->room_type_id)->whereIn('status', ['reserved', 'checked_in', 'checked_out'])
                     ->whereHas('reservation', fn ($q) => $q->where('rate_contract_id', $a->rate_contract_id)->where('status', '!=', 'cancelled'))
@@ -359,7 +359,7 @@ trait AccountsReports
 
     protected function r_ap_allocations($from, $to): array
     {
-        $rows = \App\Models\ApAllocation::with('payment.supplier')->whereBetween('allocated_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\ApAllocation::with('payment.supplier')->whereBetween('allocated_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'payment' => optional($r->payment)->reference, 'supplier' => optional($r->payment->supplier)->name,
             'invoice' => $r->invoice_no, 'amount' => $r->allocated_amount, 'date' => $r->allocated_at,
             'type' => $r->allocation_type, 'status' => $r->status, 'user' => $r->user_id,
@@ -369,7 +369,7 @@ trait AccountsReports
 
     protected function r_ap_register($from, $to): array
     {
-        $rows = \App\Models\SupplierInvoice::with('supplier', 'purchaseOrder')->whereDate('doc_date', '>=', $from)->whereDate('doc_date', '<=', $to)->orderBy('doc_date')->orderBy('id')->get()
+        $rows = \App\Models\SupplierInvoice::with('supplier', 'purchaseOrder')->whereDate('doc_date', '>=', $from)->whereDate('doc_date', '<=', $to)->orderBy('doc_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($b) => ['doc' => $b->doc_no, 'date' => $b->doc_date->format('d-m-Y'), 'type' => $b->isDebitNote() ? 'Debit note' : ($b->kind === 'goods' ? 'Goods' : 'Expense'),
                 'supplier' => $b->supplier?->name, 'ref' => $b->supplier_ref, 'po' => $b->purchaseOrder?->po_no, 'due' => $b->isDebitNote() ? '' : $b->due_date?->format('d-m-Y'),
                 'subtotal' => ($b->isDebitNote() ? -1 : 1) * (float) $b->subtotal, 'tax' => ($b->isDebitNote() ? -1 : 1) * (float) $b->tax, 'total' => ($b->isDebitNote() ? -1 : 1) * (float) $b->total,
@@ -416,7 +416,7 @@ trait AccountsReports
     {
         $types = ['reference' => 'Auto – reference', 'amount' => 'Auto – amount', 'group' => 'Auto – batch', 'manual' => 'By hand', 'entry' => 'Booked from statement'];
         $rows = \App\Models\BankStatementLine::with('statement.account', 'glLines.journal')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())
-            ->orderBy('date')->orderBy('id')->get()->map(fn ($l) => ['date' => $l->date->format('d M Y'), 'account' => $l->statement->account->code, 'statement' => $l->statement->statement_no,
+            ->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($l) => ['date' => $l->date->format('d M Y'), 'account' => $l->statement->account->code, 'statement' => $l->statement->statement_no,
                 'details' => $l->description, 'ref' => $l->reference, 'in' => $l->amount > 0 ? (float) $l->amount : null, 'out' => $l->amount < 0 ? -(float) $l->amount : null,
                 'status' => ucfirst($l->status), 'how' => $types[$l->match_type] ?? ($l->status === 'ignored' ? $l->ignore_reason : ''), 'journals' => $l->glLines->map(fn ($g) => $g->journal->journal_no)->unique()->implode(', ')]);
 
@@ -432,7 +432,7 @@ trait AccountsReports
         $rows = BillingReconciliationItem::with('reconciliation', 'folio')
             ->whereBetween('document_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])
             ->orderBy('document_date')->orderBy('id')
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => [
                 'recon' => optional($r->reconciliation)->reconciliation_no,
                 'folio' => $r->folio_no,
@@ -450,7 +450,7 @@ trait AccountsReports
 
     protected function r_billing_reconciliations($from, $to): array
     {
-        $rows = BillingReconciliation::with('user')->whereBetween('reconciled_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = BillingReconciliation::with('user')->whereBetween('reconciled_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'period' => $r->period_start . ' to ' . $r->period_end,
             'billing_total' => $r->billing_total, 'folio_total' => $r->folio_total, 'variance' => $r->variance,
             'items' => $r->item_count, 'status' => $r->status, 'reconciled' => $r->reconciled_at, 'user' => optional($r->user)->name,
@@ -460,7 +460,7 @@ trait AccountsReports
 
     protected function r_close_events($from, $to): array
     {
-        $rows = CloseEvent::with('period.closeType')->whereBetween('closed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = CloseEvent::with('period.closeType')->whereBetween('closed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'period' => optional($r->period)->name, 'type' => optional($r->closeType)->name,
             'closed' => $r->closed_at, 'user' => optional($r->user)->name,
             'status' => $r->status, 'notes' => $r->notes,
@@ -474,8 +474,8 @@ trait AccountsReports
         $t = Carbon::parse($to)->startOfDay()->addDay();
         $pub = \App\Models\RoomType::pluck('base_rate', 'id');
         $stays = \App\Models\ReservationRoom::with('reservation:id,rate_contract_id,status')->whereHas('reservation', fn ($q) => $q->whereNotNull('rate_contract_id'))
-            ->whereDate('arrival_date', '<', $t)->whereDate('departure_date', '>', $f)->get()->groupBy(fn ($s) => $s->reservation->rate_contract_id);
-        $rows = \App\Models\RateContract::with('company')->orderBy('code')->get()->map(function ($c) use ($stays, $f, $t, $pub) {
+            ->whereDate('arrival_date', '<', $t)->whereDate('departure_date', '>', $f)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy(fn ($s) => $s->reservation->rate_contract_id);
+        $rows = \App\Models\RateContract::with('company')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($c) use ($stays, $f, $t, $pub) {
             $all = $stays->get($c->id, collect());
             $live = $all->where('status', '!=', 'cancelled')->filter(fn ($s) => $s->reservation->status !== 'cancelled');
             $n = fn ($s) => max(0, (int) max($s->arrival_date, $f)->diffInDays(min($s->departure_date, $t)));
@@ -518,7 +518,7 @@ trait AccountsReports
         // The previous version referenced columns and relations that never existed.
         $rows = ExpenseClaimLine::with('claim.employee', 'head')
             ->whereHas('claim', fn ($q) => $q->where('submitted_at', '>=', $from->copy()->startOfDay())->where('submitted_at', '<=', $to->copy()->endOfDay()))
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($r) => [optional($r->claim)->submitted_at, $r->date])
             ->values()
             ->map(fn ($r) => [
@@ -538,7 +538,7 @@ trait AccountsReports
     protected function r_expense_claims($from, $to): array
     {
         $rows = \App\Models\ExpenseClaim::with('employee.department', 'approver', 'paymentMode', 'pettyTxn.float')->whereNotNull('submitted_at')
-            ->whereBetween('submitted_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('submitted_at')->get()
+            ->whereBetween('submitted_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('submitted_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => ['claim' => $c->claim_no, 'submitted' => $c->submitted_at->format('d M Y'), 'staff' => $c->employee?->name, 'dept' => $c->employee?->department?->name, 'title' => $c->title,
                 'total' => (float) $c->total, 'vat' => (float) $c->vat_total ?: null, 'status' => ucfirst($c->status).($c->status === 'rejected' && $c->reject_reason ? ' – '.$c->reject_reason : ''),
                 'approver' => in_array($c->status, ['approved', 'paid'], true) ? $c->approver?->name : '', 'paid' => $c->paid_on?->format('d M Y'),
@@ -551,7 +551,7 @@ trait AccountsReports
 
     protected function r_expenses($from, $to): array
     {
-        $rows = Voucher::with('head', 'paymentMode', 'supplier')->where('type', 'payment')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderBy('date')->get()
+        $rows = Voucher::with('head', 'paymentMode', 'supplier')->where('type', 'payment')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($v) => ['no' => $v->voucher_no, 'date' => $v->date->format('d-m-Y'), 'head' => $v->head->name, 'party' => $v->supplier?->name ?? $v->party_name, 'mode' => $v->paymentMode?->name, 'narr' => $v->narration, 'amount' => (float) $v->amount]);
 
         return ['cols' => ['no' => 'Voucher', 'date' => 'Date', 'head' => 'Head', 'party' => 'Party', 'mode' => 'Mode', 'narr' => 'Narration', 'amount' => 'Amount'], 'rows' => $rows, 'money' => ['amount'], 'sum' => ['amount'], 'summary' => $rows->groupBy('head')->map->sum('amount')];
@@ -561,7 +561,7 @@ trait AccountsReports
     {
         $rows = collect();
         $sumIn = $sumOut = 0;
-        foreach (\App\Models\PettyFloat::orderBy('code')->get() as $f) {
+        foreach (\App\Models\PettyFloat::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get() as $f) {
             [$open, $txns, $close] = \App\Services\PettyCashService::book($f, $from->toDateString(), $to->toDateString());
             if ($txns->isEmpty() && abs($open) < 0.005) {
                 continue;
@@ -583,7 +583,7 @@ trait AccountsReports
 
     protected function r_petty_counts($from, $to): array
     {
-        $rows = PettyCount::with('float.keeper')->whereBetween('counted_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = PettyCount::with('float.keeper')->whereBetween('counted_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'float' => optional($r->float)->name, 'keeper' => optional($r->keeper)->name,
             'counted' => $r->counted_at, 'expected' => $r->expected_amount, 'actual' => $r->actual_amount,
             'variance' => $r->variance, 'status' => $r->status, 'notes' => $r->notes,
@@ -593,8 +593,8 @@ trait AccountsReports
 
     protected function r_petty_expenses($from, $to): array
     {
-        $floats = \App\Models\PettyFloat::orderBy('code')->get();
-        $txns = \App\Models\PettyTxn::with('head')->where('status', 'posted')->whereIn('type', ['expense', 'settle'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->get()
+        $floats = \App\Models\PettyFloat::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $txns = \App\Models\PettyTxn::with('head')->where('status', 'posted')->whereIn('type', ['expense', 'settle'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($t) => $t->type === 'expense' || (float) $t->spent > 0);
         $rows = $txns->groupBy('expense_head_id')->map(function ($g) use ($floats) {
             $r = ['account' => $g->first()->head?->label ?? '—'];
@@ -616,7 +616,7 @@ trait AccountsReports
 
     protected function r_petty_replenishments($from, $to): array
     {
-        $rows = PettyReplenishment::with('float.keeper')->whereBetween('replenished_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = PettyReplenishment::with('float.keeper')->whereBetween('replenished_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'float' => optional($r->float)->name, 'keeper' => optional($r->keeper)->name,
             'replenished' => $r->replenished_at, 'spent' => $r->amount_spent, 'replenished_amount' => $r->replenishment_amount,
             'vouchers' => $r->voucher_count, 'status' => $r->status, 'notes' => $r->notes,
@@ -626,7 +626,7 @@ trait AccountsReports
 
     protected function r_supplier_paid_history_archives($from, $to): array
     {
-        $rows = SupplierPaidHistoryArchive::with('supplier')->whereBetween('archived_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SupplierPaidHistoryArchive::with('supplier')->whereBetween('archived_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'supplier' => optional($r->supplier)->name, 'archived' => $r->archived_at,
             'invoice' => $r->invoice_no, 'amount' => $r->amount, 'payment_ref' => $r->payment_reference,
             'paid_at' => $r->paid_at, 'method' => $r->payment_method, 'status' => $r->status,

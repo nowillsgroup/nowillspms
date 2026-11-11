@@ -32,7 +32,7 @@ class RecipeController extends Controller
 
     public function edit(MenuItem $menuItem)
     {
-        return view('recipes.edit', ['item' => $menuItem->load('recipes.inventoryItem'), 'stock' => InventoryItem::where('is_active', true)->orderBy('name')->get(),
+        return view('recipes.edit', ['item' => $menuItem->load('recipes.inventoryItem'), 'stock' => InventoryItem::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cost' => RecipeService::portionCost($menuItem->id)]);
     }
 

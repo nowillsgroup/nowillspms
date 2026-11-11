@@ -127,7 +127,7 @@ class FolioController extends Controller
     public function show(Folio $folio)
     {
         $folio->load(['guest', 'company', 'stay.room', 'stay.roomType', 'stay.guest', 'stay.reservation.guest', 'stay.reservation.company', 'reservation.guest', 'reservation.company', 'consolidatedInto']);
-        $transactions = $folio->transactions()->with('paymentMode', 'poster', 'company', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->get();
+        $transactions = $folio->transactions()->with('paymentMode', 'poster', 'company', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $totals = $folio->totals($transactions);
         // the two panels beside the ledger, cut from the same lines the table shows
         $live = $transactions->reject(fn ($t) => $t->is_void);
@@ -160,12 +160,12 @@ class FolioController extends Controller
             'companies' => $canPay && $totals['balance'] > 0 ? Company::where('is_active', true)->pluck('name', 'id') : collect(),
             'categories' => $canPost ? collect(config('pms.charge_categories'))->except(['room']) : collect(),
             // other open folios this folio's lines may be split / routed to
-            'fixedCharges' => $folio->stay ? $folio->stay->fixedCharges()->latest('id')->get() : collect(),
+            'fixedCharges' => $folio->stay ? $folio->stay->fixedCharges()->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'targets' => $canSplit
                 ? Folio::with('guest', 'stay.room')->where('status', 'open')->where('id', '!=', $folio->id)
                     ->where(fn ($q) => $q->when($folio->reservation_id, fn ($w) => $w->orWhere('reservation_id', $folio->reservation_id))
                         ->when($folio->guest_id, fn ($w) => $w->orWhere('guest_id', $folio->guest_id))
-                        ->orWhereIn('type', ['master']))->orderByDesc('id')->limit(50)->get()
+                        ->orWhereIn('type', ['master']))->orderByDesc('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get()
                 : collect(),
             'breakdown' => $breakdown,
             'breakdownGrand' => $breakdownGrand,
@@ -454,8 +454,8 @@ class FolioController extends Controller
     public function invoice(Folio $folio)
     {
         $folio->load('guest', 'company', 'closedBy', 'stay.room', 'stay.roomType', 'stay.ratePlan', 'stay.guest', 'stay.reservation.guest', 'stay.reservation.company', 'reservation.guest', 'reservation.company', 'reservation.rooms.room', 'reservation.rooms.roomType', 'reservation.rooms.ratePlan', 'reservation.rooms.guest', 'original');
-        $tx = $folio->status === 'cancelled' ? $folio->transactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->get()
-            : $folio->activeTransactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->get();
+        $tx = $folio->status === 'cancelled' ? $folio->transactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
+            : $folio->activeTransactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         // v4.3: tax summary by category and rate (VAT / NHIL / GETFund / Tourism Levy), same grouping as E-VAT and the VAT return
         return view('folios.invoice', ['folio' => $folio, 'tx' => $tx, 'totals' => $folio->totals(), 'lines' => \App\Services\GstService::lines($folio), 'gst' => $folio->gstTotals()]);
@@ -470,8 +470,8 @@ class FolioController extends Controller
     {
         $folio->load('guest', 'company', 'stay.room', 'stay.roomType', 'stay.ratePlan', 'stay.guest', 'stay.reservation.guest', 'stay.reservation.company', 'reservation.guest', 'reservation.company', 'reservation.rooms.room', 'reservation.rooms.roomType', 'reservation.rooms.ratePlan', 'reservation.rooms.guest');
         $tx = $folio->status === 'cancelled'
-            ? $folio->transactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->get()
-            : $folio->activeTransactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->get();
+            ? $folio->transactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
+            : $folio->activeTransactions()->with('paymentMode', 'consolidationTransfer.sourceFolio.stay.room', 'consolidationTransfer.sourceFolio.stay.guest')->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $totals = $folio->totals();
 
         $reservation = $folio->reservation ?? $folio->stay?->reservation;
@@ -658,7 +658,7 @@ class FolioController extends Controller
                     throw new \RuntimeException('Target folio must be a different, open folio.');
                 }
             }
-            $lines = $folio->transactions()->whereIn('id', $data['tx'])->where('is_void', false)->orderBy('id')->lockForUpdate()->get();
+            $lines = $folio->transactions()->whereIn('id', $data['tx'])->where('is_void', false)->orderBy('id')->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get();
             if ($lines->count() !== count(array_unique($data['tx']))) {
                 throw new \RuntimeException('Some selected lines are void or do not belong to this folio.');
             }

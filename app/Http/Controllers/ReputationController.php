@@ -33,9 +33,9 @@ class ReputationController extends Controller
 
         return view('reputation.index', [
             'stats' => $stats, 'prev' => $prev, 'days' => $days, 'from' => $from, 'to' => $to, 'trend' => FeedbackService::trend(6), 'alerts' => FeedbackService::alerts(),
-            'attention' => GuestFeedback::with('recoveryCase', 'guest')->where('sentiment', 'negative')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->limit(6)->get(),
-            'cases' => FeedbackCase::active()->with('assignee')->orderByRaw("field(severity, 'high', 'medium', 'low')")->orderBy('due_at')->limit(6)->get(),
-            'waiting' => OnlineReview::whereIn('status', ['new', 'draft', 'pending'])->orderBy('review_date')->limit(6)->get(),
+            'attention' => GuestFeedback::with('recoveryCase', 'guest')->where('sentiment', 'negative')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'cases' => FeedbackCase::active()->with('assignee')->orderByRaw("field(severity, 'high', 'medium', 'low')")->orderBy('due_at')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'waiting' => OnlineReview::whereIn('status', ['new', 'draft', 'pending'])->orderBy('review_date')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -75,7 +75,7 @@ class ReputationController extends Controller
     public function settings()
     {
         return view('reputation.settings', ['s' => collect(FeedbackService::DEFAULTS)->mapWithKeys(fn ($v, $k) => [$k => setting($k, $v)])->all(),
-            'owners' => FeedbackService::owners(), 'staff' => FeedbackService::caseStaff(), 'templates' => ReviewTemplate::orderBy('sentiment')->orderBy('name')->get()]);
+            'owners' => FeedbackService::owners(), 'staff' => FeedbackService::caseStaff(), 'templates' => ReviewTemplate::orderBy('sentiment')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveSettings(Request $request)

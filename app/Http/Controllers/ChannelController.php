@@ -17,7 +17,7 @@ class ChannelController extends Controller
     public function index()
     {
         return view('channels.index', [
-            'channels' => OtaChannel::with('roomType', 'source')->withCount(['reservations as upcoming_count' => fn ($q) => $q->whereIn('status', ['confirmed', 'tentative', 'checked_in'])->whereDate('departure_date', '>', bdate())])->orderBy('name')->get(),
+            'channels' => OtaChannel::with('roomType', 'source')->withCount(['reservations as upcoming_count' => fn ($q) => $q->whereIn('status', ['confirmed', 'tentative', 'checked_in'])->whereDate('departure_date', '>', bdate())])->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'types' => RoomType::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'sources' => BusinessSource::orderBy('name')->pluck('name', 'id'),
         ]);

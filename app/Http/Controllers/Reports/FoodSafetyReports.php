@@ -316,7 +316,7 @@ trait FoodSafetyReports
 {
     protected function r_food_waste($from, $to): array
     {
-        $rows = \App\Models\FsWaste::with('item', 'menuItem', 'store', 'outlet', 'user')->whereNull('cancelled_at')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->get()
+        $rows = \App\Models\FsWaste::with('item', 'menuItem', 'store', 'outlet', 'user')->whereNull('cancelled_at')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($w) => ['no' => $w->waste_no, 'date' => dmy($w->date), 'item' => $w->name(), 'type' => \App\Models\FsWaste::SOURCES[$w->source], 'qty' => rtrim(rtrim(number_format((float) $w->qty, 3), '0'), '.').' '.$w->unit,
                 'reason' => \App\Models\FsWaste::REASONS[$w->reason], 'where' => trim(($w->store?->name ?? '').($w->outlet ? ' / '.$w->outlet->name : ''), ' /'), 'cost' => (float) $w->cost, 'by' => $w->user?->name]);
         $s = \App\Services\FoodWasteService::summary($from->toDateString(), $to->toDateString());
@@ -327,7 +327,7 @@ trait FoodSafetyReports
 
     protected function r_fs_certificates($from, $to): array
     {
-        $rows = \App\Models\FsCertificate::with('equipment.department')->whereBetween('expiry_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\FsCertificate::with('equipment.department')->whereBetween('expiry_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'equipment' => optional($r->equipment)->name, 'dept' => optional($r->department)->name,
             'cert_no' => $r->certificate_no, 'issued' => $r->issued_date, 'expiry' => $r->expiry_date,
             'issuer' => $r->issuing_body, 'status' => $r->status, 'notes' => $r->notes,
@@ -338,7 +338,7 @@ trait FoodSafetyReports
     protected function r_fs_equipment($from, $to): array
     {
         // Rewritten against the real schema: type/location/outlet_id/min_c/max_c/checks_per_day; there is no department or equipment type.
-        $rows = \App\Models\FsEquipment::with('outlet')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = \App\Models\FsEquipment::with('outlet')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => $r->type, 'location' => $r->location,
             'outlet' => optional($r->outlet)->name,
             'min_c' => $r->min_c, 'max_c' => $r->max_c, 'checks_per_day' => $r->checks_per_day,
@@ -350,7 +350,7 @@ trait FoodSafetyReports
     protected function r_fs_labels($from, $to): array
     {
         // Rewritten against the real schema: FS labels are date/safety labels per batch — item/storage/prepared_at/use_by/qty/allergens.
-        $rows = \App\Models\FsLabel::with('user')->orderByDesc('use_by')->get()->map(fn ($r) => [
+        $rows = \App\Models\FsLabel::with('user')->orderByDesc('use_by')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'item' => $r->item, 'batch' => $r->batch, 'qty' => $r->qty,
             'storage' => $r->storage, 'prepared_at' => $r->prepared_at, 'use_by' => $r->use_by,
             'allergens' => implode(', ', (array) $r->allergens), 'by' => optional($r->user)->name,
@@ -361,9 +361,9 @@ trait FoodSafetyReports
     protected function r_haccp_checklists($from, $to): array
     {
         $FS = \App\Services\FoodSafetyService::class;
-        $runs = \App\Models\FsChecklistRun::with('completer', 'signer')->whereDate('period', '>=', $from->copy()->subMonth()->toDateString())->whereDate('period', '<=', $to->toDateString())->get()->keyBy(fn ($r) => $r->fs_checklist_id.'|'.$r->period->toDateString());
+        $runs = \App\Models\FsChecklistRun::with('completer', 'signer')->whereDate('period', '>=', $from->copy()->subMonth()->toDateString())->whereDate('period', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy(fn ($r) => $r->fs_checklist_id.'|'.$r->period->toDateString());
         $rows = collect();
-        foreach (\App\Models\FsChecklist::orderBy('name')->get() as $c) {
+        foreach (\App\Models\FsChecklist::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             $seen = [];
             for ($d = $from->copy(); $d->lte($to) && $d->lte(now()); $d->addDay()) {
                 $p = $FS::periodFor($c, $d);
@@ -386,7 +386,7 @@ trait FoodSafetyReports
 
     protected function r_haccp_temperatures($from, $to): array
     {
-        $rows = \App\Models\FsTempLog::with('equipment', 'user', 'reviewer', 'supplier')->whereBetween('recorded_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('recorded_at')->get()
+        $rows = \App\Models\FsTempLog::with('equipment', 'user', 'reviewer', 'supplier')->whereBetween('recorded_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('recorded_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($l) => ['at' => $l->recorded_at->format('d/m/Y H:i'), 'kind' => \App\Models\FsTempLog::KINDS[$l->kind], 'what' => $l->subject().($l->supplier ? ' – '.$l->supplier->name : ''),
                 'reading' => rtrim(rtrim(number_format((float) $l->reading_c, 1), '0'), '.').($l->reading2_c !== null ? ' → '.rtrim(rtrim(number_format((float) $l->reading2_c, 1), '0'), '.') : ''),
                 'limit' => \App\Services\FoodSafetyService::limitText($l->min_c, $l->max_c), 'result' => $l->in_range ? ($l->coolingOpen() ? 'cooling' : 'OK') : 'OUT OF RANGE',

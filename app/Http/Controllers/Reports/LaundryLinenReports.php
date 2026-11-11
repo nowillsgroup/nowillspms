@@ -317,7 +317,7 @@ trait LaundryLinenReports
     protected function r_laundry_items($from, $to): array
     {
         // Rewritten against the real schema: category + wash_rate/dryclean_rate/press_rate; there is no laundry type table.
-        $rows = LaundryItem::orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = LaundryItem::orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'category' => $r->category,
             'wash_rate' => (float) $r->wash_rate, 'dryclean_rate' => (float) $r->dryclean_rate,
             'press_rate' => (float) $r->press_rate, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -328,7 +328,7 @@ trait LaundryLinenReports
     protected function r_laundry_order_lines($from, $to): array
     {
         // Rewritten against the real schema: order()/item() relations; item_name/service/qty/rate/amount/remark; the order carries collected_at and guest_name.
-        $rows = LaundryOrderLine::with('order', 'item')->whereHas('order', fn ($q) => $q->whereBetween('collected_at', [$from, $to]))->get()->map(fn ($r) => [
+        $rows = LaundryOrderLine::with('order', 'item')->whereHas('order', fn ($q) => $q->whereBetween('collected_at', [$from, $to]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'order_no' => optional($r->order)->order_no,
             'item' => optional($r->item)->name ?? $r->item_name,
             'guest' => optional($r->order)->guest_name,
@@ -342,7 +342,7 @@ trait LaundryLinenReports
     protected function r_laundry_register($from, $to): array
     {
         $rows = \App\Models\LaundryOrder::with('room', 'folio', 'paymentMode')
-            ->whereBetween('collected_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('collected_at')->orderBy('id')->get()
+            ->whereBetween('collected_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('collected_at')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($o) => ['no' => $o->order_no, 'collected' => $o->collected_at?->format('d-m-Y H:i'), 'type' => $o->type === 'walk_in' ? 'Walk-in' : 'Guest',
                 'room' => $o->room?->room_no, 'guest' => $o->guest_name, 'speed' => \App\Services\LaundryService::SPEEDS[$o->speed] ?? $o->speed, 'pieces' => (int) $o->pieces,
                 'subtotal' => (float) $o->subtotal, 'express' => (float) $o->express_charge, 'total' => $o->status === 'cancelled' ? 0.0 : (float) $o->total,
@@ -357,7 +357,7 @@ trait LaundryLinenReports
     protected function r_linen_batch_lines($from, $to): array
     {
         // Rewritten against the real schema: batch()/linen() relations; qty_sent/qty_returned/qty_damaged/qty_lost/rate; the batch carries sent_date/expected_date/closed_date/status.
-        $rows = LinenBatchLine::with('batch', 'linen')->whereHas('batch', fn ($q) => $q->whereBetween('sent_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = LinenBatchLine::with('batch', 'linen')->whereHas('batch', fn ($q) => $q->whereBetween('sent_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'batch_no' => optional($r->batch)->batch_no, 'type' => optional($r->linen)->name,
             'sent_date' => optional($r->batch)->sent_date,
             'qty_sent' => $r->qty_sent, 'qty_returned' => $r->qty_returned,
@@ -369,7 +369,7 @@ trait LaundryLinenReports
 
     protected function r_linen_batches($from, $to): array
     {
-        $rows = LinenBatch::with('store.linenType')->whereBetween('washed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LinenBatch::with('store.linenType')->whereBetween('washed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'batch_no' => $r->batch_no, 'store' => optional($r->store)->name,
             'type' => optional($r->linenType)->name, 'washed' => $r->washed_at,
             'total_qty' => $r->total_quantity, 'damaged' => $r->damaged_count, 'status' => $r->status, 'notes' => $r->notes,
@@ -380,7 +380,7 @@ trait LaundryLinenReports
     protected function r_linen_losses($from, $to): array
     {
         $rows = \App\Models\LinenMovement::with('linen', 'batch.supplier', 'user')->whereIn('type', ['discard', 'lost'])
-            ->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->get()
+            ->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($m) => ['date' => $m->date->format('d-m-Y'), 'code' => $m->linen?->code, 'name' => $m->linen?->name, 'type' => \App\Models\LinenMovement::TYPES[$m->type],
                 'where' => \App\Models\LinenType::LOCATIONS[$m->from_loc] ?? $m->from_loc, 'batch' => $m->batch ? $m->batch->batch_no.' – '.($m->batch->supplier?->name ?? 'in-house') : '',
                 'qty' => (int) $m->qty, 'value' => (float) $m->value, 'reason' => $m->reason, 'by' => $m->user?->name])->values();

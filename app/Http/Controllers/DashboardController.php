@@ -30,7 +30,7 @@ class DashboardController extends Controller
     public function index()
     {
         $d = bdate()->toDateString();
-        $rooms = Room::where('is_active', true)->get();
+        $rooms = Room::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         $total = $rooms->count();
         $to = bdate()->copy()->addDay()->toDateString();
         $activeRoomIds = $rooms->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -53,12 +53,12 @@ class DashboardController extends Controller
         $arrivalsCheckedIn = (int) ($arrivalCounts['checked_in'] ?? 0) + (int) ($arrivalCounts['checked_out'] ?? 0);
         $arrivalsExpected = $arrivalCounts->sum();
         $arrivals = can_do('frontdesk.view')
-            ? $arrivalsQuery->with('reservation.guest', 'roomType', 'room')->orderBy('id')->limit(7)->get()
+            ? $arrivalsQuery->with('reservation.guest', 'roomType', 'room')->orderBy('id')->limit(7)->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
         $departuresQuery = ReservationRoom::where('status', 'checked_in')->whereDate('departure_date', '<=', $d);
         $departuresCount = $canSeeFrontDeskMetrics ? (clone $departuresQuery)->count() : 0;
         $departures = can_do('frontdesk.view')
-            ? $departuresQuery->with('reservation.guest', 'room')->orderBy('departure_date')->orderBy('id')->limit(7)->get()
+            ? $departuresQuery->with('reservation.guest', 'room')->orderBy('departure_date')->orderBy('id')->limit(7)->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
         // Arrival progress is grouped by due date; checked-out guests count as checked in, while no-shows remain in the expected denominator.
 
@@ -74,7 +74,7 @@ class DashboardController extends Controller
                     'category',
                     DB::raw('SUM(amount) as amount_sum'),
                     DB::raw('SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as positive_amount_sum')
-                )->groupBy('type', 'category')->get();
+                )->groupBy('type', 'category')->limit((int) config('pms.max_list_rows', 5000))->get();
             $posToday = PosOrder::whereDate('business_date', $d)->where('status', 'settled')->where('settlement', 'payment')
                 ->selectRaw('COALESCE(SUM(total - tax), 0) as net_total, COALESCE(SUM(total), 0) as gross_total')->first();
             $roomCharges = $tx->where('type', 'charge')->whereIn('category', ['room', 'extra_bed']);
@@ -90,7 +90,7 @@ class DashboardController extends Controller
         if ($canSeeFinance) {
             $auditQuery->addSelect('room_revenue', 'other_revenue');
         }
-        $audits = $auditQuery->orderByDesc('business_date')->take(14)->get()->reverse()->values();
+        $audits = $auditQuery->orderByDesc('business_date')->take(14)->limit((int) config('pms.max_list_rows', 5000))->get()->reverse()->values();
         $sourceMix = can_do('reservations.view')
             ? Reservation::query()->leftJoin('business_sources', function ($join) {
                 $join->on('business_sources.id', '=', 'reservations.business_source_id')
@@ -98,7 +98,7 @@ class DashboardController extends Controller
             })
                 ->where('reservations.created_at', '>=', now()->subDays(30))->whereNotIn('reservations.status', ['cancelled'])
                 ->select(DB::raw("COALESCE(business_sources.name, 'No source') as name"), DB::raw('count(*) as c'))
-                ->groupBy('business_sources.name')->orderByDesc('c')->get()
+                ->groupBy('business_sources.name')->orderByDesc('c')->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
 
         $inHouseGuests = can_do('frontdesk.view')
@@ -119,7 +119,7 @@ class DashboardController extends Controller
             ? HousekeepingTask::whereDate('task_date', '<=', $d)->where('status', '!=', 'completed')->count()
             : null;
         $events = can_do('banquet.view')
-            ? BanquetEvent::with('functions.hall', 'functions.items')->whereDate('end_date', '>=', $d)->whereIn('status', ['definite', 'tentative'])->orderBy('event_date')->take(5)->get()
+            ? BanquetEvent::with('functions.hall', 'functions.items')->whereDate('end_date', '>=', $d)->whereIn('status', ['definite', 'tentative'])->orderBy('event_date')->take(5)->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
         $eventTodayQuery = can_do('banquet.view')
             ? BanquetEvent::whereDate('event_date', $d)->whereIn('status', BanquetEvent::HOLDS)
@@ -127,7 +127,7 @@ class DashboardController extends Controller
         $eventsToday = $eventTodayQuery ? (clone $eventTodayQuery)->count() : null;
         $eventCoversToday = $eventTodayQuery ? (int) (clone $eventTodayQuery)->sum('expected_pax') : null;
         $lowStockItems = can_do('inventory.view')
-            ? InventoryItem::where('is_active', true)->withSum('movements as stock_qty', 'qty')->get()
+            ? InventoryItem::where('is_active', true)->withSum('movements as stock_qty', 'qty')->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->filter(fn ($i) => (float) ($i->stock_qty ?? 0) <= (float) $i->reorder_level)
             : collect();
         $lowStockCount = $lowStockItems->count();
@@ -215,7 +215,7 @@ class DashboardController extends Controller
             'guestFeedback' => $guestFeedback,
             'executiveKpis' => $executiveKpis,
             'managementModules' => $managementModules,
-            'activity' => can_do('logs.view') ? ActivityLog::with('user')->latest('created_at')->take(8)->get() : collect(),
+            'activity' => can_do('logs.view') ? ActivityLog::with('user')->latest('created_at')->take(8)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'newBookings' => $newBookings,
             'fleetCost' => can_do('transport.fleet') ? FleetService::costSummary() : null,
         ]);

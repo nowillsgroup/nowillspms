@@ -50,8 +50,8 @@ class GstController extends Controller
                 'notes' => $docs->where('type', 'credit_note')->count(), 'cancelled' => GstCancelledDoc::where('doc_date', 'like', $period.'%')->count()],
             'ei' => Folio::where('status', 'closed')->whereNotNull('invoice_no')->where('invoice_date', 'like', $period.'%')
                 ->selectRaw("COALESCE(irn_status, 'none') s, COUNT(*) n")->groupBy('s')->pluck('n', 's'),
-            'failed' => Folio::with('guest', 'company')->where('irn_status', 'failed')->where('status', 'closed')->orderByDesc('invoice_date')->limit(8)->get(),
-            'filings' => GstPeriod::with('filer')->orderByDesc('period')->limit(12)->get(),
+            'failed' => Folio::with('guest', 'company')->where('irn_status', 'failed')->where('status', 'closed')->orderByDesc('invoice_date')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'filings' => GstPeriod::with('filer')->orderByDesc('period')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'tin' => GstService::hotelTin(), 'tinOk' => GstService::validTin(GstService::hotelTin()),
             'enabled' => EInvoiceService::enabled(), 'blocker' => EInvoiceService::registrationBlocker(), 'driver' => EInvoiceService::driver(),
         ]);
@@ -75,14 +75,14 @@ class GstController extends Controller
                 ->orderByRaw("CASE WHEN evat_status = 'generated' THEN 1 ELSE 0 END")->orderByDesc('business_date')->orderByDesc('id')->paginate(30)->withQueryString();
 
             return view('gst.einvoices', ['tab' => $tab, 'counts' => $counts, 'docs' => null, 'bills' => $bills, 'enabled' => EInvoiceService::enabled(), 'blocker' => EInvoiceService::registrationBlocker(), 'posEnabled' => \App\Services\PosEvatService::enabled(),
-                'driver' => EInvoiceService::driver(), 'logs' => EinvoiceLog::with('user')->whereNotNull('pos_order_id')->latest('id')->limit(15)->get()]);
+                'driver' => EInvoiceService::driver(), 'logs' => EinvoiceLog::with('user')->whereNotNull('pos_order_id')->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()]);
         }
         $docs = $scope($base(), $tab)->with('guest', 'company', 'original:id,invoice_no')
             ->when($request->q, fn ($q, $t) => $q->where(fn ($w) => $w->where('invoice_no', 'like', "%$t%")->orWhere('buyer_gstin', 'like', "%$t%")->orWhere('buyer_name', 'like', "%$t%")))
             ->orderByDesc('invoice_date')->orderByDesc('id')->paginate(30)->withQueryString();
 
         return view('gst.einvoices', ['tab' => $tab, 'counts' => $counts, 'docs' => $docs, 'bills' => null, 'enabled' => EInvoiceService::enabled(), 'blocker' => EInvoiceService::registrationBlocker(), 'posEnabled' => \App\Services\PosEvatService::enabled(), 'driver' => EInvoiceService::driver(),
-            'logs' => EinvoiceLog::with('user')->whereNull('pos_order_id')->latest('id')->limit(15)->get()]); // restaurant bills have their own log on their tab
+            'logs' => EinvoiceLog::with('user')->whereNull('pos_order_id')->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()]); // restaurant bills have their own log on their tab
     }
 
     public function creditNotes(Request $request)
@@ -93,7 +93,7 @@ class GstController extends Controller
                 ->orWhereHas('original', fn ($o) => $o->where('invoice_no', 'like', "%$t%"))))
             ->orderByDesc('invoice_date')->orderByDesc('id')->paginate(30)->withQueryString();
 
-        return view('gst.credit-notes', ['notes' => $notes, 'cancelled' => GstCancelledDoc::with('user')->latest('id')->limit(20)->get()]);
+        return view('gst.credit-notes', ['notes' => $notes, 'cancelled' => GstCancelledDoc::with('user')->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function vatReturn(Request $request)
@@ -132,7 +132,7 @@ class GstController extends Controller
     public function settings()
     {
         return view('gst.settings', ['s' => collect(GstService::DEFAULTS)->map(fn ($v, $k) => setting($k, $v)),
-            'taxes' => \App\Models\Tax::orderBy('id')->get(), 'tin' => GstService::hotelTin(), 'tinOk' => GstService::validTin(GstService::hotelTin()), 'hotel' => hotel(),
+            'taxes' => \App\Models\Tax::orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'tin' => GstService::hotelTin(), 'tinOk' => GstService::validTin(GstService::hotelTin()), 'hotel' => hotel(),
             'reg' => GstService::vatRegistration(), 'blocker' => EInvoiceService::registrationBlocker()]);   // v7.52 the Act 1151 test
     }
 
@@ -175,7 +175,7 @@ class GstController extends Controller
         $bad = 0;
         // manual retry ignores the back-off; documents with data errors (not retryable) need fixing first
         foreach (Folio::where('status', 'closed')->where(fn ($q) => $q->where('irn_status', 'pending')
-            ->orWhere(fn ($w) => $w->where('irn_status', 'failed')->where('irn_retryable', true)))->orderBy('invoice_date')->orderBy('id')->limit(100)->get() as $f) {
+            ->orWhere(fn ($w) => $w->where('irn_status', 'failed')->where('irn_retryable', true)))->orderBy('invoice_date')->orderBy('id')->limit(100)->limit((int) config('pms.max_list_rows', 5000))->get() as $f) {
             EInvoiceService::generate($f, auth()->id()) ? $ok++ : $bad++;
         }
         [$pok, $pbad] = \App\Services\PosEvatService::retry(false, auth()->id()); // v4.4 restaurant bills
@@ -269,7 +269,7 @@ class GstController extends Controller
 
         return view('gst.credit-note-form', ['inv' => $folio, 'lines' => GstService::creditable($folio),
             'cl' => $cl, 'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'online', 'gift_voucher'])->pluck('name', 'id'),
-            'notes' => $folio->creditNotes()->orderBy('id')->get(), 'filed' => GstPeriod::isFiled(bdate()->toDateString())]);
+            'notes' => $folio->creditNotes()->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'filed' => GstPeriod::isFiled(bdate()->toDateString())]);
     }
 
     public function storeCreditNote(Request $request, Folio $folio)

@@ -68,10 +68,10 @@ class ApController extends Controller
 
         return view('ap.bill-create', [
             'po' => $po, 'supplier' => $supplier, 'mode' => $mode,
-            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get(),
+            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'heads' => ApService::chargeableHeads(),
             'receipts' => ApService::unbilledReceipts()->filter(fn ($p) => $p->billable() && ! $p->bill()->exists()),
-            'againstOptions' => $supplier ? SupplierInvoice::where('supplier_id', $supplier->id)->where('type', 'invoice')->whereIn('status', ['open', 'partial', 'paid'])->latest('doc_date')->get() : collect(),
+            'againstOptions' => $supplier ? SupplierInvoice::where('supplier_id', $supplier->id)->where('type', 'invoice')->whereIn('status', ['open', 'partial', 'paid'])->latest('doc_date')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'tolerance' => $po ? ApService::tolerance($po->receivedValue() ?: (float) $po->total) : null,
             // v7.53 the payables side of the forex board: which currencies can be billed in, and at what rate today
             'home' => strtoupper(trim((string) (hotel()?->currency ?: 'GHS'))),
@@ -173,7 +173,7 @@ class ApController extends Controller
                     ? "{$c['doc']} · ".Carbon::parse($c['date'])->format('d M').' · unapplied '.money($c['free'])
                     : "{$c['doc']} · debit note · unapplied ".money($c['free'])]);
         }
-        $journals = \App\Models\GlJournal::where('source_type', 'ap_inv')->where('source_key', (string) $bill->id)->orderBy('id')->get();
+        $journals = \App\Models\GlJournal::where('source_type', 'ap_inv')->where('source_key', (string) $bill->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $grnJournal = $bill->purchase_order_id ? \App\Models\GlJournal::where('source_type', 'po')->where('source_key', (string) $bill->purchase_order_id)->whereNull('reversed_by_id')->first() : null;
 
         return view('ap.bill-show', compact('bill', 'credits', 'journals', 'grnJournal'));
@@ -256,7 +256,7 @@ class ApController extends Controller
         }
 
         // v9.15 the certificate: tax withheld is a GRA liability the supplier claims back only against a certificate
-        $taxed = SupplierPayment::with('supplier')->whereNull('cancelled_at')->where('wht_amount', '>', 0)->orderByDesc('date')->orderByDesc('id')->get();
+        $taxed = SupplierPayment::with('supplier')->whereNull('cancelled_at')->where('wht_amount', '>', 0)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $uncertified = $taxed->filter(fn ($p) => trim((string) $p->wht_cert_no) === '')->values();
         $cert = ['payments' => $taxed->count(), 'amount' => round((float) $taxed->sum('wht_amount'), 2),
             'certified' => $taxed->count() - $uncertified->count(), 'certified_amount' => round((float) $taxed->sum('wht_amount') - (float) $uncertified->sum('wht_amount'), 2),
@@ -266,7 +266,7 @@ class ApController extends Controller
 
         // and the tie: the allocated column must be the allocations on file, or the ageing is resting on a stale summary
         $onFile = ApAllocation::selectRaw('supplier_payment_id, SUM(amount) a')->groupBy('supplier_payment_id')->pluck('a', 'supplier_payment_id');
-        $applied = SupplierPayment::with('supplier')->whereNull('cancelled_at')->where('allocated', '>', 0)->get()
+        $applied = SupplierPayment::with('supplier')->whereNull('cancelled_at')->where('allocated', '>', 0)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['payment' => $p, 'on_file' => round((float) ($onFile[$p->id] ?? 0), 2)]);
         $breaks = $applied->filter(fn ($r) => abs((float) $r['payment']->allocated - $r['on_file']) > 0.005)->values();
         $alloc = ['payments' => $applied->count(), 'allocated' => round((float) $applied->sum(fn ($r) => (float) $r['payment']->allocated), 2),
@@ -299,11 +299,11 @@ class ApController extends Controller
 
         return view('ap.pay', [
             'supplier' => $supplier,
-            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get()->map(fn ($s) => $s->setAttribute('due', ApService::openBills($s->id)->sum(fn ($b) => $b->outstanding()))),
+            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($s) => $s->setAttribute('due', ApService::openBills($s->id)->sum(fn ($b) => $b->outstanding()))),
             'bills' => $supplier ? ApService::openBills($supplier->id) : collect(),
-            'held' => $supplier ? SupplierInvoice::where('supplier_id', $supplier->id)->where('status', 'on_hold')->get() : collect(),
+            'held' => $supplier ? SupplierInvoice::where('supplier_id', $supplier->id)->where('status', 'on_hold')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'unbilled' => $supplier ? ApService::unbilledReceipts($supplier->id) : collect(),
-            'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->orderBy('id')->get(),
+            'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'preselect' => array_map('intval', (array) $request->input('bills', [])),
             'whtOn' => \App\Services\WhtService::enabled(), // v4.4
             // v7.54 paying a foreign bill in the currency it was billed in
@@ -356,7 +356,7 @@ class ApController extends Controller
             'supplier_credits' => ApService::creditSources($asOf, (int) $spay->supplier_id)['credits']];
 
         return view($view, ['p' => $spay, 'credit' => $credit,
-            'journals' => \App\Models\GlJournal::where('source_type', 'ap_pay')->where('source_key', (string) $spay->id)->orderBy('id')->get()]);
+            'journals' => \App\Models\GlJournal::where('source_type', 'ap_pay')->where('source_key', (string) $spay->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function payCancel(Request $request, SupplierPayment $spay)

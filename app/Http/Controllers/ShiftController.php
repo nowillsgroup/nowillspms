@@ -33,8 +33,8 @@ class ShiftController extends Controller
 
         return view('shifts.index', [
             'current' => $current, 'summary' => $summary, 'history' => $history, 'all' => $all,
-            'movements' => $current ? $current->movements()->with('user')->latest('id')->limit(20)->get() : collect(),
-            'openShifts' => $all ? CashierShift::with('user')->where('status', 'open')->where('user_id', '!=', auth()->id())->get() : collect(),
+            'movements' => $current ? $current->movements()->with('user')->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'openShifts' => $all ? CashierShift::with('user')->where('status', 'open')->where('user_id', '!=', auth()->id())->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'users' => $all ? User::where('hotel_id', hotel()->id)->orderBy('name')->pluck('name', 'id') : collect(),
             'required' => ShiftService::required(),
         ]);
@@ -85,15 +85,15 @@ class ShiftController extends Controller
         $to = $shift->closed_at ?? now();
         $folioTransactions = FolioTransaction::with('paymentMode', 'folio.guest')->where('posted_by', $shift->user_id)
             ->whereBetween('created_at', [$from, $to])->where('is_void', false)->whereIn('type', ['payment', 'refund'])
-            ->latest('created_at')->get();
+            ->latest('created_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $posPayments = PosPayment::with('order', 'paymentMode')->where('received_by', $shift->user_id)
             ->whereBetween('received_at', [$from, $to])->whereIn('kind', ['payment', 'refund'])
-            ->orderBy('received_at')->orderBy('id')->get();
+            ->orderBy('received_at')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $ledgerOrderIds = $posPayments->pluck('pos_order_id')->unique();
         $posSettlements = PosOrder::with('paymentMode')->where('settled_by', $shift->user_id)->whereBetween('settled_at', [$from, $to])
             ->where('status', 'settled')->where('settlement', 'payment')
             ->when($ledgerOrderIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $ledgerOrderIds))
-            ->latest('settled_at')->get();
+            ->latest('settled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('shifts.show', ['shift' => $shift->load('user', 'closedBy', 'movements.user'), 'summary' => ShiftService::summary($shift),
             'folioTransactions' => $folioTransactions, 'posPayments' => $posPayments, 'posSettlements' => $posSettlements]);

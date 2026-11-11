@@ -316,7 +316,7 @@ trait RevenueManagementReports
 {
     protected function r_rate_contract_blackouts($from, $to): array
     {
-        $rows = RateContractBlackout::with('rateContract.blackoutType')->whereBetween('from_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RateContractBlackout::with('rateContract.blackoutType')->whereBetween('from_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'contract' => optional($r->rateContract)->name, 'type' => optional($r->blackoutType)->name,
             'from' => $r->from_date, 'to' => $r->to_date, 'reason' => $r->reason, 'status' => $r->status,
         ]);
@@ -325,7 +325,7 @@ trait RevenueManagementReports
 
     protected function r_rate_contract_rates($from, $to): array
     {
-        $rows = RateContractRate::with('rateContract.roomType.ratePlan')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RateContractRate::with('rateContract.roomType.ratePlan')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'contract' => optional($r->rateContract)->name, 'room_type' => optional($r->roomType)->name,
             'plan' => optional($r->ratePlan)->name, 'rate' => $r->rate, 'currency' => $r->currency,
             'meal' => $r->meal_plan, 'effective' => $r->effective_from, 'status' => $r->status,
@@ -335,7 +335,7 @@ trait RevenueManagementReports
 
     protected function r_rate_overrides($from, $to): array
     {
-        $rows = RateOverride::with('roomType.ratePlan.overrideType')->whereBetween('effective_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RateOverride::with('roomType.ratePlan.overrideType')->whereBetween('effective_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'room_type' => optional($r->roomType)->name, 'plan' => optional($r->ratePlan)->name,
             'type' => optional($r->overrideType)->name, 'override' => $r->override_value,
             'effective' => $r->effective_from, 'reason' => $r->reason, 'status' => $r->status,
@@ -346,7 +346,7 @@ trait RevenueManagementReports
     protected function r_rate_plans($from, $to): array
     {
         // Rewritten against the real schema: meal_plan is a string column; rate/extra_adult_rate/extra_child_rate/tax_inclusive/is_active.
-        $rows = RatePlan::with('roomType')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = RatePlan::with('roomType')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'name' => $r->name, 'room_type' => optional($r->roomType)->name,
             'meal' => $r->meal_plan, 'rate' => (float) $r->rate,
             'extra_adult' => (float) $r->extra_adult_rate, 'extra_child' => (float) $r->extra_child_rate,
@@ -370,8 +370,8 @@ trait RevenueManagementReports
 
     protected function r_rm_pickup($from, $to): array
     {
-        $res = Reservation::with('rooms')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get()->groupBy(fn ($r) => $r->created_at->toDateString());
-        $cx = Reservation::with('rooms')->whereBetween('cancelled_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get()->groupBy(fn ($r) => $r->cancelled_at->toDateString());
+        $res = Reservation::with('rooms')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy(fn ($r) => $r->created_at->toDateString());
+        $cx = Reservation::with('rooms')->whereBetween('cancelled_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy(fn ($r) => $r->cancelled_at->toDateString());
         $nights = fn ($g) => $g->sum(fn ($r) => $r->rooms->sum(fn ($s) => $s->nights));
         $value = fn ($g) => $g->sum(fn ($r) => $r->rooms->sum(fn ($s) => $s->nights * $s->nightlyTotal()));
         $rows = [];
@@ -393,7 +393,7 @@ trait RevenueManagementReports
     protected function r_rm_snapshots($from, $to): array
     {
         // Rewritten against the real schema: rooms/revenue per snapshot_date + stay_date + room_type; roomType() relation added to the model.
-        $rows = \App\Models\RmSnapshot::with('roomType')->whereBetween('snapshot_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderBy('snapshot_date')->orderBy('stay_date')->get()->map(fn ($r) => [
+        $rows = \App\Models\RmSnapshot::with('roomType')->whereBetween('snapshot_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderBy('snapshot_date')->orderBy('stay_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'snapshot_date' => $r->snapshot_date, 'stay_date' => $r->stay_date,
             'room_type' => optional($r->roomType)->name, 'rooms' => $r->rooms,
             'revenue' => (float) $r->revenue,
@@ -403,7 +403,7 @@ trait RevenueManagementReports
 
     protected function r_yield_rules($from, $to): array
     {
-        $rows = YieldRule::with('roomType.ratePlan.yieldRuleType')->get()->map(fn ($r) => [
+        $rows = YieldRule::with('roomType.ratePlan.yieldRuleType')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'room_type' => optional($r->roomType)->name, 'plan' => optional($r->ratePlan)->name,
             'type' => optional($r->yieldRuleType)->name, 'threshold_pct' => $r->threshold_pct,
             'adjustment' => $r->adjustment_pct, 'min_stay' => $r->min_stay, 'status' => $r->status,

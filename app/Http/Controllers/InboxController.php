@@ -77,12 +77,12 @@ class InboxController extends Controller
         $extra = [];
         if ($c) {
             IS::markRead($c);
-            $thread = ConversationMessage::with('user', 'broadcast')->where('conversation_id', $c->id)->orderBy('id')->get();
+            $thread = ConversationMessage::with('user', 'broadcast')->where('conversation_id', $c->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
             $stay = $c->stay;
             $extra = [
-                'requests' => $stay ? GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(6)->get() : collect(),
-                'history' => $c->guest ? Conversation::where('guest_id', $c->guest_id)->where('id', '!=', $c->id)->latest('last_message_at')->limit(5)->get() : collect(),
-                'balance' => $stay && $stay->status === 'checked_in' ? rescue(fn () => \App\Models\Folio::where('reservation_room_id', $stay->id)->where('status', 'open')->get()->sum(fn ($f) => $f->balance()), null, false) : null,
+                'requests' => $stay ? GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+                'history' => $c->guest ? Conversation::where('guest_id', $c->guest_id)->where('id', '!=', $c->id)->latest('last_message_at')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+                'balance' => $stay && $stay->status === 'checked_in' ? rescue(fn () => \App\Models\Folio::where('reservation_room_id', $stay->id)->where('status', 'open')->limit((int) config('pms.max_list_rows', 5000))->get()->sum(fn ($f) => $f->balance()), null, false) : null,
                 'waOpen' => $c->channel !== 'whatsapp' || IS::whatsappWindowOpen($c),
             ];
         }
@@ -92,18 +92,18 @@ class InboxController extends Controller
         }
 
         return view('inbox.index', ['list' => $list, 'c' => $c, 'thread' => $thread, 'counts' => $counts, 'f' => $r->query('f', 'open'), 'cfg' => IS::cfg(),
-            'quick' => InboxQuickReply::where('is_active', true)->orderBy('shortcut')->get(), 'agents' => $this->agents(),
+            'quick' => InboxQuickReply::where('is_active', true)->orderBy('shortcut')->limit((int) config('pms.max_list_rows', 5000))->get(), 'agents' => $this->agents(),
             'canReply' => IS::canReply($r->user()), 'categories' => GuestRequest::CATEGORIES, 'inhouse' => $this->inhouse()] + $extra);
     }
 
     protected function agents()
     {
-        return User::visibleToHotel()->where('is_active', true)->orderBy('name')->get()->filter(fn ($u) => IS::canReply($u))->values();
+        return User::visibleToHotel()->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($u) => IS::canReply($u))->values();
     }
 
     protected function inhouse()
     {
-        return ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        return ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
     }
 
     /** live refresh: counts, the list's newest activity and new lines for the open conversation */
@@ -113,7 +113,7 @@ class InboxController extends Controller
         $out = ['attention' => IS::attentionCount(), 'latest' => (string) Conversation::max('updated_at')];
         if ($r->filled('c') && ($c = Conversation::find((int) $r->query('c')))) {
             $after = (int) $r->query('after', 0);
-            $new = ConversationMessage::with('user')->where('conversation_id', $c->id)->where('id', '>', $after)->orderBy('id')->get();
+            $new = ConversationMessage::with('user')->where('conversation_id', $c->id)->where('id', '>', $after)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
             if ($new->where('direction', 'in')->isNotEmpty()) {
                 IS::markRead($c);
             }
@@ -225,7 +225,7 @@ class InboxController extends Controller
     {
         $t = '%'.trim((string) $r->query('q')).'%';
         $list = strlen(trim((string) $r->query('q'))) < 2 ? collect() : \App\Models\Guest::where(fn ($w) => $w->where('first_name', 'like', $t)->orWhere('last_name', 'like', $t)->orWhere('phone', 'like', $t)->orWhere('email', 'like', $t))
-            ->orderBy('last_name')->limit(12)->get();
+            ->orderBy('last_name')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return response()->json($list->map(fn ($g) => ['id' => $g->id, 'label' => $g->full_name.($g->phone ? ' · '.$g->phone : '').($g->email ? ' · '.$g->email : '')]));
     }
@@ -234,7 +234,7 @@ class InboxController extends Controller
 
     public function broadcasts()
     {
-        return view('inbox.broadcasts', ['list' => InboxBroadcast::with('creator', 'floor')->latest('id')->paginate(25), 'floors' => Floor::orderBy('id')->get(), 'cfg' => IS::cfg(),
+        return view('inbox.broadcasts', ['list' => InboxBroadcast::with('creator', 'floor')->latest('id')->paginate(25), 'floors' => Floor::orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => IS::cfg(),
             'canSend' => IS::canBroadcast(auth()->user())]);
     }
 
@@ -266,7 +266,7 @@ class InboxController extends Controller
     public function broadcast(InboxBroadcast $broadcast)
     {
         $broadcast->load('creator', 'floor');
-        $msgs = ConversationMessage::with('conversation.guest', 'conversation.stay.room')->where('broadcast_id', $broadcast->id)->orderBy('id')->get();
+        $msgs = ConversationMessage::with('conversation.guest', 'conversation.stay.room')->where('broadcast_id', $broadcast->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('inbox.broadcast', ['b' => $broadcast, 'msgs' => $msgs]);
     }
@@ -275,7 +275,7 @@ class InboxController extends Controller
 
     public function replies()
     {
-        return view('inbox.replies', ['list' => InboxQuickReply::with('creator')->orderBy('shortcut')->get(), 'vars' => array_keys(IS::vars(null))]);
+        return view('inbox.replies', ['list' => InboxQuickReply::with('creator')->orderBy('shortcut')->limit((int) config('pms.max_list_rows', 5000))->get(), 'vars' => array_keys(IS::vars(null))]);
     }
 
     protected function qrData(Request $r): array
@@ -322,7 +322,7 @@ class InboxController extends Controller
 
     public function rules()
     {
-        return view('inbox.rules', ['list' => InboxRule::orderBy('sort')->orderBy('id')->get(), 'categories' => GuestRequest::CATEGORIES, 'vars' => array_keys(IS::vars(null))]);
+        return view('inbox.rules', ['list' => InboxRule::orderBy('sort')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'categories' => GuestRequest::CATEGORIES, 'vars' => array_keys(IS::vars(null))]);
     }
 
     protected function ruleData(Request $r): array
@@ -369,7 +369,7 @@ class InboxController extends Controller
     public function ruleTest(Request $r)
     {
         $text = (string) $r->input('text');
-        $rule = InboxRule::where('is_active', true)->orderBy('sort')->orderBy('id')->get()->first(fn ($x) => $x->matches($text));
+        $rule = InboxRule::where('is_active', true)->orderBy('sort')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->first(fn ($x) => $x->matches($text));
 
         return back()->withInput()->with($rule ? 'success' : 'error', $rule ? "“{$rule->name}” would handle it: ".$rule->actionsLabel().'.' : 'No rule matches – the message would go to the default team for a person to answer.');
     }

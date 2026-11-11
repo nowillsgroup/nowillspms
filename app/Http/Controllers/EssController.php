@@ -37,7 +37,7 @@ class EssController extends Controller
         return view('me.profile', [
             'e' => $e,
             'fields' => Ess::PROFILE_FIELDS,
-            'requests' => HrProfileUpdate::where('employee_id', $e->id)->latest('id')->limit(10)->get(),
+            'requests' => HrProfileUpdate::where('employee_id', $e->id)->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -59,7 +59,7 @@ class EssController extends Controller
 
         return view('me.documents', [
             'e' => $e,
-            'docs' => HrDocument::where('employee_id', $e->id)->latest('id')->limit(50)->get(),
+            'docs' => HrDocument::where('employee_id', $e->id)->latest('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'kinds' => Ess::DOC_KINDS,
         ]);
     }
@@ -107,10 +107,10 @@ class EssController extends Controller
     public function desk()
     {
         return view('hr.ess', [
-            'requests' => HrProfileUpdate::with('employee')->latest('id')->limit(40)->get(),
-            'docs' => HrDocument::with('employee')->latest('id')->limit(40)->get(),
-            'announcements' => HrAnnouncement::latest('id')->limit(20)->get(),
-            'departments' => \App\Models\Department::orderBy('name')->get(),
+            'requests' => HrProfileUpdate::with('employee')->latest('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'docs' => HrDocument::with('employee')->latest('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'announcements' => HrAnnouncement::latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'departments' => \App\Models\Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 

@@ -19,12 +19,12 @@ class LeaveController extends Controller
             ->when($request->employee_id, fn ($q, $e) => $q->where('employee_id', $e))
             ->orderByRaw("status = 'pending' DESC")->orderByDesc('date_from')->paginate(30)->withQueryString();
         $year = (int) $request->input('year', bdate()->year);
-        $types = LeaveType::where('is_active', true)->orderBy('id')->get();
-        $employees = Employee::with('department')->where('is_active', true)->orderBy('name')->get();
+        $types = LeaveType::where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $employees = Employee::with('department')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $balances = $request->input('tab') === 'balances'
             ? $employees->mapWithKeys(fn ($e) => [$e->id => LeaveService::balances($e, $year)->keyBy(fn ($b) => $b['type']->id)]) : collect();
         $onLeave = LeaveRequest::with('employee', 'leaveType')->where('status', 'approved')
-            ->whereDate('date_from', '<=', bdate()->toDateString())->whereDate('date_to', '>=', bdate()->toDateString())->get();
+            ->whereDate('date_from', '<=', bdate()->toDateString())->whereDate('date_to', '>=', bdate()->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('hr.leave', ['list' => $list, 'status' => $status, 'types' => $types, 'employees' => $employees, 'balances' => $balances, 'year' => $year,
             'onLeave' => $onLeave, 'counts' => LeaveRequest::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status')]);

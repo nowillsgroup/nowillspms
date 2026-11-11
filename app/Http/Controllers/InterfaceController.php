@@ -78,7 +78,7 @@ class InterfaceController extends Controller
     public function retryAll()
     {
         $n = 0;
-        foreach (InterfaceCommand::where('status', 'failed')->where('system', 'pbx')->where('created_at', '>=', now()->subDay())->get() as $c) {
+        foreach (InterfaceCommand::where('status', 'failed')->where('system', 'pbx')->where('created_at', '>=', now()->subDay())->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             $n += InterfaceService::retry($c)->status === 'done' ? 1 : 0;
         }
 

@@ -317,7 +317,7 @@ trait GuestMessagingReports
     protected function r_guest_messages($from, $to): array
     {
         $M = \App\Models\GuestMessage::class;
-        $list = $M::with('stay.room', 'guest', 'taker', 'deliverer')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('id')->get();
+        $list = $M::with('stay.room', 'guest', 'taker', 'deliverer')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($m) => ['no' => $m->message_no, 'at' => $m->created_at->format('d M H:i'), 'type' => $m->isParcel() ? 'Parcel' : 'Message',
             'room' => (string) $m->stay?->room?->room_no, 'guest' => (string) $m->guest?->full_name, 'from' => $m->from_name.($m->from_company ? ', '.$m->from_company : ''),
             'channel' => $M::CHANNELS[$m->channel] ?? $m->channel, 'told' => $m->notified_at ? strtoupper((string) $m->notified_via).' '.$m->notified_at->format('H:i') : '',
@@ -342,7 +342,7 @@ trait GuestMessagingReports
         $IS = \App\Services\InboxService::class;
         $sla = $IS::cfg()['sla'] * 60;
         [$a, $b] = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
-        $out = $M::with('user')->where('direction', 'out')->where('auto', false)->whereNotNull('user_id')->whereNull('broadcast_id')->whereBetween('created_at', [$a, $b])->get();
+        $out = $M::with('user')->where('direction', 'out')->where('auto', false)->whereNotNull('user_id')->whereNull('broadcast_id')->whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get();
         $notes = $M::where('direction', 'note')->whereBetween('created_at', [$a, $b])->get(['user_id'])->countBy('user_id');
         $closed = \App\Models\Conversation::whereBetween('closed_at', [$a, $b])->get(['closed_by', 'csat']);
         $rows = $out->groupBy('user_id')->map(function ($g, $uid) use ($IS, $sla, $notes, $closed) {
@@ -363,7 +363,7 @@ trait GuestMessagingReports
 
     protected function r_inbox_broadcasts($from, $to): array
     {
-        $rows = InboxBroadcast::with('user.channelType')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = InboxBroadcast::with('user.channelType')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'sent' => $r->sent_at, 'channel' => optional($r->channelType)->name,
             'target' => $r->target_audience, 'recipients' => $r->recipient_count,
             'status' => $r->status, 'user' => optional($r->user)->name,
@@ -376,7 +376,7 @@ trait GuestMessagingReports
         $C = \App\Models\Conversation::class;
         $IS = \App\Services\InboxService::class;
         $list = $C::with('guest', 'stay.room', 'assignee')->withCount(['messages as n_in' => fn ($q) => $q->where('direction', 'in'), 'messages as n_out' => fn ($q) => $q->where('direction', 'out')])
-            ->whereBetween('opened_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('opened_at')->get();
+            ->whereBetween('opened_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('opened_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $first = \App\Models\ConversationMessage::whereIn('conversation_id', $list->pluck('id'))->whereNotNull('response_sec')->orderBy('id')->get(['conversation_id', 'response_sec'])->groupBy('conversation_id')->map(fn ($g) => $g->first()->response_sec);
         $sla = $IS::cfg()['sla'] * 60;
         $rows = $list->map(fn ($c) => ['no' => $c->number, 'at' => $c->opened_at?->format('d-m-Y H:i'), 'ch' => $c->channelLabel(), 'guest' => $c->displayName(), 'room' => $c->roomNo(),
@@ -395,7 +395,7 @@ trait GuestMessagingReports
     protected function r_inbox_quick_replies($from, $to): array
     {
         // Rewritten against the real schema: shortcut/title/body/department/is_active/uses/created_by; there is no user.topic relation.
-        $rows = InboxQuickReply::with('creator')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = InboxQuickReply::with('creator')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'shortcut' => $r->shortcut, 'department' => $r->department,
             'body' => $r->body, 'uses' => $r->uses, 'active' => $r->is_active ? 'Yes' : 'No',
             'created_by' => optional($r->creator)->name,
@@ -445,7 +445,7 @@ trait GuestMessagingReports
                 'detail' => collect($C::CHANNELS)->map(fn ($cl, $ck) => $g->where('channel', $ck)->count() ? $cl.' '.$g->where('channel', $ck)->count() : null)->filter()->implode(' · '),
                 'csat' => $rated->count() ? round($rated->avg('csat'), 1) : null]);
         }
-        foreach (\App\Models\InboxRule::orderBy('sort')->get() as $r) {
+        foreach (\App\Models\InboxRule::orderBy('sort')->limit((int) config('pms.max_list_rows', 5000))->get() as $r) {
             if (! ($n = $ruleHits[$r->id] ?? 0)) {
                 continue;
             }

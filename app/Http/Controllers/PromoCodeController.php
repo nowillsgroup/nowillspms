@@ -14,7 +14,7 @@ class PromoCodeController extends Controller
 {
     public function index()
     {
-        $promos = PromoCode::withCount(['campaigns'])->orderByDesc('is_active')->orderBy('code')->get()
+        $promos = PromoCode::withCount(['campaigns'])->orderByDesc('is_active')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(fn ($p) => $p->value_stats = CrmService::bookingValue(Reservation::where('promo_code_id', $p->id)));
 
         return view('crm.promos.index', ['promos' => $promos, 'types' => RoomType::pluck('name', 'id')]);

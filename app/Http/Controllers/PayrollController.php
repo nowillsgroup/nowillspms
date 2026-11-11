@@ -35,7 +35,7 @@ class PayrollController extends Controller
 
         return view('payroll.index', ['runs' => $runs, 'months' => $months, 'ytd' => $ytd,
             'unpaid' => PayrollRun::where('status', 'approved')->sum('net'), 'drafts' => PayrollRun::where('status', 'draft')->count(),
-            'advances' => StaffAdvance::whereNull('cancelled_at')->get()->sum(fn ($a) => $a->outstanding())]);
+            'advances' => StaffAdvance::whereNull('cancelled_at')->limit((int) config('pms.max_list_rows', 5000))->get()->sum(fn ($a) => $a->outstanding())]);
     }
 
     public function store(Request $request)
@@ -53,10 +53,10 @@ class PayrollController extends Controller
     public function show(PayrollRun $prun)
     {
         $prun->load('generator', 'approver', 'payer');
-        $slips = $prun->payslips()->with('employee.department', 'paymentMode', 'lines')->get()->sortBy(fn ($s) => $s->employee->emp_code)->values();
+        $slips = $prun->payslips()->with('employee.department', 'paymentMode', 'lines')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->employee->emp_code)->values();
         $byCode = PayslipLine::whereIn('payslip_id', $slips->pluck('id'))->selectRaw('kind, code, MIN(name) name, SUM(amount) amt, COUNT(*) n, MIN(sort_order) so')
-            ->groupBy('kind', 'code')->orderBy('so')->get()->groupBy('kind');
-        $journals = GlJournal::whereIn('source_type', ['payroll', 'payroll_pay'])->where('source_key', (string) $prun->id)->orderBy('id')->get();
+            ->groupBy('kind', 'code')->orderBy('so')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('kind');
+        $journals = GlJournal::whereIn('source_type', ['payroll', 'payroll_pay'])->where('source_key', (string) $prun->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('payroll.show', ['run' => $prun, 'slips' => $slips, 'byCode' => $byCode, 'journals' => $journals,
             'modes' => $slips->groupBy(fn ($s) => $s->paymentMode?->name ?? '—')->map(fn ($g) => ['n' => $g->count(), 'net' => $g->sum('net')]),
@@ -104,7 +104,7 @@ class PayrollController extends Controller
     /** Bank advice / salary transfer file for the bank (net pay per employee). */
     public function bankAdvice(PayrollRun $prun)
     {
-        $slips = $prun->payslips()->with('employee', 'paymentMode')->get()->sortBy(fn ($s) => $s->employee->emp_code);
+        $slips = $prun->payslips()->with('employee', 'paymentMode')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->employee->emp_code);
         ActivityLogger::log('payroll', 'export', "Bank advice exported for {$prun->run_no}", $prun);
 
         return response()->streamDownload(function () use ($slips, $prun) {
@@ -121,7 +121,7 @@ class PayrollController extends Controller
     /** All payslips of a run on one printable page. */
     public function printAll(PayrollRun $prun)
     {
-        $slips = $prun->payslips()->with('employee.department', 'lines', 'paymentMode')->get()->sortBy(fn ($s) => $s->employee->emp_code);
+        $slips = $prun->payslips()->with('employee.department', 'lines', 'paymentMode')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->employee->emp_code);
 
         return view('payroll.payslip', ['slips' => $slips, 'run' => $prun]);
     }
@@ -154,8 +154,8 @@ class PayrollController extends Controller
     public function components(Request $request)
     {
         return view('payroll.components', [
-            'components' => PayComponent::with('expenseHead', 'liabilityHead')->orderBy('sort_order')->orderBy('id')->get()->groupBy('kind'),
-            'heads' => $this->expenseHeads(), 'liabilities' => AccountHead::where('type', 'liability')->where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' · '.$h->name]),
+            'components' => PayComponent::with('expenseHead', 'liabilityHead')->orderBy('sort_order')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('kind'),
+            'heads' => $this->expenseHeads(), 'liabilities' => AccountHead::where('type', 'liability')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' · '.$h->name]),
             'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->pluck('name', 'id'),
             'slabs' => PayrollService::taxSlabs(),
             'schedule' => PayrollService::scheduleFor(bdate()), 'schedules' => PayrollService::PAYE_SCHEDULES,
@@ -264,20 +264,20 @@ class PayrollController extends Controller
     public function employee(Employee $employee)
     {
         $employee->load('department', 'paymentMode');
-        $assigned = $employee->payComponents()->get()->keyBy('pay_component_id');
+        $assigned = $employee->payComponents()->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('pay_component_id');
         $month = bdate()->copy()->startOfMonth();
         $preview = PayrollService::compute($employee, new PayrollRun(['period_start' => $month, 'period_end' => $month->copy()->endOfMonth()->startOfDay()]), collect());
 
         return view('payroll.employee', ['e' => $employee, 'assigned' => $assigned, 'preview' => $preview, 'month' => $month,
-            'components' => PayComponent::where('is_active', true)->whereNotIn('code', PayComponent::SYSTEM)->orderBy('sort_order')->orderBy('id')->get(),
-            'slips' => $employee->payslips()->with('run')->latest('id')->limit(12)->get(),
-            'advances' => $employee->advances()->latest('date')->get()]);
+            'components' => PayComponent::where('is_active', true)->whereNotIn('code', PayComponent::SYSTEM)->orderBy('sort_order')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'slips' => $employee->payslips()->with('run')->latest('id')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'advances' => $employee->advances()->latest('date')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveEmployee(Request $request, Employee $employee)
     {
         $d = $request->validate(['c' => 'array', 'c.*.value' => 'nullable|numeric|min:0|max:99999999', 'c.*.state' => 'required|in:default,on,off']);
-        foreach (PayComponent::whereNotIn('code', PayComponent::SYSTEM)->get() as $c) {
+        foreach (PayComponent::whereNotIn('code', PayComponent::SYSTEM)->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             $row = $d['c'][$c->id] ?? null;
             if (! $row) {
                 continue;
@@ -304,7 +304,7 @@ class PayrollController extends Controller
             ->orderByDesc('date')->orderByDesc('id')->paginate(30)->withQueryString();
 
         return view('payroll.advances', ['advances' => $list,
-            'employees' => Employee::where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')']),
+            'employees' => Employee::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')']),
             'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->pluck('name', 'id')]);
     }
 
@@ -322,7 +322,7 @@ class PayrollController extends Controller
             return back()->withInput()->with('error', 'The ledger is locked up to '.dmy($lock).'.');
         }
         $emp = Employee::find($d['employee_id']);
-        $open = StaffAdvance::where('employee_id', $emp->id)->whereNull('cancelled_at')->get()->sum(fn ($a) => $a->outstanding());
+        $open = StaffAdvance::where('employee_id', $emp->id)->whereNull('cancelled_at')->limit((int) config('pms.max_list_rows', 5000))->get()->sum(fn ($a) => $a->outstanding());
         $limit = (float) setting('payroll_advance_limit_months', 2) * (float) $emp->salary;
         if ($limit > 0 && $open + (float) $d['amount'] > $limit) {
             return back()->withInput()->with('error', sprintf('Advance limit exceeded: %s outstanding + %s requested > %s (%s × monthly salary).', money($open), money($d['amount']), money($limit), setting('payroll_advance_limit_months', 2)));
@@ -352,6 +352,6 @@ class PayrollController extends Controller
 
     protected function expenseHeads()
     {
-        return AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' · '.$h->name]);
+        return AccountHead::where('type', 'expense')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($h) => [$h->id => $h->code.' · '.$h->name]);
     }
 }

@@ -61,7 +61,7 @@ class FbCostController extends Controller
 
     protected function ingredients()
     {
-        return InventoryItem::with('category')->where('is_active', true)->orderBy('name')->get();
+        return InventoryItem::with('category')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ------------------------------------------------------------------ dashboard
@@ -77,7 +77,7 @@ class FbCostController extends Controller
         return view('fbc.index', ['k' => FC::kpis(), 'alerts' => FC::alerts(), 'daily' => $daily, 'cfg' => $cfg, 'me' => $me,
             'over' => $dishes->where('st', 'over')->sortByDesc(fn ($m) => $m->pct - $m->target)->take(8),
             'creep' => $dishes->filter(fn ($m) => $m->creep && $m->creep['pct'] >= $cfg['creep_pct'])->sortByDesc(fn ($m) => $m->creep['pct'])->take(8),
-            'changes' => FbPriceChange::with(['menuItem', 'user'])->orderByDesc('effective_on')->orderByDesc('id')->limit(5)->get()]);
+            'changes' => FbPriceChange::with(['menuItem', 'user'])->orderByDesc('effective_on')->orderByDesc('id')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     // ------------------------------------------------------------------ recipes
@@ -90,7 +90,7 @@ class FbCostController extends Controller
             ->when($r->input('status'), fn ($c) => $c->where('st', $r->input('status')))
             ->when($r->input('q'), fn ($c) => $c->filter(fn ($m) => stripos($m->name.' '.$m->code, (string) $r->input('q')) !== false));
 
-        return view('fbc.recipes', ['dishes' => $dishes->values(), 'outlets' => Outlet::orderBy('name')->get(), 'categories' => MenuCategory::orderBy('sort_order')->get(),
+        return view('fbc.recipes', ['dishes' => $dishes->values(), 'outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'categories' => MenuCategory::orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'all' => FC::dishes(), 'cfg' => FC::cfg()]);
     }
 
@@ -110,7 +110,7 @@ class FbCostController extends Controller
         return ['m' => $m, 'card' => $m->card, 'lines' => $lines, 'cost' => $cost, 'target' => $target, 'price' => (float) $m->price,
             'pct' => $m->price > 0 && $lines->isNotEmpty() ? round($cost / $m->price * 100, 1) : null,
             'suggested' => FC::suggestPrice($cost, $target), 'history' => FC::history($m->id), 'creep' => FC::creep()[$m->id] ?? null,
-            'changes' => FbPriceChange::with('user')->where('menu_item_id', $m->id)->orderByDesc('effective_on')->orderByDesc('id')->limit(10)->get(),
+            'changes' => FbPriceChange::with('user')->where('menu_item_id', $m->id)->orderByDesc('effective_on')->orderByDesc('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cls' => FC::classOf($m), 'cfg' => FC::cfg()];
     }
 
@@ -160,7 +160,7 @@ class FbCostController extends Controller
         $cat = $r->integer('category') ?: null;
 
         return view('fbc.menu', ['me' => FC::menuEngineering($from, $to, $outlet, $cat), 'from' => $from, 'to' => $to,
-            'outlets' => Outlet::orderBy('name')->get(), 'categories' => MenuCategory::orderBy('sort_order')->get(), 'cfg' => FC::cfg()]);
+            'outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'categories' => MenuCategory::orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => FC::cfg()]);
     }
 
     /**
@@ -175,7 +175,7 @@ class FbCostController extends Controller
         $outlet = $r->integer('outlet') ?: null;
 
         return view('fbc.sides', ['sides' => FC::sideDishes($from, $to, $outlet), 'from' => $from, 'to' => $to,
-            'outlets' => Outlet::orderBy('name')->get(), 'outlet' => $outlet, 'cfg' => FC::cfg()]);
+            'outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'outlet' => $outlet, 'cfg' => FC::cfg()]);
     }
 
     // ------------------------------------------------------------------ cost statement
@@ -205,8 +205,8 @@ class FbCostController extends Controller
             ->when($r->input('show') === 'over', fn ($c) => $c->where('st', 'over'))
             ->sortBy([['menu_category_id', 'asc'], ['name', 'asc']])->values();
 
-        return view('fbc.pricing', ['dishes' => $dishes, 'outlets' => Outlet::orderBy('name')->get(), 'cfg' => FC::cfg(),
-            'changes' => FbPriceChange::with(['menuItem', 'user'])->orderByDesc('effective_on')->orderByDesc('id')->limit(15)->get()]);
+        return view('fbc.pricing', ['dishes' => $dishes, 'outlets' => Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => FC::cfg(),
+            'changes' => FbPriceChange::with(['menuItem', 'user'])->orderByDesc('effective_on')->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function priceChange(Request $r, MenuItem $fbdish)
@@ -220,7 +220,7 @@ class FbCostController extends Controller
     {
         return view('fbc.yields', ['tests' => FbYieldTest::with(['item', 'user', 'applier'])->orderByDesc('tested_on')->orderByDesc('id')->paginate(30),
             'ingredients' => $this->ingredients()->filter(fn ($i) => in_array($i->category?->fb_class, ['food', 'beverage'], true))->values(),
-            'trimmed' => InventoryItem::where('yield_pct', '<', 100)->orderBy('name')->get()]);
+            'trimmed' => InventoryItem::where('yield_pct', '<', 100)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function yieldStore(Request $r)
@@ -243,7 +243,7 @@ class FbCostController extends Controller
         }
         [$from, $to] = $this->period($r, 31);
         $to = min($to, bdate()->toDateString());
-        $rows = FbStaffMeal::with('user')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderByDesc('business_date')->orderBy('meal')->get();
+        $rows = FbStaffMeal::with('user')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderByDesc('business_date')->orderBy('meal')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('fbc.meals', ['rows' => $rows, 'from' => $from, 'to' => $to, 'cfg' => FC::cfg(),
             'total' => $rows->sum('total'), 'covers' => $rows->sum('covers'), 'days' => $rows->pluck('business_date')->map(fn ($d) => $d->toDateString())->unique()->count()]);
@@ -263,7 +263,7 @@ class FbCostController extends Controller
 
     public function settings()
     {
-        return view('fbc.settings', ['cfg' => FC::cfg(), 'mcats' => MenuCategory::orderBy('sort_order')->get(), 'icats' => \App\Models\ItemCategory::orderBy('name')->get()]);
+        return view('fbc.settings', ['cfg' => FC::cfg(), 'mcats' => MenuCategory::orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get(), 'icats' => \App\Models\ItemCategory::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function settingsSave(Request $r)

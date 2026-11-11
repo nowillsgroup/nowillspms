@@ -19,11 +19,11 @@ class RentalController extends Controller
 
         return view('rentals.index', [
             'dueOut' => $s['due_out'], 'dueIn' => $s['due_in'], 'fleet' => $s['fleet'],
-            'bookings' => CarRental::with('vehicle')->latest('id')->limit(60)->get(),
-            'vehicles' => RentalVehicle::where('status', '!=', 'retired')->orderBy('class')->orderBy('make')->get(),
+            'bookings' => CarRental::with('vehicle')->latest('id')->limit(60)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'vehicles' => RentalVehicle::where('status', '!=', 'retired')->orderBy('class')->orderBy('make')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stays' => \App\Models\ReservationRoom::with(['reservation:id,guest_id,reference', 'room:id,number'])
                 ->whereHas('room', fn ($q) => $q->where('hotel_id', Auth::user()->hotel_id))
-                ->where('status', 'checked_in')->orderBy('arrival_date')->limit(50)->get(),
+                ->where('status', 'checked_in')->orderBy('arrival_date')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -67,7 +67,7 @@ class RentalController extends Controller
 
     public function fleet()
     {
-        return view('rentals.fleet', ['fleet' => RentalVehicle::orderBy('class')->orderBy('make')->get()]);
+        return view('rentals.fleet', ['fleet' => RentalVehicle::orderBy('class')->orderBy('make')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function vehicleStore(Request $request)

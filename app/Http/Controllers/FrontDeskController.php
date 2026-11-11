@@ -59,9 +59,9 @@ class FrontDeskController extends Controller
         }
         $allRooms = Room::with($relations)->where('is_active', true)
             ->when($filters['type'] ?? null, fn ($query, $type) => $query->where('room_type_id', $type))
-            ->orderBy('room_no')->get();
+            ->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
         $arrivingToday = ReservationRoom::with('reservation.guest')->where('status', 'reserved')
-            ->whereDate('arrival_date', $todayString)->whereNotNull('room_id')->get()->keyBy('room_id');
+            ->whereDate('arrival_date', $todayString)->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('room_id');
 
         foreach ($allRooms as $room) {
             $room->view_status = $room->status;
@@ -108,12 +108,12 @@ class FrontDeskController extends Controller
         $canMoveInHouse = can_do('frontdesk.roommove');
         $canViewReservation = can_do('reservations.view');
         $canViewHousekeeping = can_do('housekeeping.view') || can_do('housekeeping.manage') || can_do('housekeeping.attendant');
-        $rooms = Room::with('roomType')->where('is_active', true)->orderBy('room_type_id')->orderBy('room_no')->get();
+        $rooms = Room::with('roomType')->where('is_active', true)->orderBy('room_type_id')->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
         $stays = ReservationRoom::with(['reservation.guest', 'roomType'])
             ->whereIn('status', ['reserved', 'checked_in', 'checked_out'])
             ->whereDate('arrival_date', '<', $to->toDateString())
             ->whereDate('departure_date', '>', $from->toDateString())
-            ->orderBy('arrival_date')->orderBy('room_id')->orderBy('id')->get();
+            ->orderBy('arrival_date')->orderBy('room_id')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $unassigned = $stays->whereNull('room_id')->where('status', 'reserved')->sortBy('arrival_date')->values();
 
         // One line under the day columns: the rooms sold on each night and what that is
@@ -127,7 +127,7 @@ class FrontDeskController extends Controller
         // denominator there instead of silently inflating it. The chart draws them too.
         $offMarket = $rooms->filter(fn ($room) => in_array($room->status, ['out_of_order', 'out_of_service'], true))
             ->pluck('id')->flip()->map(fn () => true)->all();
-        $outages = RoomOutage::covering($from, $to)->whereIn('room_id', $rooms->pluck('id'))->with('room:id,room_no')->get();
+        $outages = RoomOutage::covering($from, $to)->whereIn('room_id', $rooms->pluck('id'))->with('room:id,room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
         $leases = LeaseService::roomBlocks($from, $to);
         $blocksByRoom = [];
         $blockedNights = [];
@@ -313,7 +313,7 @@ class FrontDeskController extends Controller
             ->orderBy('arrival_date')
             ->orderBy('room_id')
             ->orderBy('id')
-            ->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('frontdesk.list', [
             'stays' => $stays,
@@ -343,7 +343,7 @@ class FrontDeskController extends Controller
             ->orderBy('room_id')
             ->orderBy('departure_date')
             ->orderBy('id')
-            ->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
         $today = bdate();
 
         return view('frontdesk.list', [
@@ -377,7 +377,7 @@ class FrontDeskController extends Controller
             ->orderBy('departure_date')
             ->orderBy('room_id')
             ->orderBy('id')
-            ->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('frontdesk.list', [
             'stays' => $stays,
@@ -443,8 +443,8 @@ class FrontDeskController extends Controller
         return view('frontdesk.walkin', [
             'guest' => new Guest,
             'fullGuest' => true,
-            'roomTypes' => RoomType::where('is_active', true)->get(),
-            'ratePlans' => RatePlan::where('is_active', true)->get(),
+            'roomTypes' => RoomType::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'ratePlans' => RatePlan::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'rooms' => AvailabilityService::freeRooms(bdate(), bdate()->addDay())->where('status', 'vacant'),
             'sources' => BusinessSource::where('is_active', true)->pluck('name', 'id'),
             'companies' => $activeCompanies->pluck('name', 'id'),
@@ -602,7 +602,7 @@ class FrontDeskController extends Controller
         $canSellUpsell = can_do('upsell.sell');
         $upOffers = $canSellUpsell ? \App\Services\UpsellService::offersFor($stay, 'desk') : collect();
         $upOrders = $canSellUpsell
-            ? \App\Models\UpsellOrder::with('offer')->where('reservation_room_id', $stay->id)->orderByDesc('id')->get()
+            ? \App\Models\UpsellOrder::with('offer')->where('reservation_room_id', $stay->id)->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             : collect();
         if ($upOffers->isNotEmpty()) {
             \App\Services\UpsellService::present($stay->reservation, 'desk', $upOffers->map(fn ($x) => $x['offer']->id));
@@ -711,17 +711,17 @@ class FrontDeskController extends Controller
             'checkoutQuote' => StayService::quoteCheckout($stay, $checkoutFigures, $checkoutHolds),
             'checkoutDue' => $checkoutFigures['due'],
             'canViewFolio' => $canViewFolio,
-            'transactions' => $canViewFolio ? $folio->transactions()->with('paymentMode')->orderBy('id')->get() : collect(),
+            'transactions' => $canViewFolio ? $folio->transactions()->with('paymentMode')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
             'companies' => Company::where('is_active', true)->pluck('name', 'id'),
-            'openPos' => \App\Models\PosOrder::with('outlet')->where('reservation_room_id', $stay->id)->whereIn('status', ['open', 'billed'])->get(),
+            'openPos' => \App\Models\PosOrder::with('outlet')->where('reservation_room_id', $stay->id)->whereIn('status', ['open', 'billed'])->limit((int) config('pms.max_list_rows', 5000))->get(),
             'openLaundry' => \App\Services\LaundryService::pendingForStay($stay->id),
             'openTrips' => \App\Services\TransportService::pendingForStay($stay->id), // v3.3
             'openParking' => \App\Services\ParkingService::activeForStay($stay->id), // v6.6: car still in the car park / with the valet
             'deskOpen' => \App\Services\GuestMessageService::openFor($stay), // v3.5: messages / parcels still at the desk
-            'deskWakeups' => \App\Models\WakeupCall::where('reservation_room_id', $stay->id)->where('status', 'scheduled')->orderBy('call_at')->get(),
-            'deskItems' => \App\Models\LostFoundItem::where('reservation_room_id', $stay->id)->where('status', 'stored')->get(),
-            'formcOpen' => \App\Services\FormCService::enabled() ? \App\Models\FormCRecord::where('reservation_room_id', $stay->id)->where('status', 'pending')->get() : collect(), // v3.4
+            'deskWakeups' => \App\Models\WakeupCall::where('reservation_room_id', $stay->id)->where('status', 'scheduled')->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'deskItems' => \App\Models\LostFoundItem::where('reservation_room_id', $stay->id)->where('status', 'stored')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'formcOpen' => \App\Services\FormCService::enabled() ? \App\Models\FormCRecord::where('reservation_room_id', $stay->id)->where('status', 'pending')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(), // v3.4
             'forexOk' => \App\Services\ForexService::enabled() && can_do('forex.exchange') && \App\Services\FormCService::isForeign(\App\Services\FormCService::stayGuest($stay)),
         ]);
     }

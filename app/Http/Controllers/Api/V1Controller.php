@@ -139,7 +139,7 @@ class V1Controller extends Controller
     {
         $res = $this->findReservation($no);
 
-        return $this->ok($res->folios()->orderBy('id')->get()->map(fn ($f) => ApiService::folio($f))->values());
+        return $this->ok($res->folios()->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($f) => ApiService::folio($f))->values());
     }
 
     public function storeReservation(Request $r): Response
@@ -186,10 +186,10 @@ class V1Controller extends Controller
     {
         $q = $r->validate(['housekeeping' => 'nullable|in:clean,dirty,inspected,touch_up', 'status' => 'nullable|in:vacant,occupied,out_of_order,out_of_service',
             'room_type_id' => 'nullable|integer']);
-        $stays = ReservationRoom::with('reservation')->where('status', 'checked_in')->whereNotNull('room_id')->get()->keyBy('room_id');
+        $stays = ReservationRoom::with('reservation')->where('status', 'checked_in')->whereNotNull('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('room_id');
         $rooms = Room::with('roomType', 'floor')->where('is_active', true)
             ->when($q['housekeeping'] ?? null, fn ($x, $v) => $x->where('hk_status', $v))->when($q['status'] ?? null, fn ($x, $v) => $x->where('status', $v))
-            ->when($q['room_type_id'] ?? null, fn ($x, $v) => $x->where('room_type_id', $v))->orderBy('room_no')->get();
+            ->when($q['room_type_id'] ?? null, fn ($x, $v) => $x->where('room_type_id', $v))->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->ok($rooms->map(fn ($m) => ApiService::room($m, $stays->get($m->id)))->values());
     }
@@ -219,7 +219,7 @@ class V1Controller extends Controller
             ->when($q['email'] ?? null, fn ($x, $v) => $x->where('email', $v))
             ->when($digits, fn ($x) => $x->where('phone', 'like', '%'.substr($digits, -10)))
             ->when($q['name'] ?? null, fn ($x, $v) => $x->where(fn ($w) => $w->whereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ['%'.addcslashes($v, '%_\\').'%'])))
-            ->orderByDesc('id')->limit(20)->get();
+            ->orderByDesc('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->ok($guests->map(fn ($g) => ApiService::guest($g, true))->values());
     }
@@ -244,7 +244,7 @@ class V1Controller extends Controller
         }
         [$from, $to] = ApiService::range($r->query('from', bdate()->copy()->subDays(7)->toDateString()), $r->query('to', bdate()->toDateString()), 93, true);
 
-        return $this->ok(NightAudit::whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->copy()->subDay()->toDateString())->orderBy('business_date')->get()
+        return $this->ok(NightAudit::whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->copy()->subDay()->toDateString())->orderBy('business_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($a) => ApiService::audit($a))->values());
     }
 

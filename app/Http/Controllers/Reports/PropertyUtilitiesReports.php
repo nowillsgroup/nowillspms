@@ -350,7 +350,7 @@ trait PropertyUtilitiesReports
         $f = $from->toDateString();
         $t = $to->toDateString();
         $rows = collect();
-        foreach (\App\Models\Lease::with('unit', 'company')->whereIn('status', ['active', 'notice'])->get() as $l) {
+        foreach (\App\Models\Lease::with('unit', 'company')->whereIn('status', ['active', 'notice'])->limit((int) config('pms.max_list_rows', 5000))->get() as $l) {
             $end = $l->lastDay()->toDateString();
             if ($end >= $f && $end <= $t) {
                 $rows->push(['date' => $end, 'event' => $l->status === 'notice' ? 'Move-out (notice by '.$l->notice_by.')' : ($l->auto_renew ? 'Term ends – auto-renews' : 'Term ends'), 'l' => $l,
@@ -361,7 +361,7 @@ trait PropertyUtilitiesReports
                     'action' => 'New rent '.money(round($l->rent * (1 + $l->escalation_pct / 100), 2)).' applied automatically – notify the tenant']);
             }
         }
-        foreach (\App\Models\Lease::with('unit', 'company')->where('status', 'draft')->whereDate('start_date', '>=', $f)->whereDate('start_date', '<=', $t)->get() as $l) {
+        foreach (\App\Models\Lease::with('unit', 'company')->where('status', 'draft')->whereDate('start_date', '>=', $f)->whereDate('start_date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get() as $l) {
             $rows->push(['date' => $l->start_date->toDateString(), 'event' => 'Move-in', 'l' => $l, 'action' => $l->signed_at ? 'Prepare the unit, keys & opening meter readings' : 'Get the agreement signed first']);
         }
         $rows = $rows->sortBy('date')->values()->map(fn ($r) => ['date' => dmy($r['date']), 'event' => $r['event'], 'lease' => $r['l']->lease_no, 'unit' => $r['l']->unit->code, 'tenant' => $r['l']->tenant_name.($r['l']->company ? ' ('.$r['l']->company->name.')' : ''),
@@ -373,7 +373,7 @@ trait PropertyUtilitiesReports
 
     protected function r_lease_inspections($from, $to): array
     {
-        $rows = LeaseInspection::with('lease.leaseUnit.inspectedBy')->whereBetween('inspected_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LeaseInspection::with('lease.leaseUnit.inspectedBy')->whereBetween('inspected_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'lease' => optional($r->lease)->name, 'unit' => optional($r->leaseUnit)->name,
             'inspected' => $r->inspected_at, 'result' => $r->result, 'findings' => $r->findings,
             'status' => $r->status, 'inspected_by' => optional($r->inspectedBy)->name,
@@ -383,7 +383,7 @@ trait PropertyUtilitiesReports
 
     protected function r_lease_meter_readings($from, $to): array
     {
-        $rows = LeaseMeterReading::with('lease.meterType')->whereBetween('read_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LeaseMeterReading::with('lease.meterType')->whereBetween('read_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'lease' => optional($r->lease)->name, 'meter_type' => optional($r->meterType)->name,
             'read_date' => $r->read_date, 'previous' => $r->previous_reading, 'current' => $r->current_reading,
             'consumption' => $r->consumption, 'unit' => $r->unit, 'rate' => $r->rate, 'amount' => $r->amount, 'status' => $r->status,
@@ -396,9 +396,9 @@ trait PropertyUtilitiesReports
         $f = $from->toDateString();
         $t = $to->toDateString();
         $LB = \App\Services\LeaseBillingService::class;
-        $leases = \App\Models\Lease::whereIn('status', ['active', 'notice', 'ended', 'terminated'])->whereDate('start_date', '<=', $t)->get()
+        $leases = \App\Models\Lease::whereIn('status', ['active', 'notice', 'ended', 'terminated'])->whereDate('start_date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($l) => $l->lastDay()->toDateString() >= $f)->groupBy('lease_unit_id');
-        $rows = \App\Models\LeaseUnit::where('is_active', true)->orderBy('code')->get()->map(function ($u) use ($leases, $f, $t, $LB) {
+        $rows = \App\Models\LeaseUnit::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($u) use ($leases, $f, $t, $LB) {
             $l = ($leases[$u->id] ?? collect())->sortByDesc('start_date')->first();
             $inv = $l ? (float) \App\Models\LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->whereIn('type', ['rent', 'service_charge'])->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->sum('amount')
                 + (float) \App\Models\LeaseCharge::where('lease_id', $l->id)->whereNull('cancelled_at')->where('type', 'credit')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->whereHas('creditOf', fn ($q) => $q->whereIn('type', ['rent', 'service_charge']))->sum('amount') : 0;
@@ -421,7 +421,7 @@ trait PropertyUtilitiesReports
 
     protected function r_meter_readings($from, $to): array
     {
-        $rows = MeterReading::with('meter.meterType.location')->whereBetween('read_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = MeterReading::with('meter.meterType.location')->whereBetween('read_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'meter' => optional($r->meter)->name, 'type' => optional($r->meterType)->name,
             'location' => optional($r->location)->name, 'read_date' => $r->read_date,
             'previous' => $r->previous_reading, 'current' => $r->current_reading, 'consumption' => $r->consumption,
@@ -432,7 +432,7 @@ trait PropertyUtilitiesReports
 
     protected function r_utility_bill_reconciliation($from, $to): array
     {
-        $rows = \App\Models\UtilityBill::with('meter', 'supplierInvoice')->whereDate('bill_date', '>=', $from->toDateString())->whereDate('bill_date', '<=', $to->toDateString())->orderBy('bill_date')->get()
+        $rows = \App\Models\UtilityBill::with('meter', 'supplierInvoice')->whereDate('bill_date', '>=', $from->toDateString())->whereDate('bill_date', '<=', $to->toDateString())->orderBy('bill_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($b) => ['bill' => $b->bill_no, 'date' => $b->bill_date->format('d-m-Y'), 'meter' => $b->meter->code, 'period' => $b->period_from->format('d-m').' – '.$b->period_to->format('d-m-Y'),
                 'billed' => round($b->units_billed, 1), 'metered' => round($b->metered_units, 1), 'var' => round($b->varianceUnits(), 1), 'var_pct' => $b->variancePct() === null ? '—' : $b->variancePct().'%',
                 'energy' => $b->energy_charges, 'fixed' => $b->fixed_charges, 'taxes' => $b->taxes, 'total' => $b->total, 'rate' => number_format($b->effectiveRate(), 2), 'tariff' => number_format($b->meter->rate, 2),
@@ -450,7 +450,7 @@ trait PropertyUtilitiesReports
     protected function r_utility_bills($from, $to): array
     {
         // Rewritten against the real schema: meter/supplier relations; units_billed/energy+fixed+taxes/total; there is no utilityType table.
-        $rows = UtilityBill::with('meter', 'supplier')->whereBetween('bill_date', [$from, $to])->orderByDesc('bill_date')->get()->map(fn ($r) => [
+        $rows = UtilityBill::with('meter', 'supplier')->whereBetween('bill_date', [$from, $to])->orderByDesc('bill_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'meter' => optional($r->meter)->name, 'bill_no' => $r->bill_no, 'date' => $r->bill_date,
             'period_from' => $r->period_from, 'period_to' => $r->period_to,
             'units' => (float) $r->units_billed, 'energy' => (float) $r->energy_charges,

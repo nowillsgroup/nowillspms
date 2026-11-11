@@ -55,6 +55,7 @@ class EsgController extends Controller
     /** from / to query with a default window; to never later than yesterday's business date */
     protected function range(Request $r, string $defFrom, ?string $defTo = null): array
     {
+        $r->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $y = bdate()->copy()->subDay()->toDateString();
         try {
             $from = $r->filled('from') ? Carbon::parse($r->query('from'))->toDateString() : $defFrom;
@@ -82,7 +83,7 @@ class EsgController extends Controller
             'b' => ES::benchmark(), 'wf' => $wf, 'wt' => $wt, 'cb' => ES::carbon($wf, $wt), 'waste' => ES::waste(bdate()->copy()->subDays(90)->toDateString(), $y),
             'green' => ES::greenStats($mStart, bdate()->toDateString()), 'cert' => ES::certScore(), 'gov' => ES::governance(), 'alerts' => ES::alerts(),
             'targets' => ES::targets(), 'trend' => ES::carbonTrend(), 'community' => ES::community($ytdFrom, $y), 'renewable' => ES::metric('renewable'),
-            'initiatives' => EsgInitiative::with('owner')->whereIn('status', ['idea', 'approved', 'in_progress'])->orderByRaw("FIELD(status, 'idea', 'in_progress', 'approved')")->orderBy('due_on')->limit(6)->get(),
+            'initiatives' => EsgInitiative::with('owner')->whereIn('status', ['idea', 'approved', 'in_progress'])->orderByRaw("FIELD(status, 'idea', 'in_progress', 'approved')")->orderBy('due_on')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'leaks' => collect(ES::leakRates())->where('flag', true)->values(),
         ]);
     }
@@ -95,7 +96,7 @@ class EsgController extends Controller
         [$from, $to] = $this->range($r, $wf, $wt);
 
         return view('esg.carbon', ['from' => $from, 'to' => $to, 'cb' => ES::carbon($from, $to), 'h' => ES::hcmi($from, $to), 'use' => ES::meetingUse($from, $to),
-            'laundry' => EsgLaundryMonth::with('supplier')->orderByDesc('month')->limit(12)->get(), 'cfg' => ES::cfg(), 'ef' => \App\Services\UtilityService::cfg()['ef'],
+            'laundry' => EsgLaundryMonth::with('supplier')->orderByDesc('month')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => ES::cfg(), 'ef' => \App\Services\UtilityService::cfg()['ef'],
             'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get(['id', 'name'])]);
     }
 
@@ -145,7 +146,7 @@ class EsgController extends Controller
     public function refrigerants(Request $r)
     {
         [$from, $to] = $this->range($r, bdate()->copy()->subYear()->addDay()->toDateString(), bdate()->toDateString());
-        $list = EsgRefrigerantLog::with(['asset', 'ticket', 'user'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get();
+        $list = EsgRefrigerantLog::with(['asset', 'ticket', 'user'])->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('esg.refrigerants', ['from' => $from, 'to' => $to, 'list' => $list, 'leaks' => ES::leakRates(), 'cfg' => ES::cfg(),
             'assets' => Asset::orderBy('name')->get(['id', 'name', 'asset_no']),
@@ -169,10 +170,10 @@ class EsgController extends Controller
     public function green(Request $r)
     {
         [$from, $to] = $this->range($r, bdate()->copy()->startOfMonth()->toDateString(), bdate()->toDateString());
-        $active = EsgGreenStay::with(['stay.room', 'stay.guest', 'stay.reservation.guest'])->where('status', 'active')->orderBy('from_date')->get();
+        $active = EsgGreenStay::with(['stay.room', 'stay.guest', 'stay.reservation.guest'])->where('status', 'active')->orderBy('from_date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $inhouse = ReservationRoom::with(['room', 'guest', 'reservation.guest'])->where('status', 'checked_in')->whereDate('departure_date', '>', bdate()->copy()->addDay()->toDateString())
-            ->whereNotIn('id', $active->pluck('reservation_room_id'))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
-        $nights = EsgGreenNight::with(['room', 'guest'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderByDesc('business_date')->orderBy('room_id')->limit(200)->get();
+            ->whereNotIn('id', $active->pluck('reservation_room_id'))->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values();
+        $nights = EsgGreenNight::with(['room', 'guest'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderByDesc('business_date')->orderBy('room_id')->limit(200)->limit((int) config('pms.max_list_rows', 5000))->get();
         $today = bdate()->toDateString();
 
         return view('esg.green', ['from' => $from, 'to' => $to, 'active' => $active, 'inhouse' => $inhouse, 'nights' => $nights, 's' => ES::greenStats($from, $to), 'cfg' => ES::cfg(),
@@ -198,7 +199,7 @@ class EsgController extends Controller
 
     public function targets()
     {
-        return view('esg.targets', ['rows' => ES::targets(), 'retired' => EsgTarget::where('is_active', false)->orderByDesc('updated_at')->get(),
+        return view('esg.targets', ['rows' => ES::targets(), 'retired' => EsgTarget::where('is_active', false)->orderByDesc('updated_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'current' => collect(ES::METRICS)->map(fn ($m, $k) => ES::metric($k))->all(), 'window' => ES::window()]);
     }
 
@@ -224,8 +225,8 @@ class EsgController extends Controller
     {
         $list = EsgInitiative::with(['owner', 'raiser'])->when($r->filled('status'), fn ($q) => $q->where('status', $r->query('status')))
             ->when($r->filled('category'), fn ($q) => $q->where('category', $r->query('category')))
-            ->orderByRaw("FIELD(status, 'idea', 'in_progress', 'approved', 'done', 'rejected', 'cancelled')")->orderByDesc('id')->get();
-        $live = EsgInitiative::whereIn('status', ['approved', 'in_progress', 'done'])->get();
+            ->orderByRaw("FIELD(status, 'idea', 'in_progress', 'approved', 'done', 'rejected', 'cancelled')")->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $live = EsgInitiative::whereIn('status', ['approved', 'in_progress', 'done'])->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('esg.initiatives', ['list' => $list, 'users' => $this->users(),
             'tot' => ['capex' => $live->sum('capex'), 'ghs' => $live->sum('saving_ghs'), 'co2' => $live->sum('saving_co2_kg'), 'kwh' => $live->sum('saving_kwh'), 'm3' => $live->sum('saving_m3'),
@@ -274,7 +275,7 @@ class EsgController extends Controller
         [$from, $to] = $this->range($r, bdate()->copy()->startOfYear()->toDateString());
 
         return view('esg.social', ['from' => $from, 'to' => $to, 's' => ES::social($from, $to), 'src' => ES::localSpend($from, $to),
-            'list' => EsgCommunity::with('user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->get()]);
+            'list' => EsgCommunity::with('user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function communityStore(Request $r)
@@ -299,7 +300,7 @@ class EsgController extends Controller
 
     public function certification(Request $r)
     {
-        $items = EsgChecklistItem::with(['owner', 'reviewer'])->when($r->filled('status'), fn ($q) => $q->where('status', $r->query('status')))->orderBy('sort')->get();
+        $items = EsgChecklistItem::with(['owner', 'reviewer'])->when($r->filled('status'), fn ($q) => $q->where('status', $r->query('status')))->orderBy('sort')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('esg.certification', ['items' => $items->groupBy('section'), 'score' => ES::certScore(), 'users' => $this->users()]);
     }
@@ -314,7 +315,7 @@ class EsgController extends Controller
 
     public function policies()
     {
-        return view('esg.policies', ['list' => EsgPolicy::with('owner')->orderByRaw("FIELD(pillar, 'environment', 'social', 'governance')")->orderBy('code')->get(), 'gov' => ES::governance(), 'users' => $this->users()]);
+        return view('esg.policies', ['list' => EsgPolicy::with('owner')->orderByRaw("FIELD(pillar, 'environment', 'social', 'governance')")->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'gov' => ES::governance(), 'users' => $this->users()]);
     }
 
     protected function policyData(Request $r): array

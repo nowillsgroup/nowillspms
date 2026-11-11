@@ -50,7 +50,7 @@ class ProcurementController extends Controller
         $min = ProcurementService::minQuotes();
 
         /* ── what came back: every invitation on every request still asking for an answer ── */
-        $live = Rfq::with('invites.supplier')->withCount('quotes')->whereIn('status', ['sent', 'closed'])->get();
+        $live = Rfq::with('invites.supplier')->withCount('quotes')->whereIn('status', ['sent', 'closed'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $invites = $live->flatMap(fn ($r) => $r->invites->map(fn ($i) => ['rfq' => $r, 'invite' => $i]));
         $declined = $invites->filter(fn ($r) => $r['invite']->declined_at && ! $r['invite']->responded_at)->values();
         $silent = $invites->filter(fn ($r) => ! $r['invite']->responded_at && ! $r['invite']->declined_at && $r['invite']->viewed_at)->values();
@@ -73,7 +73,7 @@ class ProcurementController extends Controller
         /* ── the clock: deadlines that ran out with no award made ── */
         // the same definition the sidebar badge and the alert use, reloaded with the counts the card prints
         $ready = ProcurementService::readyToAward()->pluck('id');
-        $ready = Rfq::withCount(['quotes', 'invites'])->whereIn('id', $ready)->orderBy('respond_by')->get();
+        $ready = Rfq::withCount(['quotes', 'invites'])->whereIn('id', $ready)->orderBy('respond_by')->limit((int) config('pms.max_list_rows', 5000))->get();
         $oldest = $ready->first();
         $clock = [
             'ready' => $ready->count(), 'min' => $min,
@@ -95,7 +95,7 @@ class ProcurementController extends Controller
 
         /* ── what the competition bought, on the awards made this month ── */
         $awarded = Rfq::with('lines.item', 'lines.awardedLine', 'quotes.lines', 'awarder', 'purchaseOrders.supplier')
-            ->where('status', 'awarded')->whereDate('awarded_at', '>=', bdate()->startOfMonth()->toDateString())->get();
+            ->where('status', 'awarded')->whereDate('awarded_at', '>=', bdate()->startOfMonth()->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $placed = 0.0; $cheapest = 0.0; $dearest = 0.0; $extra = 0.0; $away = 0; $justified = 0;
         $awardRows = [];
         foreach ($awarded as $r) {
@@ -469,13 +469,13 @@ class ProcurementController extends Controller
 
         // 1. the bill: every receipt on record, not only this window — an unbilled delivery must not vanish when the month turns
         $stuck = GoodsReceipt::with('supplier', 'store')->where('subtotal', '>', 0)
-            ->whereHas('order', fn ($q) => $q->whereDoesntHave('bill', $billed))->orderBy('date')->orderBy('id')->get()
+            ->whereHas('order', fn ($q) => $q->whereDoesntHave('bill', $billed))->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($g) => ['grn_no' => $g->grn_no, 'supplier' => $g->supplier?->name, 'store' => $g->store?->name,
                 'date' => $g->date, 'days' => $ageOf($g->date), 'value' => round((float) $g->subtotal, 2)])->values();
         // and the other side of it, for the day nothing is waiting: how long the receipts that did reach a bill had to wait
         $settled = GoodsReceipt::with('order.bill', 'supplier')->where('subtotal', '>', 0)
             ->whereDate('date', '>=', bdate()->copy()->subDays(90)->toDateString())
-            ->whereHas('order', fn ($q) => $q->whereHas('bill', $billed))->get()
+            ->whereHas('order', fn ($q) => $q->whereHas('bill', $billed))->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($g) {
                 $bill = $g->order?->bill;
                 $wait = $bill?->doc_date ? max(0, (int) round((\Carbon\Carbon::parse($bill->doc_date)->startOfDay()->timestamp
@@ -493,7 +493,7 @@ class ProcurementController extends Controller
 
         // 2. the delivery: did it come when the purchase order said it would? measured on the goods value, not the tax
         $period = GoodsReceipt::with('order', 'supplier', 'store')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
-            ->when($request->supplier, fn ($q, $s) => $q->where('supplier_id', $s))->where('subtotal', '>', 0)->get();
+            ->when($request->supplier, fn ($q, $s) => $q->where('supplier_id', $s))->where('subtotal', '>', 0)->limit((int) config('pms.max_list_rows', 5000))->get();
         $lateRows = $period->reject(fn ($g) => $g->onTime())->map(function ($g) {
             $exp = $g->order?->expected_date;
 
@@ -542,7 +542,7 @@ class ProcurementController extends Controller
         });
 
         // v9.19 the score is one number; the three readings behind it are the ones that can be argued with
-        $grns = GoodsReceipt::with('order', 'supplier')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get();
+        $grns = GoodsReceipt::with('order', 'supplier')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get();
         $lateRows = $grns->map(function ($g) {
             $exp = $g->order?->expected_date;
 
@@ -559,10 +559,10 @@ class ProcurementController extends Controller
 
         // the money: what the shelf took in during the period, what was billed for it, and what is still owed
         $bills = SupplierInvoice::where('type', 'invoice')->where('status', '!=', 'cancelled')
-            ->whereDate('doc_date', '>=', $from)->whereDate('doc_date', '<=', $to)->get();
+            ->whereDate('doc_date', '>=', $from)->whereDate('doc_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get();
         $received = $grns->groupBy('supplier_id')->map(fn ($g) => round((float) $g->sum('total'), 2));
         $billed = $bills->groupBy('supplier_id')->map(fn ($b) => round((float) $b->sum('total'), 2));
-        $open = SupplierInvoice::where('type', 'invoice')->whereIn('status', ['open', 'partial', 'on_hold'])->get();
+        $open = SupplierInvoice::where('type', 'invoice')->whereIn('status', ['open', 'partial', 'on_hold'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $unpaidBy = $open->groupBy('supplier_id')->map(fn ($b) => [
             'value' => round((float) $b->sum(fn ($i) => $i->outstanding()), 2),
             'oldest_days' => (int) ($b->max(fn ($i) => $i->daysOverdue($to)) ?? 0),
@@ -584,8 +584,8 @@ class ProcurementController extends Controller
 
         // the bid: an invitation nobody answered is the only part of the response rate that costs anything
         $invites = RfqSupplier::with('supplier', 'rfq')->whereNotNull('invited_at')
-            ->whereBetween('invited_at', [$from.' 00:00:00', $to.' 23:59:59'])->get();
-        $quotes = RfqQuote::whereIn('rfq_id', $invites->pluck('rfq_id')->unique())->get()
+            ->whereBetween('invited_at', [$from.' 00:00:00', $to.' 23:59:59'])->limit((int) config('pms.max_list_rows', 5000))->get();
+        $quotes = RfqQuote::whereIn('rfq_id', $invites->pluck('rfq_id')->unique())->limit((int) config('pms.max_list_rows', 5000))->get()
             ->keyBy(fn ($q) => $q->rfq_id.'|'.$q->supplier_id);
         $bidRows = $invites->groupBy('supplier_id')->map(function ($set, $sid) use ($quotes) {
             $answered = $set->filter(fn ($i) => $i->responded_at)->count();

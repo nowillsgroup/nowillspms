@@ -83,7 +83,7 @@ class GuestRequestController extends Controller
         $todayCount = GuestRequest::whereDate('created_at', today())->count();
         $manage = can_do('requests.manage');
         $stays = $manage
-            ? ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->get()->sortBy(fn ($s) => $s->room?->room_no)->values()
+            ? ReservationRoom::with('room', 'guest', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no)->values()
             : collect();
         $staff = $manage
             ? User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->pluck('name', 'id')
@@ -153,7 +153,7 @@ class GuestRequestController extends Controller
         $opts = new \chillerlan\QRCode\QROptions(['outputType' => \chillerlan\QRCode\Output\QROutputInterface::MARKUP_SVG, 'outputBase64' => false,
             'svgAddXmlHeader' => false, 'eccLevel' => \chillerlan\QRCode\Common\EccLevel::M, 'addQuietzone' => true]);
         $svg = (new \chillerlan\QRCode\QRCode($opts))->render($url);
-        $requests = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(20)->get();
+        $requests = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view(request()->boolean('card') ? 'requests.card' : 'requests.portal', compact('stay', 'url', 'svg', 'requests') + ['guest' => $stay->guest ?? $stay->reservation?->guest]);
     }

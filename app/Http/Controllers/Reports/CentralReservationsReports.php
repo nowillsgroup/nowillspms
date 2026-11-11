@@ -346,7 +346,7 @@ trait CentralReservationsReports
     {
         $E = \App\Models\CroEnquiry::class;
         $rows = $E::with('agent', 'roomType', 'reservation', 'referredHotel', 'referredFrom', 'competitor')
-            ->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
+            ->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($e) => ['no' => $e->number, 'at' => $e->created_at->format('d M Y H:i'), 'channel' => $e->channelLabel(), 'caller' => $e->caller_name,
                 'stay' => $e->arrival_date->format('d M').' – '.$e->departure_date->format('d M Y'), 'rn' => $e->roomNights(), 'type' => $e->roomType?->name ?? 'Any',
                 'value' => (float) ($e->booked_value ?? $e->quoted_total ?? 0) ?: null, 'outcome' => $e->statusLabel().($e->loss_type ? ' – '.$E::LOSS_TYPES[$e->loss_type][0] : ''),
@@ -385,7 +385,7 @@ trait CentralReservationsReports
         $hotels = \App\Services\CroService::groupHotels(auth()->user())->keyBy('id');
         $E = \App\Models\CroEnquiry::class;
         $rows = $E::withoutGlobalScope('hotel')->whereIn('hotel_id', $hotels->keys())->where('status', 'referred')->whereIn('referred_hotel_id', $hotels->keys())
-            ->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
+            ->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($e) => ['at' => $e->created_at->format('d M Y'), 'no' => $e->number, 'from' => $hotels[$e->hotel_id]->name, 'to' => $hotels[$e->referred_hotel_id]->name, 'res' => $e->referred_reservation_no,
                 'guest' => $e->caller_name, 'stay' => $e->arrival_date->format('d M').' – '.$e->departure_date->format('d M Y'), 'rn' => $e->roomNights(), 'why' => $e->reasonLabel(), 'value' => (float) $e->booked_value]);
 

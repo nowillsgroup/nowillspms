@@ -30,7 +30,7 @@ class IncomeAuditController extends Controller
 
     public function index(Request $request)
     {
-        $days = AuditDay::with('signer', 'closer')->whereDate('business_date', '>=', bdate()->copy()->subDays(45)->toDateString())->get()->keyBy(fn ($d) => $d->business_date->toDateString());
+        $days = AuditDay::with('signer', 'closer')->whereDate('business_date', '>=', bdate()->copy()->subDays(45)->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy(fn ($d) => $d->business_date->toDateString());
         $rows = [];
         for ($d = bdate()->copy()->subDay(); $d->gte(bdate()->copy()->subDays(30)); $d->subDay()) {
             $rows[] = ['date' => $d->toDateString(), 'day' => $days[$d->toDateString()] ?? null];
@@ -74,7 +74,7 @@ class IncomeAuditController extends Controller
     public function show(Request $request, AuditDay $auditday)
     {
         $auditday->load('signer', 'closer', 'reopener');
-        $all = AuditFinding::with('resolver', 'authorisation')->where('audit_day_id', $auditday->id)->get();
+        $all = AuditFinding::with('resolver', 'authorisation')->where('audit_day_id', $auditday->id)->limit((int) config('pms.max_list_rows', 5000))->get();
         $q = $all->when($request->input('check'), fn ($c) => $c->where('check', $request->check));
         $q = match ($request->input('show', 'attention')) {
             'attention' => $q->whereIn('status', AuditFinding::UNRESOLVED),
@@ -86,7 +86,7 @@ class IncomeAuditController extends Controller
         $date = $auditday->business_date->toDateString();
 
         return view('income-audit.day', ['day' => $auditday, 'findings' => $findings, 'all' => $all, 'checks' => IA::CHECKS,
-            'figures' => $auditday->figures ?: IA::figures($date), 'counts' => RoomCount::whereDate('business_date', $date)->get(),
+            'figures' => $auditday->figures ?: IA::figures($date), 'counts' => RoomCount::whereDate('business_date', $date)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'prev' => AuditDay::whereDate('business_date', '<', $date)->orderByDesc('business_date')->first(),
             'next' => AuditDay::whereDate('business_date', '>', $date)->orderBy('business_date')->first()]);
     }
@@ -94,7 +94,7 @@ class IncomeAuditController extends Controller
     public function print(AuditDay $auditday)
     {
         $auditday->load('signer', 'closer');
-        $findings = AuditFinding::with('resolver', 'authorisation')->where('audit_day_id', $auditday->id)->where('status', '!=', 'cleared')->get()
+        $findings = AuditFinding::with('resolver', 'authorisation')->where('audit_day_id', $auditday->id)->where('status', '!=', 'cleared')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($f) => [array_search($f->check, array_keys(IA::CHECKS)), $f->room_no])->values();
 
         return view('income-audit.print-day', ['day' => $auditday, 'findings' => $findings, 'checks' => IA::CHECKS, 'figures' => $auditday->figures ?: IA::figures($auditday->business_date->toDateString())]);
@@ -140,8 +140,8 @@ class IncomeAuditController extends Controller
     public function count()
     {
         $date = bdate()->toDateString();
-        $rooms = Room::with('roomType')->where('is_active', true)->orderBy('floor_id')->orderBy('room_no')->get();
-        $done = RoomCount::whereDate('business_date', $date)->get()->keyBy('room_id');
+        $rooms = Room::with('roomType')->where('is_active', true)->orderBy('floor_id')->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $done = RoomCount::whereDate('business_date', $date)->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('room_id');
 
         return view('income-audit.room-count', ['rooms' => $rooms, 'done' => $done, 'date' => $date, 'blind' => ! can_do('income_audit.authorise')]);
     }
@@ -156,10 +156,11 @@ class IncomeAuditController extends Controller
 
     public function discrepancies(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d']);
         $from = Carbon::parse($request->input('from', bdate()->copy()->subDays(7)->toDateString()))->toDateString();
         $rows = RoomCount::with('room.roomType', 'counter', 'resolver')->whereDate('business_date', '>=', $from)->where('result', '!=', 'ok')
             ->when($request->input('show', 'open') === 'open', fn ($q) => $q->whereNull('resolution'))
-            ->orderByDesc('business_date')->orderBy('room_id')->get();
+            ->orderByDesc('business_date')->orderBy('room_id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $summary = RoomCount::whereDate('business_date', bdate()->toDateString())->selectRaw('result, count(*) n')->groupBy('result')->pluck('n', 'result');
 
         return view('income-audit.discrepancies', ['rows' => $rows, 'from' => $from, 'summary' => $summary, 'total' => Room::where('is_active', true)->count()]);

@@ -38,15 +38,15 @@ class ConciergeController extends Controller
     {
         return ReservationRoom::with('guest', 'room', 'reservation.guest')->where(fn ($q) => $q->where('status', 'checked_in')
             ->orWhere(fn ($w) => $w->where('status', 'reserved')->whereDate('arrival_date', '>=', bdate()->toDateString())->whereDate('arrival_date', '<=', bdate()->copy()->addDays(7)->toDateString())))
-            ->get()->sortBy(fn ($s) => [$s->status === 'checked_in' ? 0 : 1, $s->room?->room_no ?? 'zzz'])->values();
+            ->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => [$s->status === 'checked_in' ? 0 : 1, $s->room?->room_no ?? 'zzz'])->values();
     }
 
     public function index(Request $r)
     {
         CS::ensureDefaults();
         $date = $r->filled('date') && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $r->date) ? Carbon::parse($r->date) : bdate()->copy();
-        $waiting = ActivityBooking::with('activity.vendor')->where('status', 'requested')->whereDate('date', '>=', bdate()->toDateString())->orderBy('date')->orderBy('time')->limit(30)->get();
-        $waitlist = ActivityBooking::with('activity')->where('status', 'waitlisted')->whereDate('date', '>=', bdate()->toDateString())->orderBy('date')->orderBy('time')->limit(30)->get();
+        $waiting = ActivityBooking::with('activity.vendor')->where('status', 'requested')->whereDate('date', '>=', bdate()->toDateString())->orderBy('date')->orderBy('time')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $waitlist = ActivityBooking::with('activity')->where('status', 'waitlisted')->whereDate('date', '>=', bdate()->toDateString())->orderBy('date')->orderBy('time')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get();
         $bal = CS::balances();
 
         return view('concierge.index', [
@@ -78,13 +78,13 @@ class ConciergeController extends Controller
             $q->where(fn ($w) => $w->where('number', 'like', $s)->orWhere('guest_name', 'like', $s)->orWhere('room_no', 'like', $s)->orWhere('vendor_ref', 'like', $s));
         }
 
-        return view('concierge.bookings', ['bookings' => $q->paginate(40)->withQueryString(), 'vendors' => ActivityVendor::orderBy('name')->get()]);
+        return view('concierge.bookings', ['bookings' => $q->paginate(40)->withQueryString(), 'vendors' => ActivityVendor::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function create(Request $r)
     {
         CS::ensureDefaults();
-        $activities = Activity::with('vendor')->where('is_active', true)->whereHas('vendor', fn ($q) => $q->where('is_active', true))->orderBy('sort_order')->orderBy('name')->get();
+        $activities = Activity::with('vendor')->where('is_active', true)->whereHas('vendor', fn ($q) => $q->where('is_active', true))->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('concierge.create', ['activities' => $activities, 'stays' => $this->stays(), 'pre' => [
             'activity_id' => (int) $r->query('activity', 0), 'reservation_room_id' => (int) $r->query('stay', 0), 'date' => $r->query('date', bdate()->copy()->addDay()->toDateString()), 'time' => $r->query('time'),
@@ -114,10 +114,10 @@ class ConciergeController extends Controller
     public function show(ActivityBooking $cbooking)
     {
         $b = $cbooking->load('activity.vendor', 'departure', 'stay.room', 'folio', 'folioTransaction', 'journal', 'settlement', 'creator', 'confirmer');
-        $log = \App\Models\ActivityLog::where('subject_type', 'ActivityBooking')->where('subject_id', $b->id)->latest('id')->limit(20)->get();
+        $log = \App\Models\ActivityLog::where('subject_type', 'ActivityBooking')->where('subject_id', $b->id)->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('concierge.show', ['b' => $b, 'fee' => CS::cancelFee($b), 'log' => $log,
-            'messages' => \App\Models\MessageLog::where('related_type', ActivityBooking::class)->where('related_id', $b->id)->latest('id')->limit(10)->get()]);
+            'messages' => \App\Models\MessageLog::where('related_type', ActivityBooking::class)->where('related_id', $b->id)->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function update(Request $r, ActivityBooking $cbooking)
@@ -225,7 +225,7 @@ class ConciergeController extends Controller
     public function manifest(ActivityDeparture $cdeparture)
     {
         $cdeparture->load('activity.vendor');
-        $list = $cdeparture->bookings()->whereIn('status', ['requested', 'confirmed', 'completed', 'no_show', 'waitlisted'])->orderByRaw("FIELD(status,'confirmed','completed','no_show','requested','waitlisted')")->orderBy('id')->get();
+        $list = $cdeparture->bookings()->whereIn('status', ['requested', 'confirmed', 'completed', 'no_show', 'waitlisted'])->orderByRaw("FIELD(status,'confirmed','completed','no_show','requested','waitlisted')")->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('concierge.manifest', ['dep' => $cdeparture, 'list' => $list, 'hotel' => hotel()]);
     }
@@ -249,8 +249,8 @@ class ConciergeController extends Controller
     public function catalogue()
     {
         return view('concierge.catalogue', [
-            'activities' => Activity::with('vendor')->withCount(['bookings as sold' => fn ($q) => $q->whereIn('status', ['confirmed', 'completed'])])->orderBy('sort_order')->orderBy('name')->get(),
-            'vendors' => ActivityVendor::withCount('activities')->orderBy('name')->get(),
+            'activities' => Activity::with('vendor')->withCount(['bookings as sold' => fn ($q) => $q->whereIn('status', ['confirmed', 'completed'])])->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'vendors' => ActivityVendor::withCount('activities')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -359,7 +359,7 @@ class ConciergeController extends Controller
 
     public function guide()
     {
-        return view('concierge.guide', ['places' => ConciergePlace::orderBy('category')->orderBy('sort_order')->orderBy('name')->get()->groupBy('category')]);
+        return view('concierge.guide', ['places' => ConciergePlace::orderBy('category')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('category')]);
     }
 
     protected function placeData(Request $r): array
@@ -396,7 +396,7 @@ class ConciergeController extends Controller
 
     public function guidePrint()
     {
-        return view('concierge.guide_print', ['places' => ConciergePlace::where('portal_visible', true)->orderBy('category')->orderBy('sort_order')->orderBy('name')->get()->groupBy('category'),
+        return view('concierge.guide_print', ['places' => ConciergePlace::where('portal_visible', true)->orderBy('category')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('category'),
             'activities' => CS::portalActivities(), 'hotel' => hotel(), 'cfg' => CS::cfg()]);
     }
 
@@ -407,7 +407,7 @@ class ConciergeController extends Controller
         $upTo = $r->filled('up_to') && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $r->up_to) ? $r->up_to : bdate()->toDateString();
 
         return view('concierge.settlements', ['balances' => CS::balances($upTo), 'upTo' => $upTo, 'accounts' => CS::payAccounts(),
-            'settlements' => ActivitySettlement::with('vendor', 'account', 'creator')->orderByDesc('date')->orderByDesc('id')->limit(60)->get(),
+            'settlements' => ActivitySettlement::with('vendor', 'account', 'creator')->orderByDesc('date')->orderByDesc('id')->limit(60)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'control' => ['payable' => CS::payableBalance(), 'receivable' => CS::receivableBalance()], 'open' => CS::balances()]);
     }
 
@@ -427,7 +427,7 @@ class ConciergeController extends Controller
     public function settlement(ActivitySettlement $csettle)
     {
         $csettle->load('vendor', 'account', 'journal', 'creator');
-        $rows = ActivityBooking::with('activity')->where('activity_settlement_id', $csettle->id)->orderBy('date')->orderBy('id')->get();
+        $rows = ActivityBooking::with('activity')->where('activity_settlement_id', $csettle->id)->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         if ($csettle->status === 'void') {
             $rows = collect();
         }

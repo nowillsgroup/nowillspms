@@ -27,7 +27,7 @@ class BudgetController extends Controller
         $versions = Budget::with('creator', 'submitter', 'approver', 'secondApprover', 'parent')
             ->when($fy, fn ($q) => $q->where('fiscal_year', $fy))
             ->when(in_array($request->query('status'), array_keys(Budget::STATUSES), true), fn ($q) => $q->where('status', $request->query('status')))
-            ->orderByDesc('fiscal_year')->orderByRaw("FIELD(kind,'budget','forecast','capital')")->orderByDesc('is_active')->orderByDesc('id')->get();
+            ->orderByDesc('fiscal_year')->orderByRaw("FIELD(kind,'budget','forecast','capital')")->orderByDesc('is_active')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $totals = $versions->mapWithKeys(fn ($b) => [$b->id => BudgetService::totals($b)]);
         $years = [];
         for ($y = $cur - 1; $y <= $cur + 2; $y++) {
@@ -52,9 +52,9 @@ class BudgetController extends Controller
 
         return view('budgets.index', ['versions' => $versions, 'totals' => $totals, 'years' => $years, 'fy' => $fy, 'cur' => $cur,
             'cfg' => BudgetService::cfg(), 'approvals' => $approvals, 'active' => BudgetService::active($cur), 'forecast' => BudgetService::active($cur, 'forecast'),
-            'pending' => Budget::where('status', 'submitted')->count(), 'copyable' => Budget::orderByDesc('fiscal_year')->orderByDesc('id')->get(),
+            'pending' => Budget::where('status', 'submitted')->count(), 'copyable' => Budget::orderByDesc('fiscal_year')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'capitalPlan' => BudgetService::active($cur, 'capital'), 'capitalPending' => Budget::where('kind', 'capital')->where('status', 'submitted')->count(),
-            'departments' => Department::orderBy('name')->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),   // v8.1
+            'departments' => Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($d) => [$d->id => $d->label()])->all(),   // v8.1
             'costCentres' => Budget::whereNotNull('department_id')->where('status', 'submitted')->count(),
             'capexPrefixes' => implode(', ', BudgetService::prefixList())]);
     }
@@ -103,7 +103,7 @@ class BudgetController extends Controller
             'actuals' => $act, 'lastYear' => $lastYear,
             'stats' => $budget->stats->keyBy('month'), 'actualStats' => BudgetService::actualStats($budget->fiscal_year),
             'canEdit' => $budget->isDraft() && can_do('budget.manage'), 'roomAccount' => AccountHead::sys('rev_room'),
-            'forecasts' => Budget::where('parent_id', $budget->id)->where('kind', 'forecast')->orderByDesc('id')->get(),
+            'forecasts' => Budget::where('parent_id', $budget->id)->where('kind', 'forecast')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'approval' => BudgetService::approvalState($budget),   // v8.3 – one signature or two
             'capital' => $budget->isCapital() ? BudgetService::capitalSpend($budget) : null,   // v8.4 – plan against spend
             'timeline' => $budget->isCapital() ? BudgetService::commitmentTimeline($budget->fiscal_year) : null,   // v8.6 – when it is needed
@@ -316,7 +316,7 @@ class BudgetController extends Controller
     {
         $cut = Carbon::parse(LedgerService::cutoff());
         $cur = BudgetService::fyFor($cut);
-        $approved = Budget::with('department')->where('kind', 'budget')->where('status', 'approved')->orderByDesc('fiscal_year')->orderByDesc('is_active')->orderByDesc('id')->get();
+        $approved = Budget::with('department')->where('kind', 'budget')->where('status', 'approved')->orderByDesc('fiscal_year')->orderByDesc('is_active')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $budget = $request->query('budget') ? $approved->firstWhere('id', (int) $request->query('budget')) : null;
         $budget ??= BudgetService::active($cur) ?? $approved->first();
         if (! $budget) {

@@ -59,9 +59,9 @@ class HrController extends Controller
     {
         $date = $request->input('date', bdate()->toDateString());
         $employees = Employee::with(['department', 'attendances' => fn ($q) => $q->whereDate('date', $date)->with('leaveRequest.leaveType')])->where('is_active', true)
-            ->when($request->department, fn ($q, $d) => $q->where('department_id', $d))->orderBy('name')->get();
+            ->when($request->department, fn ($q, $d) => $q->where('department_id', $d))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $month = Carbon::parse($date);
-        $summary = Attendance::whereYear('date', $month->year)->whereMonth('date', $month->month)->get()->groupBy('employee_id')->map(fn ($g) => $g->countBy('status'));
+        $summary = Attendance::whereYear('date', $month->year)->whereMonth('date', $month->month)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('employee_id')->map(fn ($g) => $g->countBy('status'));
 
         return view('hr.attendance', ['employees' => $employees, 'date' => $date, 'summary' => $summary, 'departments' => Department::pluck('name', 'id'),
             'locked' => PayrollService::lockedRunFor($date), 'holiday' => HolidayService::on($date), 'nextHoliday' => HolidayService::upcoming((int) HolidayService::cfg('hr_holiday_notify_days'))->first()]);
@@ -102,8 +102,8 @@ class HrController extends Controller
         $month = Carbon::createFromFormat('Y-m-d', ($request->input('month') ?: bdate()->format('Y-m')).'-01')->startOfDay();
         $end = $month->copy()->endOfMonth()->startOfDay();
         $employees = Employee::with('department')->where(fn ($q) => $q->where('is_active', true)->orWhereDate('leaving_date', '>=', $month->toDateString()))
-            ->when($request->department, fn ($q, $d) => $q->where('department_id', $d))->orderBy('emp_code')->get();
-        $att = Attendance::whereIn('employee_id', $employees->pluck('id'))->whereDate('date', '>=', $month->toDateString())->whereDate('date', '<=', $end->toDateString())->get()
+            ->when($request->department, fn ($q, $d) => $q->where('department_id', $d))->orderBy('emp_code')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $att = Attendance::whereIn('employee_id', $employees->pluck('id'))->whereDate('date', '>=', $month->toDateString())->whereDate('date', '<=', $end->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy('employee_id')->map(fn ($g) => $g->keyBy(fn ($a) => $a->date->day));
         $until = $end->lt(bdate()) ? $end : bdate()->copy();
         $summary = $employees->mapWithKeys(fn ($e) => [$e->id => $month->lte($until) ? PayrollService::attendanceSummary($e, $month, $until) : null]);
@@ -144,7 +144,7 @@ class HrController extends Controller
         $today = bdate();
         $month = $today->copy()->startOfMonth();
         $attendance = Attendance::where('employee_id', $employee->id)->whereDate('date', '>=', $month->toDateString())
-            ->whereDate('date', '<=', $today->toDateString())->get();
+            ->whereDate('date', '<=', $today->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $monthStatus = $attendance->countBy('status');
         // the rostered-off days are not working days; a half day counts as half
         $worked = (int) ($monthStatus['P'] ?? 0) + (int) ($monthStatus['A'] ?? 0) + (int) ($monthStatus['H'] ?? 0);
@@ -155,7 +155,7 @@ class HrController extends Controller
         $service = $employee->joining_date ? self::serviceLength($employee->joining_date, $today) : null;
 
         // training & certificates
-        $trainingRecent = $employee->trainingRecords()->with('course')->orderByDesc('completed_on')->orderByDesc('id')->limit(3)->get()
+        $trainingRecent = $employee->trainingRecords()->with('course')->orderByDesc('completed_on')->orderByDesc('id')->limit(3)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => [
                 'course' => $r->course?->name ?? 'Training',
                 'statusLabel' => $r->statusLabel(),
@@ -165,7 +165,7 @@ class HrController extends Controller
         $trainingExpiring = $employee->trainingRecords()->with('course')->whereNotNull('expires_on')
             ->whereDate('expires_on', '>=', $today->toDateString())
             ->whereDate('expires_on', '<=', $today->copy()->addDays(90)->toDateString())
-            ->orderBy('expires_on')->limit(3)->get()
+            ->orderBy('expires_on')->limit(3)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => [
                 'course' => $r->course?->name ?? 'Training',
                 'expires' => dmy($r->expires_on),
@@ -173,7 +173,7 @@ class HrController extends Controller
             ])->all();
 
         // salary advances: what is still outstanding
-        $advances = $employee->advances()->whereNull('cancelled_at')->get();
+        $advances = $employee->advances()->whereNull('cancelled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $advanceRows = $advances->sortByDesc(fn ($a) => $a->date ? $a->date->toDateString() : '')
             ->map(fn ($a) => [
                 'no' => $a->advance_no,
@@ -209,7 +209,7 @@ class HrController extends Controller
 
         return view('hr.employee', [
             'e' => $employee,
-            'docs' => $employee->documents()->get(),
+            'docs' => $employee->documents()->limit((int) config('pms.max_list_rows', 5000))->get(),
             'kinds' => EmployeeSelfService::DOC_KINDS,
             'photoUrl' => $employee->photoUrl(),
             'month' => $month,
@@ -404,7 +404,7 @@ class HrController extends Controller
         }
         $rows = HolidayService::list($year);
         $worked = Attendance::where('status', 'PH')->whereYear('date', $year)->whereNotNull('in_time')
-            ->with('employee')->orderBy('date')->get();
+            ->with('employee')->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('hr.holidays', ['year' => $year, 'years' => $years, 'rows' => $rows, 'worked' => $worked,
             'custom' => HolidayService::isCustom($year), 'upcoming' => HolidayService::upcoming(60),

@@ -23,7 +23,7 @@ class ReportAutomationController extends Controller
     {
         $u = $request->user();
         $views = RS::viewsFor($u);
-        $mySchedules = ReportSchedule::with('view')->where('user_id', $u->id)->orderBy('name')->get();
+        $mySchedules = ReportSchedule::with('view')->where('user_id', $u->id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $reports = collect(ReportController::REPORTS)->filter(fn ($r) => $u->hasPermission($r[4] ?? 'reports.view'))->map(fn ($r) => $r[1])->sort();
 
         return view('reports.library', compact('views', 'mySchedules', 'reports') + ['stats' => RS::stats()]);
@@ -72,7 +72,7 @@ class ReportAutomationController extends Controller
     public function schedules(Request $request)
     {
         $u = $request->user();
-        $schedules = ReportSchedule::with('user', 'view')->orderByDesc('is_active')->orderBy('name')->get();
+        $schedules = ReportSchedule::with('user', 'view')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $deliveries = ReportDelivery::with('schedule', 'user')
             ->when($request->integer('schedule'), fn ($q, $id) => $q->where('report_schedule_id', $id))
             ->when($request->input('status'), fn ($q, $st) => $q->where('status', $st))
@@ -165,7 +165,7 @@ class ReportAutomationController extends Controller
 
     public function alerts(Request $request)
     {
-        $alerts = KpiAlert::with('user')->orderByDesc('is_active')->orderBy('name')->get();
+        $alerts = KpiAlert::with('user')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $events = KpiAlertEvent::with('alert', 'acknowledger')
             ->when($request->input('show') !== 'all', fn ($q) => $q->whereNull('acknowledged_at'))
             ->orderByDesc('business_date')->orderByRaw("FIELD(severity,'critical','warning','info')")->paginate(30)->withQueryString();
@@ -212,6 +212,7 @@ class ReportAutomationController extends Controller
 
     public function evaluate(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = $request->filled('date') ? Carbon::parse($request->input('date'))->startOfDay() : KpiService::defaultDate();
         if ($date->gte(bdate()->copy()->startOfDay())) {
             return back()->with('error', 'Alerts can only be evaluated for audited business dates (before '.bdate()->format('d M Y').').');

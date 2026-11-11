@@ -33,6 +33,7 @@ class AccountsController extends Controller
      */
     public function vouchers(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         $from = substr((string) $request->input('from', bdate()->copy()->startOfMonth()->toDateString()), 0, 10);
         $to = substr((string) $request->input('to', bdate()->toDateString()), 0, 10);
         if ($to > bdate()->toDateString()) {
@@ -44,7 +45,7 @@ class AccountsController extends Controller
         $vouchers = Voucher::with('head', 'paymentMode', 'supplier', 'user')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
             ->when($request->type, fn ($q, $t) => $q->where('type', $t))
             ->when($request->head, fn ($q, $h) => $q->where('account_head_id', $h))
-            ->latest('date')->latest('id')->get();
+            ->latest('date')->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         // the register totals itself, so a printed page carries its own sums
         $rec = round((float) $vouchers->where('type', 'receipt')->sum('amount'), 2);
@@ -89,9 +90,9 @@ class AccountsController extends Controller
         return view('accounts.vouchers', [
             'vouchers' => $vouchers, 'from' => $from, 'to' => $to, 'rec' => $rec, 'pay' => $pay,
             'byHead' => $byHead, 'ledger' => $ledger, 'tie' => $tie,
-            'heads' => AccountHead::orderBy('type')->orderBy('code')->get(),
+            'heads' => AccountHead::orderBy('type')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             // the modal groups its heads here rather than asking the view to group a collection
-            'headGroups' => AccountHead::where('is_active', true)->orderBy('type')->orderBy('code')->get()->groupBy('type'),
+            'headGroups' => AccountHead::where('is_active', true)->orderBy('type')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('type'),
             'paymentModes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'gift_voucher'])->pluck('name', 'id'),
             'suppliers' => Supplier::pluck('name', 'id'),
         ]);
@@ -145,13 +146,14 @@ class AccountsController extends Controller
      */
     public function cityLedger(Request $request)
     {
+        $request->validate(['as_of' => 'nullable|date_format:Y-m-d']);
         $asOf = substr((string) $request->input('as_of', bdate()->toDateString()), 0, 10);
         if ($asOf > bdate()->toDateString()) {
             $asOf = bdate()->toDateString();   // the ledger has not been posted past the business date
         }
         [$debits, $credits] = $this->companyBalances($asOf);
         $aged = ArService::ageing(Carbon::parse($asOf))->keyBy('id');
-        $companies = Company::orderBy('name')->get()->each(function ($c) use ($debits, $credits, $aged) {
+        $companies = Company::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->each(function ($c) use ($debits, $credits, $aged) {
             $c->billed = (float) ($debits[$c->id] ?? 0);
             $c->received = (float) ($credits[$c->id] ?? 0);
             $c->outstanding = round($c->billed - $c->received, 2);
@@ -204,6 +206,7 @@ class AccountsController extends Controller
 
     public function companyLedger(Request $request, Company $company)
     {
+        $request->validate(['as_of' => 'nullable|date_format:Y-m-d']);
         // v9.7 a ledger is read as at a date: a charge dated after it has not happened yet, and a receipt dated after it
         // has not been banked. Without the cut, "closing balance" meant "closing balance including the future".
         $asOf = substr((string) $request->input('as_of', bdate()->toDateString()), 0, 10);
@@ -211,11 +214,11 @@ class AccountsController extends Controller
             $asOf = bdate()->toDateString();   // the ledger has not been posted past the business date
         }
         $debits = FolioTransaction::with('folio.guest')->where('category', 'city_ledger')->where('company_id', $company->id)->where('is_void', false)
-            ->whereDate('business_date', '<=', $asOf)->get()
+            ->whereDate('business_date', '<=', $asOf)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->business_date, 'due' => $t->due_date, 'ref' => $t->reference ?: ($t->folio->invoice_no ?? $t->folio->folio_no),
                 'desc' => $t->source_type === 'pos_complimentary' ? $t->description : ($t->isOpening() ? $t->description : 'Bill – '.($t->folio->guest?->full_name)),
                 'debit' => (float) $t->amount, 'credit' => 0, 'folio' => $t->folio]);
-        $credits = Voucher::where('type', 'receipt')->where('company_id', $company->id)->whereDate('date', '<=', $asOf)->get()
+        $credits = Voucher::where('type', 'receipt')->where('company_id', $company->id)->whereDate('date', '<=', $asOf)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($v) => ['date' => $v->date, 'due' => null, 'ref' => $v->voucher_no, 'desc' => 'Receipt '.($v->reference ? '#'.$v->reference : ''), 'debit' => 0, 'credit' => (float) $v->amount, 'folio' => null]);
         $rows = $debits->concat($credits)->sortBy(fn ($r) => $r['date']->format('Y-m-d'))->values();
         // v9.7 the running balance belongs with the rows, not in a counter inside the view: a ledger whose last row and
@@ -313,13 +316,13 @@ class AccountsController extends Controller
     {
         $folioPay = FolioTransaction::with('folio.guest', 'paymentMode')->whereIn('type', ['payment', 'refund'])->where('category', '!=', 'city_ledger')->where('is_void', false)
             ->when($from, fn ($q) => $q->whereDate('business_date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('business_date', '<=', $to))->get();
+            ->when($to, fn ($q) => $q->whereDate('business_date', '<=', $to))->limit((int) config('pms.max_list_rows', 5000))->get();
         $pos = PosOrder::with('paymentMode', 'outlet')->where('status', 'settled')->where('settlement', 'payment')
             ->when($from, fn ($q) => $q->whereDate('business_date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('business_date', '<=', $to))->get();
+            ->when($to, fn ($q) => $q->whereDate('business_date', '<=', $to))->limit((int) config('pms.max_list_rows', 5000))->get();
         $vouchers = Voucher::with('head', 'paymentMode')
             ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to))->get();
+            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to))->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return collect()
             ->concat($folioPay->map(fn ($t) => ['date' => $t->business_date, 'src' => 'Front Office', 'ref' => $t->folio->folio_no, 'desc' => $t->description.' – '.($t->folio->guest?->full_name), 'mode' => $t->paymentMode?->name ?? '—', 'in' => $t->type === 'payment' ? (float) $t->amount : 0, 'out' => $t->type === 'refund' ? (float) $t->amount : 0]))
@@ -339,6 +342,7 @@ class AccountsController extends Controller
      */
     public function cashBook(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = substr((string) $request->input('date', bdate()->toDateString()), 0, 10);
         if ($date > bdate()->toDateString()) {
             $date = bdate()->toDateString();   // a cash book cannot be read before the money is taken
@@ -396,6 +400,7 @@ class AccountsController extends Controller
 
     public function pnl(Request $request)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         // v9.10 a period is a period: it cannot end in the future, and it cannot run backwards
         $from = substr((string) $request->input('from', bdate()->copy()->startOfMonth()->toDateString()), 0, 10);
         $to = substr((string) $request->input('to', bdate()->toDateString()), 0, 10);
@@ -405,14 +410,14 @@ class AccountsController extends Controller
         if ($from > $to) {
             $from = $to;
         }
-        $tx = FolioTransaction::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where('is_void', false)->get();
+        $tx = FolioTransaction::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where('is_void', false)->limit((int) config('pms.max_list_rows', 5000))->get();
         $charges = $tx->where('type', 'charge');
         $income = collect(config('pms.charge_categories'))->map(fn ($label, $cat) => $charges->where('category', $cat)->sum('amount'))->filter();
         $income['discounts'] = -$tx->whereIn('type', ['discount', 'allowance'])->sum('amount');
-        $posDirect = PosOrder::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where('status', 'settled')->where('settlement', 'payment')->get();
+        $posDirect = PosOrder::whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where('status', 'settled')->where('settlement', 'payment')->limit((int) config('pms.max_list_rows', 5000))->get();
         $income['pos_direct'] = $posDirect->sum(fn ($o) => $o->total - $o->tax);
-        $otherIncome = Voucher::with('head')->where('type', 'receipt')->whereNull('company_id')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get()->groupBy('head.name')->map->sum('amount');
-        $expenses = Voucher::with('head')->where('type', 'payment')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get()->groupBy('head.name')->map->sum('amount');
+        $otherIncome = Voucher::with('head')->where('type', 'receipt')->whereNull('company_id')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('head.name')->map->sum('amount');
+        $expenses = Voucher::with('head')->where('type', 'payment')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('head.name')->map->sum('amount');
         $totalIncome = $income->sum() + $otherIncome->sum();
         $exp = $expenses->sum();
 

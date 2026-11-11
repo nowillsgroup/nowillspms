@@ -58,27 +58,27 @@ class GuestController extends Controller
     public function show(Guest $guest)
     {
         $guest->load(['company', 'documents', 'reservations' => fn ($q) => $q->with('rooms.room', 'rooms.roomType')->latest('arrival_date')]);
-        $folios = $guest->folios()->with('transactions')->get();
+        $folios = $guest->folios()->with('transactions')->limit((int) config('pms.max_list_rows', 5000))->get();
         $spend = $folios->sum(fn ($f) => $f->totals()['charges'] - $f->totals()['discount']);
 
         $phone = \App\Services\MessageService::normalise($guest->phone);
         $messages = can_do('messages.send') || can_do('logs.view') ? \App\Models\MessageLog::with('user')
             ->where(fn ($q) => $q->where(fn ($w) => $w->where('related_type', 'Reservation')->whereIn('related_id', $guest->reservations->pluck('id')))->when($phone, fn ($w) => $w->orWhere('to', $phone)))
-            ->latest('id')->limit(20)->get() : collect();
+            ->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
 
         return view('guests.show', ['guest' => $guest, 'folios' => $folios, 'spend' => $spend, 'messages' => $messages,
-            'dining' => can_do('tables.view') ? \App\Models\TableReservation::with('outlet', 'tables')->where(fn ($q) => $q->where('guest_id', $guest->id)->when($guest->phone, fn ($w) => $w->orWhere('phone', $guest->phone)))->latest('start_at')->limit(10)->get() : collect(),
+            'dining' => can_do('tables.view') ? \App\Models\TableReservation::with('outlet', 'tables')->where(fn ($q) => $q->where('guest_id', $guest->id)->when($guest->phone, fn ($w) => $w->orWhere('phone', $guest->phone)))->latest('start_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'diningStats' => can_do('tables.view') ? \App\Services\TableBookingService::history($guest->phone, $guest->id) : null,
-            'spa' => can_do('spa.view') ? \App\Models\SpaAppointment::with('service')->where('guest_id', $guest->id)->latest('date')->limit(10)->get() : collect(),
+            'spa' => can_do('spa.view') ? \App\Models\SpaAppointment::with('service')->where('guest_id', $guest->id)->latest('date')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'nights' => $guest->reservations->where('status', 'checked_out')->sum('nights'),
-            'marketing' => can_do('crm.view') ? $guest->marketingMessages()->with('campaign', 'journey', 'reservation')->latest('id')->limit(15)->get() : collect(),
-            'consentLog' => $guest->consentLogs()->with('user')->latest('id')->limit(10)->get(), 'rfm' => \App\Services\CrmService::rfm($guest),
-            'privacyRequests' => can_do('privacy.view') ? $guest->privacyRequests()->latest('id')->get() : collect(),
+            'marketing' => can_do('crm.view') ? $guest->marketingMessages()->with('campaign', 'journey', 'reservation')->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'consentLog' => $guest->consentLogs()->with('user')->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(), 'rfm' => \App\Services\CrmService::rfm($guest),
+            'privacyRequests' => can_do('privacy.view') ? $guest->privacyRequests()->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'piiViews' => \App\Models\PiiAccessLog::where('guest_id', $guest->id)->where('created_at', '>=', now()->subDays(30))->count(),
             // v3.1: what the guest told us – surveys, reviews matched to them and service-recovery cases
-            'feedback' => can_do('feedback.view') || can_do('feedback.cases') ? \App\Models\GuestFeedback::where(fn ($q) => $q->where('guest_id', $guest->id)->orWhereIn('reservation_id', $guest->reservations->pluck('id')))->latest('id')->limit(10)->get() : collect(),
-            'reviews' => can_do('feedback.view') ? \App\Models\OnlineReview::where('guest_id', $guest->id)->latest('review_date')->limit(5)->get() : collect(),
-            'cases' => can_do('feedback.cases') ? \App\Models\FeedbackCase::where('guest_id', $guest->id)->latest('id')->limit(10)->get() : collect()]);
+            'feedback' => can_do('feedback.view') || can_do('feedback.cases') ? \App\Models\GuestFeedback::where(fn ($q) => $q->where('guest_id', $guest->id)->orWhereIn('reservation_id', $guest->reservations->pluck('id')))->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'reviews' => can_do('feedback.view') ? \App\Models\OnlineReview::where('guest_id', $guest->id)->latest('review_date')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'cases' => can_do('feedback.cases') ? \App\Models\FeedbackCase::where('guest_id', $guest->id)->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get() : collect()]);
     }
 
     public function edit(Guest $guest)

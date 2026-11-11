@@ -43,9 +43,9 @@ class CreditController extends Controller
 
         return view('credit.show', [
             'co' => $company->load('accountManager'), 'p' => $p,
-            'logs' => CreditLog::with('user', 'folio')->where('company_id', $company->id)->latest('id')->limit(50)->get(),
-            'inhouse' => Folio::with('guest', 'stay.room')->where('status', 'open')->where('company_id', $company->id)->get()->filter(fn ($f) => $f->balance() > 0),
-            'contracts' => RateContract::where('company_id', $company->id)->orderByDesc('valid_to')->limit(5)->get(),
+            'logs' => CreditLog::with('user', 'folio')->where('company_id', $company->id)->latest('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'inhouse' => Folio::with('guest', 'stay.room')->where('status', 'open')->where('company_id', $company->id)->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($f) => $f->balance() > 0),
+            'contracts' => RateContract::where('company_id', $company->id)->orderByDesc('valid_to')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 

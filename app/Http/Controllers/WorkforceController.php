@@ -48,9 +48,9 @@ class WorkforceController extends Controller
         $week = RosterService::weekStart($request->input('week'));
 
         return view('workforce.roster', ['dept' => $dept, 'week' => $week, 'departments' => Department::orderBy('name')->pluck('name', 'id'),
-            'g' => $dept ? RosterService::grid($dept, $week) : null, 'allTemplates' => ShiftTemplate::with('department')->orderBy('start_time')->get(),
+            'g' => $dept ? RosterService::grid($dept, $week) : null, 'allTemplates' => ShiftTemplate::with('department')->orderBy('start_time')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'swaps' => ShiftSwap::with('requester', 'colleague', 'shift', 'colleagueShift', 'decider')->where(fn ($q) => $q->whereIn('status', ShiftSwap::OPEN)->orWhere('updated_at', '>=', now()->subDays(14)))
-                ->latest('id')->limit(40)->get(),
+                ->latest('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'canManage' => can_do('roster.manage')]);
     }
 
@@ -145,13 +145,14 @@ class WorkforceController extends Controller
 
     public function clock(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = Carbon::parse($request->input('date', now()->toDateString()))->toDateString();
         $dept = $request->filled('dept') ? $this->dept($request) : null;
         $rows = TimeClockService::board($date, $dept);
 
         return view('workforce.clock', ['date' => $date, 'dept' => $dept, 'rows' => $rows, 'departments' => Department::orderBy('name')->pluck('name', 'id'),
             'employees' => Employee::where('is_active', true)->orderBy('name')->get(['id', 'name', 'emp_code', 'clock_pin', 'department_id']),
-            'stale' => TimePunch::with('employee')->where('status', 'open')->where('clock_in', '<', now()->subHours(16))->orderBy('clock_in')->get(),
+            'stale' => TimePunch::with('employee')->where('status', 'open')->where('clock_in', '<', now()->subHours(16))->orderBy('clock_in')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'pendingDays' => TimePunch::where('status', 'closed')->whereDate('work_date', '<', now()->toDateString())->selectRaw('work_date, COUNT(*) n')->groupBy('work_date')->orderByDesc('work_date')->limit(10)->pluck('n', 'work_date'),
             'canApprove' => can_do('timeclock.approve')]);
     }

@@ -316,7 +316,7 @@ trait HrPeopleReports
 {
     protected function r_hr_announcements($from, $to): array
     {
-        $rows = \App\Models\HrAnnouncement::with('department.user')->whereBetween('published_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\HrAnnouncement::with('department.user')->whereBetween('published_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'dept' => optional($r->department)->name,
             'published' => $r->published_at, 'content' => substr($r->content, 0, 100),
             'author' => optional($r->user)->name, 'status' => $r->status,
@@ -326,7 +326,7 @@ trait HrPeopleReports
 
     protected function r_hr_documents($from, $to): array
     {
-        $rows = \App\Models\HrDocument::with('documentType.employee')->whereBetween('uploaded_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\HrDocument::with('documentType.employee')->whereBetween('uploaded_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'type' => optional($r->documentType)->name,
             'employee' => optional($r->employee)->name, 'filename' => $r->filename,
             'uploaded' => $r->uploaded_at, 'expiry' => $r->expiry_date, 'status' => $r->status,
@@ -336,7 +336,7 @@ trait HrPeopleReports
 
     protected function r_hr_profile_updates($from, $to): array
     {
-        $rows = \App\Models\HrProfileUpdate::with('employee.user')->whereBetween('updated_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\HrProfileUpdate::with('employee.user')->whereBetween('updated_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'field' => $r->field_name,
             'old_value' => $r->old_value, 'new_value' => $r->new_value,
             'updated' => $r->updated_at, 'user' => optional($r->user)->name, 'status' => $r->status,

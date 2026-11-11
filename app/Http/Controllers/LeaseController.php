@@ -41,11 +41,11 @@ class LeaseController extends Controller
 
         return view('leases.index', [
             'stats' => LS::stats(),
-            'units' => LeaseUnit::with(['currentLease', 'room'])->where('is_active', true)->orderBy('block')->orderBy('code')->get(),
-            'moving' => Lease::with('unit')->where('status', 'notice')->orderBy('move_out_on')->get(),
-            'starting' => Lease::with('unit')->where('status', 'draft')->orderBy('start_date')->get(),
+            'units' => LeaseUnit::with(['currentLease', 'room'])->where('is_active', true)->orderBy('block')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'moving' => Lease::with('unit')->where('status', 'notice')->orderBy('move_out_on')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'starting' => Lease::with('unit')->where('status', 'draft')->orderBy('start_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'reviews' => Lease::with('unit')->whereIn('status', ['active', 'notice'])->whereNotNull('next_review_on')
-                ->whereDate('next_review_on', '<=', Carbon::parse($today)->addDays(60)->toDateString())->orderBy('next_review_on')->get(),
+                ->whereDate('next_review_on', '<=', Carbon::parse($today)->addDays(60)->toDateString())->orderBy('next_review_on')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'today' => $today,
         ]);
     }
@@ -72,8 +72,8 @@ class LeaseController extends Controller
         $linked = LeaseUnit::whereNotNull('room_id')->pluck('room_id');
 
         return view('leases.units', [
-            'units' => LeaseUnit::with(['currentLease', 'room.roomType'])->orderBy('block')->orderBy('code')->get(),
-            'rooms' => Room::with('roomType')->where('is_active', true)->orderBy('room_no')->get(),
+            'units' => LeaseUnit::with(['currentLease', 'room.roomType'])->orderBy('block')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'rooms' => Room::with('roomType')->where('is_active', true)->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'linked' => $linked,
             'settings' => collect(LS::SETTINGS)->map(fn ($s, $k) => ['label' => $s[0], 'value' => LS::cfg($k)]),
         ]);
@@ -108,7 +108,7 @@ class LeaseController extends Controller
 
     protected function formData(?Lease $lease = null): array
     {
-        return ['lease' => $lease, 'units' => LeaseUnit::where('is_active', true)->where('status', '!=', 'maintenance')->orderBy('code')->get(),
+        return ['lease' => $lease, 'units' => LeaseUnit::where('is_active', true)->where('status', '!=', 'maintenance')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'companies' => Company::orderBy('name')->get(['id', 'name']), 'cfg' => collect(LS::SETTINGS)->map(fn ($s, $k) => LS::cfg($k))];
     }
 
@@ -165,19 +165,19 @@ class LeaseController extends Controller
     public function show(Lease $lease)
     {
         $lease->load('unit.room', 'company', 'creator');
-        $charges = LeaseCharge::with('creditOf')->where('lease_id', $lease->id)->orderByDesc('date')->orderByDesc('id')->get();
-        $payments = LeasePayment::with('paymentMode', 'user')->where('lease_id', $lease->id)->orderByDesc('date')->orderByDesc('id')->get();
+        $charges = LeaseCharge::with('creditOf')->where('lease_id', $lease->id)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $payments = LeasePayment::with('paymentMode', 'user')->where('lease_id', $lease->id)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $unit = $lease->unit;
-        $modes = PaymentMode::where('is_active', true)->orderBy('id')->get();
+        $modes = PaymentMode::where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $splitModes = $modes->whereIn('type', ['cash', 'card', 'bank', 'wallet'])->mapWithKeys(fn ($mode) => [$mode->id => $mode->name]);
 
         return view('leases.show', [
             'l' => $lease, 'unit' => $unit, 'charges' => $charges, 'payments' => $payments,
             'balance' => LB::balance($lease), 'deposit' => LB::depositHeld($lease), 'overdue' => LB::overdue($lease), 'cap' => LB::advanceCap($lease),
-            'readings' => LeaseMeterReading::with('charge')->where('lease_unit_id', $unit->id)->orderByDesc('date')->orderByDesc('id')->limit(40)->get(),
-            'inspections' => LeaseInspection::with('user', 'charge')->where('lease_id', $lease->id)->orderByDesc('date')->get(),
+            'readings' => LeaseMeterReading::with('charge')->where('lease_unit_id', $unit->id)->orderByDesc('date')->orderByDesc('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'inspections' => LeaseInspection::with('user', 'charge')->where('lease_id', $lease->id)->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'tickets' => MaintenanceRequest::where(fn ($q) => $q->when($unit->room_id, fn ($w) => $w->where('room_id', $unit->room_id))->orWhere('location', 'like', "%{$unit->code}%"))
-                ->where('created_at', '>=', $lease->start_date->copy()->subDays(7))->latest()->limit(20)->get(),
+                ->where('created_at', '>=', $lease->start_date->copy()->subDays(7))->latest()->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'modes' => $modes, 'splitModes' => $splitModes,
             'settlement' => in_array($lease->status, ['ended', 'terminated'], true) ? LS::settlement($lease) : null,
             'checklist' => LeaseInspection::CHECKLIST,
@@ -286,11 +286,11 @@ class LeaseController extends Controller
     public function meters(Request $request)
     {
         $date = $request->query('date', LS::today());
-        $units = LeaseUnit::with('currentLease')->where('is_active', true)->orderBy('code')->get();
-        $last = LeaseMeterReading::whereIn('lease_unit_id', $units->pluck('id'))->orderBy('date')->orderBy('id')->get()->groupBy(fn ($r) => $r->lease_unit_id.'-'.$r->meter)->map->last();
+        $units = LeaseUnit::with('currentLease')->where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $last = LeaseMeterReading::whereIn('lease_unit_id', $units->pluck('id'))->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy(fn ($r) => $r->lease_unit_id.'-'.$r->meter)->map->last();
 
         return view('leases.meters', ['units' => $units, 'last' => $last, 'date' => $date,
-            'recent' => LeaseMeterReading::with('unit', 'charge', 'user')->orderByDesc('date')->orderByDesc('id')->limit(60)->get()]);
+            'recent' => LeaseMeterReading::with('unit', 'charge', 'user')->orderByDesc('date')->orderByDesc('id')->limit(60)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveReadings(Request $request)

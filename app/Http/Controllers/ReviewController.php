@@ -24,7 +24,7 @@ class ReviewController extends Controller
             $counts[$t] = $this->tab(clone $base, $t)->count();
         }
         $items = $this->tab(clone $base, $tab)->with('guest', 'recoveryCase')->orderByRaw($tab === 'respond' ? 'rating5 asc, review_date asc' : 'review_date desc')->paginate(20)->withQueryString();
-        $sources = OnlineReview::selectRaw('source, count(*) n, avg(rating5) a, max(review_date) last')->groupBy('source')->orderByDesc('n')->get();
+        $sources = OnlineReview::selectRaw('source, count(*) n, avg(rating5) a, max(review_date) last')->groupBy('source')->orderByDesc('n')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('reputation.reviews', compact('items', 'tab', 'counts', 'sources'));
     }
@@ -41,7 +41,7 @@ class ReviewController extends Controller
     public function show(OnlineReview $review)
     {
         $review->load('guest', 'reservation', 'recoveryCase.assignee', 'drafter', 'approver', 'poster');
-        $templates = ReviewTemplate::where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn ($t) => [$t->id => ['name' => $t->name, 'sentiment' => $t->sentiment, 'text' => ReviewService::render($t, $review)]]);
+        $templates = ReviewTemplate::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($t) => [$t->id => ['name' => $t->name, 'sentiment' => $t->sentiment, 'text' => ReviewService::render($t, $review)]]);
         $suggested = ReviewService::suggestedTemplate($review);
 
         return view('reputation.review', ['r' => $review, 'templates' => $templates, 'suggested' => $suggested?->id, 'needsApproval' => ReviewService::needsApproval($review)]);

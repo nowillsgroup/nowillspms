@@ -18,17 +18,17 @@ class ChannelManagerController extends Controller
 
     public function index()
     {
-        $connections = ChannelConnection::with('source', 'company')->withCount(['roomMaps', 'rateMaps'])->orderBy('name')->get()
+        $connections = ChannelConnection::with('source', 'company')->withCount(['roomMaps', 'rateMaps'])->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(fn ($c) => $c->pending = ChannelService::pendingCount($c));
         $stats = ChannelService::stats(30);
-        $overbooked = Reservation::with('guest', 'channel', 'rooms.roomType')->where('channel_attention', 'overbooked')->where('status', '!=', 'cancelled')->orderBy('arrival_date')->get();
+        $overbooked = Reservation::with('guest', 'channel', 'rooms.roomType')->where('channel_attention', 'overbooked')->where('status', '!=', 'cancelled')->orderBy('arrival_date')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('channel-manager.index', [
             'connections' => $connections, 'stats' => $stats, 'overbooked' => $overbooked,
-            'attention' => ChannelMessage::with('connection', 'reservation')->where('status', 'attention')->latest('id')->limit(8)->get(),
+            'attention' => ChannelMessage::with('connection', 'reservation')->where('status', 'attention')->latest('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'failedMsgs' => ChannelMessage::where('status', 'failed')->where('created_at', '>=', now()->subDays(7))->count(),
-            'recent' => Reservation::with('guest', 'channel', 'rooms.roomType')->whereNotNull('channel_connection_id')->latest('id')->limit(10)->get(),
-            'pushes' => ChannelPush::with('connection')->latest('id')->limit(8)->get(),
+            'recent' => Reservation::with('guest', 'channel', 'rooms.roomType')->whereNotNull('channel_connection_id')->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'pushes' => ChannelPush::with('connection')->latest('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'totals' => ['bookings' => $stats->sum('bookings'), 'revenue' => $stats->sum('revenue'), 'commission' => $stats->sum('commission'), 'nights' => $stats->sum('nights')],
         ]);
     }
@@ -47,7 +47,7 @@ class ChannelManagerController extends Controller
     public function message(ChannelMessage $chmsg)
     {
         $chmsg->load('connection', 'reservation.guest', 'resolver');
-        $history = ChannelMessage::where('channel_connection_id', $chmsg->channel_connection_id)->where('channel_ref', $chmsg->channel_ref)->orderBy('id')->get();
+        $history = ChannelMessage::where('channel_connection_id', $chmsg->channel_connection_id)->where('channel_ref', $chmsg->channel_ref)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('channel-manager.message', ['m' => $chmsg, 'history' => $history]);
     }
@@ -93,7 +93,7 @@ class ChannelManagerController extends Controller
 
     public function parity(Request $request)
     {
-        $connections = ChannelConnection::orderBy('name')->get();
+        $connections = ChannelConnection::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $c = $connections->firstWhere('id', (int) $request->connection) ?? $connections->first();
         $from = $request->filled('from') ? Carbon::parse($request->from)->max(bdate()->copy()->startOfDay()) : bdate()->copy()->startOfDay();
         $days = 14;
@@ -101,6 +101,6 @@ class ChannelManagerController extends Controller
         $out = collect($grid)->flatMap(fn ($byDate) => collect($byDate)->where('out_of_sync', true))->count();
 
         return view('channel-manager.parity', ['connections' => $connections, 'c' => $c, 'from' => $from, 'days' => $days, 'grid' => $grid, 'outOfSync' => $out,
-            'types' => RoomType::whereIn('id', array_keys($grid))->orderBy('base_rate')->get()]);
+            'types' => RoomType::whereIn('id', array_keys($grid))->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 }

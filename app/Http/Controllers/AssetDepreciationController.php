@@ -37,7 +37,7 @@ class AssetDepreciationController extends Controller
 
         return view('assets.dep_run', [
             'run' => $deprun,
-            'lines' => $deprun->lines()->with('asset.category')->get(),
+            'lines' => $deprun->lines()->with('asset.category')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'journal' => GlJournal::where('source_type', 'asset_dep')->where('source_key', (string) $deprun->id)->whereNull('reversal_of_id')->latest('id')->first(),
             'isLast' => AssetService::lastRun()?->id === $deprun->id,
         ]);

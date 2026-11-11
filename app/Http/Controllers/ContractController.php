@@ -29,7 +29,7 @@ class ContractController extends Controller
         $tab = array_key_exists($request->tab, self::TABS) ? $request->tab : 'all';
         $today = bdate()->toDateString();
         $alertTo = bdate()->copy()->addDays((int) setting('contract_expiry_alert_days', '60'))->toDateString();
-        $all = RateContract::with('company', 'allotments')->withCount('reservations')->orderByDesc('valid_to')->get()
+        $all = RateContract::with('company', 'allotments')->withCount('reservations')->orderByDesc('valid_to')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(fn ($c) => $c->prod = ContractService::production($c));
         $pick = fn ($c) => match ($tab) {
             'active' => in_array($c->state(), ['active', 'upcoming'], true),
@@ -94,7 +94,7 @@ class ContractController extends Controller
             'c' => $contract, 'prod' => ContractService::production($contract),
             'grid' => ContractService::allotmentGrid($contract, $from, 30), 'gridFrom' => $from,
             'usage' => $contract->allotments->mapWithKeys(fn ($a) => [$a->id => ContractService::allotmentUsage($a)]),
-            'bookings' => Reservation::with('guest', 'rooms.roomType')->where('rate_contract_id', $contract->id)->orderByDesc('arrival_date')->limit(25)->get(),
+            'bookings' => Reservation::with('guest', 'rooms.roomType')->where('rate_contract_id', $contract->id)->orderByDesc('arrival_date')->limit(25)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'renewals' => RateContract::where('renewed_from_id', $contract->id)->get(['id', 'code', 'status']),
             'publicRates' => RoomType::pluck('base_rate', 'id'),
         ]);

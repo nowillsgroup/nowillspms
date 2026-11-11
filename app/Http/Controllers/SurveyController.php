@@ -17,8 +17,8 @@ class SurveyController extends Controller
 {
     public function index()
     {
-        $surveys = Survey::withCount(['questions as active_questions' => fn ($q) => $q->where('is_active', true), 'responses'])->orderByDesc('is_default')->orderBy('name')->get();
-        $inv = SurveyInvitation::selectRaw("survey_id, sum(status in ('sent','opened','completed','expired')) sent, sum(status = 'completed') done")->groupBy('survey_id')->get()->keyBy('survey_id');
+        $surveys = Survey::withCount(['questions as active_questions' => fn ($q) => $q->where('is_active', true), 'responses'])->orderByDesc('is_default')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $inv = SurveyInvitation::selectRaw("survey_id, sum(status in ('sent','opened','completed','expired')) sent, sum(status = 'completed') done")->groupBy('survey_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('survey_id');
         $nps = [];
         foreach ($surveys as $s) {
             $nps[$s->id] = FeedbackService::npsOf($s->responses()->get(['nps']))['nps'];
@@ -56,7 +56,7 @@ class SurveyController extends Controller
         if ($d['reminder_hours'] && $d['reminder_hours'] >= $d['expiry_days'] * 24) {
             throw ValidationException::withMessages(['reminder_hours' => 'The reminder must go out before the survey expires.']);
         }
-        $existing = $survey->questions()->withCount('answers')->get()->keyBy('id');
+        $existing = $survey->questions()->withCount('answers')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
         $rows = [];
         $errors = [];
         foreach (array_values($request->input('q', [])) as $i => $row) {
@@ -127,7 +127,7 @@ class SurveyController extends Controller
 
     public function preview(Survey $survey)
     {
-        return view('public.survey', ['hotel' => hotel(), 'inv' => null, 'survey' => $survey, 'questions' => $survey->activeQuestions()->get(), 'token' => str_repeat('0', 40), 'preNps' => null, 'preview' => true]);
+        return view('public.survey', ['hotel' => hotel(), 'inv' => null, 'survey' => $survey, 'questions' => $survey->activeQuestions()->limit((int) config('pms.max_list_rows', 5000))->get(), 'token' => str_repeat('0', 40), 'preNps' => null, 'preview' => true]);
     }
 
     public function invitations(Request $request)

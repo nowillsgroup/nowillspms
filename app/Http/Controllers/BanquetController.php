@@ -58,9 +58,9 @@ class BanquetController extends Controller
         $q->inTimeOrder();
         $events = $q->paginate(25)->withQueryString();
 
-        $open = BanquetEvent::with('functions.items')->whereIn('status', ['enquiry', 'tentative', 'definite'])->get();
+        $open = BanquetEvent::with('functions.items')->whereIn('status', ['enquiry', 'tentative', 'definite'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $since = bdate()->copy()->subDays(90);
-        $decided = BanquetEvent::where('created_at', '>=', $since)->whereIn('status', ['definite', 'completed', 'cancelled', 'lost'])->get();
+        $decided = BanquetEvent::where('created_at', '>=', $since)->whereIn('status', ['definite', 'completed', 'cancelled', 'lost'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $won = $decided->whereIn('status', ['definite', 'completed', 'cancelled'])->count();
         $stats = [
             'definite' => $open->where('status', 'definite')->sum(fn ($e) => $e->net()),
@@ -95,7 +95,7 @@ class BanquetController extends Controller
         $from = $validStart ? Carbon::createFromFormat('!Y-m-d', $startValue) : bdate()->copy();
         $from->startOfDay();
         $to = $from->copy()->addDays($days - 1);
-        $allHalls = BanquetHall::where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+        $allHalls = BanquetHall::where('is_active', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $requestedHall = $request->query('hall');
         $requestedHallId = is_scalar($requestedHall) ? filter_var($requestedHall, FILTER_VALIDATE_INT) : false;
         $selectedHall = $requestedHallId !== false ? $allHalls->firstWhere('id', (int) $requestedHallId)?->id : null;
@@ -113,15 +113,15 @@ class BanquetController extends Controller
 
     protected function formData(BanquetEvent $e, array $functions): array
     {
-        $halls = BanquetHall::where('is_active', true)->orderBy('sort')->orderBy('name')->get();
-        $pkgs = BanquetPackage::where('is_active', true)->orderBy('sort')->orderBy('name')->get();
-        $svcs = ServiceItem::where('is_active', true)->orderBy('category')->orderBy('name')->get();
+        $halls = BanquetHall::where('is_active', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $pkgs = BanquetPackage::where('is_active', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $svcs = ServiceItem::where('is_active', true)->orderBy('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return [
             'event' => $e, 'functions' => $functions, 'halls' => $halls, 'packages' => $pkgs, 'services' => $svcs,
             'companies' => Company::orderBy('name')->pluck('name', 'id'),
-            'blocks' => RoomBlock::whereIn('status', ['tentative', 'definite'])->orderBy('arrival_date')->get()->mapWithKeys(fn ($b) => [$b->id => $b->block_no.' – '.$b->name]),
-            'salesUsers' => User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->get()->filter(fn ($u) => $u->hasPermission('banquet.manage'))->pluck('name', 'id'),
+            'blocks' => RoomBlock::whereIn('status', ['tentative', 'definite'])->orderBy('arrival_date')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($b) => [$b->id => $b->block_no.' – '.$b->name]),
+            'salesUsers' => User::where('hotel_id', Tenant::id())->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($u) => $u->hasPermission('banquet.manage'))->pluck('name', 'id'),
             'hallData' => $halls->mapWithKeys(fn ($h) => [$h->id => ['cap' => $h->capacity, 'caps' => collect(BanquetFunction::SETUPS)->keys()->mapWithKeys(fn ($s) => [$s => $h->capacityFor($s)]),
                 'half' => $h->rate_per_session, 'full' => $h->rate_full_day]]),
             'pkgData' => $pkgs->mapWithKeys(fn ($p) => [$p->id => ['p' => $p->price_per_pax, 'min' => $p->min_pax, 't' => $p->tax_rate, 'n' => $p->name]]),
@@ -241,7 +241,7 @@ class BanquetController extends Controller
 
         return view('banquet.show', [
             'e' => $event, 'folio' => $folio, 'deposits' => $event->depositsReceived(),
-            'txns' => $folio ? $folio->transactions()->where('is_void', false)->orderBy('id')->get() : collect(),
+            'txns' => $folio ? $folio->transactions()->where('is_void', false)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'modes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'online', 'gift_voucher'])->pluck('name', 'id'),
             'quote' => $event->status === 'definite' && ! $event->billed_at ? Sales::cancellationQuote($event) : null,
             'suggestDeposit' => round($event->total() * (float) setting('banquet_deposit_pct', '25') / 100 / 100) * 100,
@@ -251,7 +251,7 @@ class BanquetController extends Controller
     public function edit(BanquetEvent $event)
     {
         abort_unless($event->isEditable(), 403);
-        $fns = $event->functions()->with('items')->get()->map(fn ($f) => ['id' => $f->id, 'name' => $f->name, 'banquet_hall_id' => $f->banquet_hall_id, 'date' => $f->date->toDateString(),
+        $fns = $event->functions()->with('items')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($f) => ['id' => $f->id, 'name' => $f->name, 'banquet_hall_id' => $f->banquet_hall_id, 'date' => $f->date->toDateString(),
             'start_time' => substr($f->start_time, 0, 5), 'end_time' => substr($f->end_time, 0, 5), 'setup_style' => $f->setup_style, 'expected_pax' => $f->expected_pax,
             'guaranteed_pax' => $f->guaranteed_pax, 'banquet_package_id' => $f->banquet_package_id, 'rate_per_pax' => $f->rate_per_pax, 'hall_rate' => $f->hall_rate, 'notes' => $f->notes,
             'dietary' => $f->dietary ?? [],
@@ -445,7 +445,7 @@ class BanquetController extends Controller
             }
         }
         $fns = BanquetFunction::with('event.company', 'hall', 'package', 'items.service.department')->whereDate('date', $date->toDateString())
-            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite', 'completed']))->inTimeOrder()->get();
+            ->whereHas('event', fn ($q) => $q->whereIn('status', ['tentative', 'definite', 'completed']))->inTimeOrder()->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('banquet.sheet', ['date' => $date, 'fns' => $fns, 'hotel' => Tenant::hotel()]);
     }

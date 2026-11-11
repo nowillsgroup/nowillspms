@@ -316,7 +316,7 @@ trait BillingReports
 {
     protected function r_cashier_movements($from, $to): array
     {
-        $rows = CashierMovement::with(['user', 'shift.user'])->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()->map(fn ($movement) => [
+        $rows = CashierMovement::with(['user', 'shift.user'])->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($movement) => [
             'cashier' => $movement->shift?->user?->name ?? 'Former staff member', 'shift' => '#'.$movement->cashier_shift_id,
             'business_date' => $movement->business_date, 'moved' => $movement->created_at,
             'type' => $movement->kindLabel(), 'amount' => (float) $movement->amount,
@@ -331,7 +331,7 @@ trait BillingReports
 
     protected function r_cashier_shifts($from, $to): array
     {
-        $rows = CashierShift::with('user')->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->orderBy('business_date')->orderBy('opened_at')->get()->map(function ($shift) {
+        $rows = CashierShift::with('user')->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->orderBy('business_date')->orderBy('opened_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($shift) {
             $summary = ShiftService::summary($shift);
             $modes = collect($summary['modes'] ?? []);
             $variance = $shift->variance !== null ? (float) $shift->variance : null;
@@ -398,7 +398,7 @@ trait BillingReports
 
     protected function r_collection($from, $to): array
     {
-        $rows = FolioTransaction::with('folio.guest', 'paymentMode', 'poster')->where('is_void', false)->whereIn('type', ['payment', 'refund'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->get()
+        $rows = FolioTransaction::with('folio.guest', 'paymentMode', 'poster')->where('is_void', false)->whereIn('type', ['payment', 'refund'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->business_date->format('d-m-Y'), 'folio' => $t->folio->folio_no, 'guest' => $t->folio->guest?->full_name, 'desc' => $t->description,
                 'mode' => $t->category === 'city_ledger' ? 'City Ledger' : $t->paymentMode?->name, 'ref' => $t->reference, 'amount' => $t->type === 'refund' ? -(float) $t->amount : (float) $t->amount, 'user' => $t->poster?->username]);
 
@@ -409,7 +409,7 @@ trait BillingReports
     protected function r_credit_logs($from, $to): array
     {
         // Rewritten against the real schema: action/detail/folio_id/user_id; there is no reason/reference/status/description.
-        $rows = CreditLog::with('folio.guest', 'company', 'user')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = CreditLog::with('folio.guest', 'company', 'user')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'folio' => optional($r->folio)->folio_no, 'guest' => optional(optional($r->folio)->guest)->name,
             'company' => optional($r->company)->name,
             'action' => $r->action, 'amount' => (float) $r->amount, 'detail' => $r->detail,
@@ -420,7 +420,7 @@ trait BillingReports
 
     protected function r_invoices($from, $to): array
     {
-        $rows = Folio::with('guest', 'company', 'activeTransactions')->where('status', 'closed')->whereBetween('closed_at', [$from, $to->copy()->endOfDay()])->orderBy('closed_at')->get()
+        $rows = Folio::with('guest', 'company', 'activeTransactions')->where('status', 'closed')->whereBetween('closed_at', [$from, $to->copy()->endOfDay()])->orderBy('closed_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($f) {
                 $t = $f->totals();
 
@@ -437,7 +437,7 @@ trait BillingReports
         $f = $from->copy()->startOfDay();
         $t = $to->copy()->endOfDay();
         $rows = \App\Models\OnlinePayment::with('reservation', 'folioTransaction.folio')
-            ->where(fn ($q) => $q->whereBetween('created_at', [$f, $t])->orWhereBetween('paid_at', [$f, $t]))->orderBy('id')->get()
+            ->where(fn ($q) => $q->whereBetween('created_at', [$f, $t])->orWhereBetween('paid_at', [$f, $t]))->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['no' => $p->pay_no, 'created' => $p->created_at->format('d-m-Y H:i'), 'purpose' => \App\Models\OnlinePayment::PURPOSES[$p->purpose] ?? $p->purpose,
                 'guest' => $p->payer_name, 'res' => $p->reservation?->reservation_no, 'folio' => $p->folioTransaction?->folio?->folio_no, 'gateway' => ucfirst($p->provider),
                 'txn' => $p->provider_payment_id, 'channel' => $p->channel ? str_replace('_', ' ', $p->channel) : '', 'status' => $p->statusLabel(),
@@ -452,7 +452,7 @@ trait BillingReports
 
     protected function r_outstanding($from, $to): array
     {
-        $rows = Folio::with('guest', 'stay.room', 'company')->where('status', 'open')->get()
+        $rows = Folio::with('guest', 'stay.room', 'company')->where('status', 'open')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($f) {
                 $t = $f->totals();
 
@@ -465,7 +465,7 @@ trait BillingReports
 
     protected function r_revenue($from, $to): array
     {
-        $tx = FolioTransaction::where('is_void', false)->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->whereIn('type', ['charge', 'discount', 'allowance'])->get();
+        $tx = FolioTransaction::where('is_void', false)->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->whereIn('type', ['charge', 'discount', 'allowance'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $cats = config('pms.charge_categories');
         $rows = $tx->groupBy(fn ($t) => $t->business_date->toDateString())->sortKeys()->map(function ($g, $d) use ($cats) {
             $row = ['date' => Carbon::parse($d)->format('d-m-Y')];
@@ -491,14 +491,14 @@ trait BillingReports
 
             return ['src' => $src, 'cat' => $cat, 'rate' => $rate, 'taxable' => round($taxable, 2), 'vat' => $b['VAT'], 'nhil' => $b['NHIL'], 'getfund' => $b['GETFUND'], 'tl' => $b['TL'], 'tax' => round($tax, 2)];
         };
-        $rows = FolioTransaction::where('is_void', false)->where('type', 'charge')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->get()
+        $rows = FolioTransaction::where('is_void', false)->where('type', 'charge')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($t) => $t->category.'|'.(float) $t->tax_rate)
             ->map(function ($g, $k) use ($split) {
                 [$cat, $rate] = explode('|', $k);
 
                 return $split('Front Office', config('pms.charge_categories')[$cat] ?? $cat, $rate, (float) $g->sum('amount'), (float) $g->sum('tax_amount'), $cat);
             })->values();
-        $pos = PosOrderItem::whereHas('order', fn ($q) => $q->where('status', 'settled')->where('settlement', '!=', 'room_post')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to))->where('is_cancelled', false)->get()
+        $pos = PosOrderItem::whereHas('order', fn ($q) => $q->where('status', 'settled')->where('settlement', '!=', 'room_post')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to))->where('is_cancelled', false)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($i) => (float) $i->tax_rate)
             ->map(fn ($g, $rate) => $split('POS (direct)', 'Food & Beverage', $rate, (float) $g->sum('amount'), round($g->sum(fn ($i) => $i->amount * $i->tax_rate / 100), 2), 'fnb'))->values();
         $m = ['taxable', 'vat', 'nhil', 'getfund', 'tl', 'tax'];
@@ -510,10 +510,10 @@ trait BillingReports
 
     protected function r_voids($from, $to): array
     {
-        $rows = FolioTransaction::with('folio.guest', 'poster')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where(fn ($q) => $q->where('is_void', true)->orWhereIn('type', ['discount', 'allowance']))->orderBy('business_date')->get()
+        $rows = FolioTransaction::with('folio.guest', 'poster')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->where(fn ($q) => $q->where('is_void', true)->orWhereIn('type', ['discount', 'allowance']))->orderBy('business_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->business_date->format('d-m-Y'), 'folio' => $t->folio->folio_no, 'guest' => $t->folio->guest?->full_name, 'kind' => $t->is_void ? 'VOID '.$t->type : strtoupper($t->type),
                 'desc' => $t->description, 'amount' => (float) $t->amount + (float) $t->tax_amount, 'reason' => $t->void_reason, 'user' => $t->poster?->username]);
-        $pos = PosOrder::with('outlet', 'user')->where('status', 'void')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->get()
+        $pos = PosOrder::with('outlet', 'user')->where('status', 'void')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($o) => ['date' => $o->business_date->format('d-m-Y'), 'folio' => $o->order_no, 'guest' => $o->outlet->name, 'kind' => 'VOID POS', 'desc' => $o->customer_name, 'amount' => (float) $o->total, 'reason' => $o->void_reason, 'user' => $o->user?->username]);
 
         return ['cols' => ['date' => 'Date', 'folio' => 'Folio / Order', 'guest' => 'Guest / Outlet', 'kind' => 'Type', 'desc' => 'Description', 'amount' => 'Amount', 'reason' => 'Reason', 'user' => 'User'], 'rows' => $rows->concat($pos)->values(), 'money' => ['amount'], 'sum' => ['amount']];

@@ -218,7 +218,7 @@ class PartnerPortalController extends Controller
         $res = $this->ownReservation($u, $id);
 
         return view('partner.booking', ['r' => $res, 'cancellable' => PS::cancellable($res), 'cancelQuote' => PS::cancellable($res) ? PS::cancelQuote($res) : null,
-            'requests' => PartnerRequest::with('partnerUser', 'decider')->where('reservation_id', $res->id)->orderByDesc('id')->get(),
+            'requests' => PartnerRequest::with('partnerUser', 'decider')->where('reservation_id', $res->id)->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'value' => round($res->rooms->where('status', '!=', 'cancelled')->sum(fn ($s) => PS::stayValue($s)), 2)]);
     }
 
@@ -324,7 +324,7 @@ class PartnerPortalController extends Controller
         $u = $this->me($r);
         abort_unless($u->can('users'), 403);
 
-        return view('partner.users', ['rows' => PartnerUser::where('company_id', $u->company_id)->orderByDesc('is_active')->orderBy('name')->get()]);
+        return view('partner.users', ['rows' => PartnerUser::where('company_id', $u->company_id)->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function invite(Request $r)
@@ -361,7 +361,7 @@ class PartnerPortalController extends Controller
 
     public function profile(Request $r)
     {
-        return view('partner.profile', ['activity' => \App\Models\PartnerAudit::where('partner_user_id', $this->me($r)->id)->orderByDesc('id')->limit(15)->get()]);
+        return view('partner.profile', ['activity' => \App\Models\PartnerAudit::where('partner_user_id', $this->me($r)->id)->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function password(Request $r)

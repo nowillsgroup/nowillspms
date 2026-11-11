@@ -57,12 +57,12 @@ class GiftVoucherController extends Controller
         } elseif ($tab === 'campaigns') {
             $campaigns = GiftVoucher::where('source', 'promo')->whereNotNull('campaign')
                 ->selectRaw("campaign, COUNT(*) n, SUM(face_value) issued, SUM(balance) outstanding, SUM(status = 'redeemed') used, SUM(face_value - balance) spent_or_lapsed, MIN(issued_on) first_on, MAX(expires_on) expires")
-                ->groupBy('campaign')->orderByDesc('first_on')->get();
+                ->groupBy('campaign')->orderByDesc('first_on')->limit((int) config('pms.max_list_rows', 5000))->get();
         }
 
         return view('vouchers.index', [
             'tab' => $tab, 'vouchers' => $vouchers, 'campaigns' => $campaigns, 'cfg' => Gv::cfg(), 'snap' => Gv::snapshot(),
-            'types' => GiftVoucherType::withCount('vouchers')->orderBy('name')->get(), 'modes' => $this->saleModes(),
+            'types' => GiftVoucherType::withCount('vouchers')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'modes' => $this->saleModes(),
             'found' => session('gv_lookup_miss'),
         ]);
     }
@@ -72,13 +72,13 @@ class GiftVoucherController extends Controller
         $gvoucher->load('type', 'guest', 'paymentMode', 'issuer', 'transactions.user', 'transactions.paymentMode', 'transactions.folioTransaction.folio', 'transactions.posOrder');
         $folios = collect();
         if (can_do('vouchers.redeem') && $gvoucher->usable() && $gvoucher->type->usableOn('folio')) {
-            $folios = Folio::with('stay.room', 'guest')->where('status', 'open')->whereHas('stay', fn ($q) => $q->where('status', 'checked_in'))->get()
+            $folios = Folio::with('stay.room', 'guest')->where('status', 'open')->whereHas('stay', fn ($q) => $q->where('status', 'checked_in'))->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->map(fn ($f) => ['id' => $f->id, 'label' => ($f->stay?->room?->room_no ?? '—').' · '.($f->guest?->full_name ?? $f->folio_no).' · '.$f->folio_no.' · balance '.money($f->balance()), 'balance' => $f->balance()])
                 ->sortBy('label')->values();
         }
 
         return view('vouchers.show', ['v' => $gvoucher, 'folios' => $folios, 'modes' => $this->saleModes(), 'cfg' => Gv::cfg(),
-            'emails' => \App\Models\EmailLog::where('related_type', 'GiftVoucher')->where('related_id', $gvoucher->id)->latest('id')->limit(5)->get()]);
+            'emails' => \App\Models\EmailLog::where('related_type', 'GiftVoucher')->where('related_id', $gvoucher->id)->latest('id')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function printCard(GiftVoucher $gvoucher)
@@ -281,7 +281,7 @@ class GiftVoucherController extends Controller
         $hotel = Hotel::findOrFail($v->hotel_id);
         Tenant::set($hotel);
         $v->load('type');
-        $recent = GiftVoucherTransaction::where('gift_voucher_id', $v->id)->whereIn('type', ['redeem', 'reversal', 'reload', 'expire'])->orderByDesc('id')->limit(8)->get();
+        $recent = GiftVoucherTransaction::where('gift_voucher_id', $v->id)->whereIn('type', ['redeem', 'reversal', 'reload', 'expire'])->orderByDesc('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return response()->view('public.voucher', ['hotel' => $hotel, 'v' => $v, 'recent' => $recent, 'cfg' => Gv::cfg(),
             'qr' => \App\Services\EInvoiceService::qrSvg(route('voucher.public', $v->code))])

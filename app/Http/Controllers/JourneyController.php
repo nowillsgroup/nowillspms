@@ -15,7 +15,7 @@ class JourneyController extends Controller
 {
     public function index()
     {
-        $journeys = MarketingJourney::with('segment', 'promo')->orderByDesc('is_active')->orderBy('name')->get()
+        $journeys = MarketingJourney::with('segment', 'promo')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(function ($j) {
                 $j->stats = CrmService::stats($j);
                 $j->upcoming = $j->is_active ? CrmService::journeyCandidates($j, bdate()->copy()->addDay())->count() : null;
@@ -27,7 +27,7 @@ class JourneyController extends Controller
     protected function options(): array
     {
         return ['segments' => MarketingSegment::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
-            'promos' => PromoCode::where('is_active', true)->orderBy('code')->get()->mapWithKeys(fn ($p) => [$p->id => $p->code.' – '.$p->offerLabel()]),
+            'promos' => PromoCode::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($p) => [$p->id => $p->code.' – '.$p->offerLabel()]),
             'sample' => Guest::where('stays_count', '>', 0)->orderByDesc('total_revenue')->first() ?? Guest::first()];
     }
 

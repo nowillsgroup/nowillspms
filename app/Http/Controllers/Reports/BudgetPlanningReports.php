@@ -328,7 +328,7 @@ trait BudgetPlanningReports
             return $this->noBudget($cols);
         }
         $acc = $B::accounts()->keyBy('id');
-        $lines = $b->lines()->get()->filter(fn ($l) => $acc->has($l->account_head_id));
+        $lines = $b->lines()->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($l) => $acc->has($l->account_head_id));
         $rows = collect();
         $secSum = [];
         foreach ($B::SECTIONS as $k => $label) {
@@ -371,7 +371,7 @@ trait BudgetPlanningReports
 
     protected function r_budget_events($from, $to): array
     {
-        $rows = BudgetEvent::with('budget.eventType')->whereBetween('event_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = BudgetEvent::with('budget.eventType')->whereBetween('event_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'budget' => optional($r->budget)->name, 'type' => optional($r->eventType)->name,
             'date' => $r->event_date, 'description' => $r->description, 'budgeted' => $r->budgeted_amount,
             'actual' => $r->actual_amount, 'variance' => $r->variance, 'status' => $r->status,
@@ -389,7 +389,7 @@ trait BudgetPlanningReports
             return $this->noBudget($cols);
         }
         $as = $B::actualStats($b->fiscal_year);
-        $st = $b->stats()->get()->keyBy('month');
+        $st = $b->stats()->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('month');
         $rows = collect();
         foreach ($B::monthLabels($b->fiscal_year) as $m => $l) {
             $s = $st[$m] ?? null;
@@ -411,7 +411,7 @@ trait BudgetPlanningReports
         $rows = BudgetLine::with('budget', 'account')
             ->whereHas('budget', fn ($q) => $q->whereBetween('fiscal_year', [(int) substr((string) $from, 0, 4), (int) substr((string) $to, 0, 4)]))
             ->orderBy('budget_id')->orderBy('account_head_id')
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => [
                 'budget' => optional($r->budget)->budget_no,
                 'account' => optional($r->account)->name,
@@ -427,7 +427,7 @@ trait BudgetPlanningReports
         // Rewritten against the real schema: budget_stats has no budget() relation; iterate budgets between FYs.
         $rows = Budget::with('stats', 'department')
             ->whereBetween('fiscal_year', [(int) substr((string) $from, 0, 4), (int) substr((string) $to, 0, 4)])
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->flatMap(fn ($b) => $b->stats->sortBy('month')->map(fn ($s) => [
                 'budget' => $b->budget_no,
                 'fy' => $b->fyLabel(),
@@ -496,8 +496,8 @@ trait BudgetPlanningReports
             return $this->noBudget($cols, $b ? 'approved, active re-forecast' : 'approved, active budget');
         }
         $acc = $B::accounts()->keyBy('id');
-        $bl = $b->lines()->get()->keyBy('account_head_id');
-        $fl = $f->lines()->get()->keyBy('account_head_id');
+        $bl = $b->lines()->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('account_head_id');
+        $fl = $f->lines()->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('account_head_id');
         $act = $B::actuals($b->fiscal_year);
         $rows = collect();
         $tot = ['income' => [0, 0], 'expense' => [0, 0]];
@@ -524,7 +524,7 @@ trait BudgetPlanningReports
 
     protected function r_variance_commentary($from, $to): array
     {
-        $rows = \App\Models\BudgetComment::with('account', 'user', 'budgetVersion')->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->orderBy('id')->get()
+        $rows = \App\Models\BudgetComment::with('account', 'user', 'budgetVersion')->whereBetween('period', [$from->format('Y-m'), $to->format('Y-m')])->orderBy('period')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => ['period' => \Illuminate\Support\Carbon::parse($c->period.'-01')->format('M Y'), 'budget_no' => $c->budgetVersion?->budget_no, 'account' => $c->account ? $c->account->code.' '.$c->account->name : 'General (whole month)',
                 'actual' => $c->actual, 'budget' => $c->budget, 'var' => $c->actual !== null && $c->budget !== null ? round($c->actual - $c->budget, 2) : null, 'comment' => $c->body,
                 'by' => $c->user?->name, 'at' => $c->created_at->format('d-m-Y H:i')]);

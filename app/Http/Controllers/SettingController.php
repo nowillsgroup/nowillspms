@@ -92,7 +92,7 @@ class SettingController extends Controller
 
         return view('settings.index', [
             'hotel' => $hotel, 'keys' => self::KEYS, 'values' => Setting::pluck('value', 'key'),
-            'properties' => $user->is_group_admin && $user->hotel_group_id ? Hotel::where('hotel_group_id', $user->hotel_group_id)->orderBy('name')->get() : collect(),
+            'properties' => $user->is_group_admin && $user->hotel_group_id ? Hotel::where('hotel_group_id', $user->hotel_group_id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'timezones' => \DateTimeZone::listIdentifiers(),
             'stores' => \App\Models\Store::orderBy('name')->pluck('name', 'id'),
             'outlets' => \App\Models\Outlet::where('is_active', true)->orderBy('name')->pluck('name', 'id'),

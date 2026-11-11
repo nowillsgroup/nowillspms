@@ -320,7 +320,7 @@ trait FnBPosReports
         // belongs to a banquet_events record) — the previous version queried
         // 'event.event_date' as a column path, which never resolved and 500'd.
         $rows = BanquetEventItem::with('function.event', 'service')
-            ->get()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()
             ->sortBy(fn ($r) => optional($r->function)->date)
             ->values()
             ->map(fn ($r) => [
@@ -339,7 +339,7 @@ trait FnBPosReports
     protected function r_banquet_packages($from, $to): array
     {
         // Rewritten against the real schema: type/style/price_per_pax/min_pax/items/is_active/sort.
-        $rows = BanquetPackage::orderBy('sort')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = BanquetPackage::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => $r->type, 'style' => $r->style,
             'price_pp' => (float) $r->price_per_pax, 'min_pax' => $r->min_pax,
             'tax_rate' => (float) $r->tax_rate,
@@ -352,7 +352,7 @@ trait FnBPosReports
     protected function r_banquet_services($from, $to): array
     {
         // Rewritten against the real schema: category/unit/price/tax_rate/department_id/is_active.
-        $rows = BanquetService::with('department')->orderBy('category')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = BanquetService::with('department')->orderBy('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'category' => $r->category, 'unit' => $r->unit,
             'price' => (float) $r->price, 'tax_rate' => (float) $r->tax_rate,
             'department' => optional($r->department)->name, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -362,7 +362,7 @@ trait FnBPosReports
 
     protected function r_fb_cost_snapshots($from, $to): array
     {
-        $rows = FbCostSnapshot::with('outlet.period')->whereBetween('snapshot_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FbCostSnapshot::with('outlet.period')->whereBetween('snapshot_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'outlet' => optional($r->outlet)->name, 'date' => $r->snapshot_date, 'period' => optional($r->period)->name,
             'revenue' => $r->revenue, 'food_cost' => $r->food_cost, 'beverage_cost' => $r->beverage_cost,
             'labor_cost' => $r->labor_cost, 'total_cost' => $r->total_cost, 'cost_pct' => $r->cost_percentage,
@@ -373,7 +373,7 @@ trait FnBPosReports
 
     protected function r_fb_recipe_cards($from, $to): array
     {
-        $rows = FbRecipeCard::with('menuItem.outlet')->get()->map(fn ($r) => [
+        $rows = FbRecipeCard::with('menuItem.outlet')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'item' => optional($r->menuItem)->name, 'outlet' => optional($r->outlet)->name,
             'yield' => $r->yield_pct, 'prep_time' => $r->prep_time_minutes, 'cost' => $r->cost_per_unit,
             'status' => $r->status, 'version' => $r->version, 'last_updated' => $r->updated_at,
@@ -384,7 +384,7 @@ trait FnBPosReports
 
     protected function r_fb_staff_meals($from, $to): array
     {
-        $rows = FbStaffMeal::with('employee.outlet')->whereBetween('meal_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FbStaffMeal::with('employee.outlet')->whereBetween('meal_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'outlet' => optional($r->outlet)->name,
             'date' => $r->meal_date, 'meal_type' => $r->meal_type, 'cost' => $r->cost,
             'status' => $r->status, 'shift' => $r->shift_label,
@@ -394,7 +394,7 @@ trait FnBPosReports
 
     protected function r_fb_yield_tests($from, $to): array
     {
-        $rows = FbYieldTest::with('menuItem.outlet')->whereBetween('test_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = FbYieldTest::with('menuItem.outlet')->whereBetween('test_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'item' => optional($r->menuItem)->name, 'outlet' => optional($r->outlet)->name,
             'date' => $r->test_date, 'raw_weight' => $r->raw_weight, 'cooked_weight' => $r->cooked_weight,
             'yield_pct' => $r->yield_pct, 'cost_raw' => $r->cost_raw, 'cost_cooked' => $r->cost_cooked,
@@ -405,7 +405,7 @@ trait FnBPosReports
 
     protected function r_kot_print_jobs($from, $to): array
     {
-        $rows = KotPrintJob::with('kotPrinter.outlet')->whereBetween('printed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = KotPrintJob::with('kotPrinter.outlet')->whereBetween('printed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'printer' => optional($r->kotPrinter)->name, 'outlet' => optional($r->outlet)->name,
             'printed' => $r->printed_at, 'order_ref' => $r->order_reference, 'items' => $r->item_count,
             'status' => $r->status, 'copies' => $r->copies, 'notes' => $r->notes,
@@ -416,7 +416,7 @@ trait FnBPosReports
     protected function r_kot_printers($from, $to): array
     {
         // Rewritten against the real schema: station/role/connection/host per printer; no outlet.kitchen relation.
-        $rows = KotPrinter::with('outlet')->orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = KotPrinter::with('outlet')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'code' => $r->code, 'outlet' => optional($r->outlet)->name ?? 'All outlets',
             'station' => $r->station, 'role' => ucfirst((string) $r->role),
             'connection' => ucfirst((string) $r->connection), 'host' => $r->host, 'port' => $r->port,
@@ -428,7 +428,7 @@ trait FnBPosReports
     protected function r_menu_categories($from, $to): array
     {
         // Rewritten against the real schema: kitchen_station/fb_class/kot_printer_id; outlets have no parent or floor.
-        $rows = MenuCategory::with('outlet', 'printer')->orderBy('sort_order')->get()->map(fn ($r) => [
+        $rows = MenuCategory::with('outlet', 'printer')->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'outlet' => optional($r->outlet)->name,
             'station' => $r->kitchen_station, 'fb_class' => $r->fb_class,
             'printer' => optional($r->printer)->name, 'sort' => $r->sort_order,
@@ -438,7 +438,7 @@ trait FnBPosReports
 
     protected function r_menu_item_recipes($from, $to): array
     {
-        $rows = MenuItemRecipe::with('menuItem.outlet')->get()->map(fn ($r) => [
+        $rows = MenuItemRecipe::with('menuItem.outlet')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'item' => optional($r->menuItem)->name, 'outlet' => optional($r->outlet)->name,
             'ingredient' => $r->ingredient_name, 'quantity' => $r->quantity, 'unit' => $r->unit,
             'cost' => $r->cost, 'percentage' => $r->percentage_of_cost, 'sort' => $r->sort_order,
@@ -450,7 +450,7 @@ trait FnBPosReports
     protected function r_menu_items($from, $to): array
     {
         // Rewritten against the real schema: code/food_type/tax_rate/is_available; there is no menuCategory relation on MenuItem (it is category()).
-        $rows = MenuItem::with('category', 'outlet')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = MenuItem::with('category', 'outlet')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'code' => $r->code, 'category' => optional($r->category)->name,
             'outlet' => optional($r->outlet)->name, 'price' => (float) $r->price,
             'tax_rate' => (float) $r->tax_rate, 'food_type' => $r->food_type,
@@ -461,7 +461,7 @@ trait FnBPosReports
 
     protected function r_menu_modifier_groups($from, $to): array
     {
-        $rows = MenuModifierGroup::with('outlet')->get()->map(fn ($r) => [
+        $rows = MenuModifierGroup::with('outlet')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'outlet' => optional($r->outlet)->name,
             'required' => $r->is_required, 'min_select' => $r->minimum_select, 'max_select' => $r->maximum_select,
             'status' => $r->status, 'description' => $r->description,
@@ -471,7 +471,7 @@ trait FnBPosReports
 
     protected function r_menu_modifiers($from, $to): array
     {
-        $rows = MenuModifier::with('modifierGroup.outlet')->get()->map(fn ($r) => [
+        $rows = MenuModifier::with('modifierGroup.outlet')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'group' => optional($r->modifierGroup)->name,
             'outlet' => optional($r->outlet)->name, 'price' => $r->price, 'status' => $r->status,
             'sort' => $r->sort_order, 'description' => $r->description,
@@ -481,7 +481,7 @@ trait FnBPosReports
 
     protected function r_outlet_service_periods($from, $to): array
     {
-        $rows = \App\Models\OutletServicePeriod::with('outlet.serviceType')->whereBetween('service_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\OutletServicePeriod::with('outlet.serviceType')->whereBetween('service_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'outlet' => optional($r->outlet)->name, 'type' => optional($r->serviceType)->name,
             'date' => $r->service_date, 'start' => $r->start_time, 'end' => $r->end_time,
             'status' => $r->status, 'notes' => $r->notes,
@@ -492,18 +492,18 @@ trait FnBPosReports
     protected function r_package_allocation($from, $to): array
     {
         $range = [$from->toDateString(), $to->toDateString()];
-        $pkgs = \App\Models\Package::orderBy('sort')->orderBy('name')->get();
+        $pkgs = \App\Models\Package::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $alloc = \App\Models\PackageEntitlement::whereDate('night_date', '>=', $range[0])->whereDate('night_date', '<=', $range[1])->where('status', '!=', 'cancelled')
             ->selectRaw("package_id, SUM(CASE WHEN source='included' THEN amount ELSE 0 END) inc, SUM(CASE WHEN source='addon' THEN amount ELSE 0 END) addon, SUM(qty) covers, COUNT(*) n")
-            ->groupBy('package_id')->get()->keyBy('package_id');
+            ->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
         $used = \App\Models\PackageRedemption::whereDate('business_date', '>=', $range[0])->whereDate('business_date', '<=', $range[1])->whereNull('voided_at')
             ->selectRaw("package_id, SUM(amount) used, SUM(covers) cov, SUM(CASE WHEN overage_mode='folio' THEN extra_amount ELSE 0 END) extras, SUM(extra_covers) xcov")
-            ->groupBy('package_id')->get()->keyBy('package_id');
+            ->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
         $fixedUsed = \App\Models\PackageEntitlement::whereDate('night_date', '>=', $range[0])->whereDate('night_date', '<=', $range[1])->where('status', 'consumed')->where('is_allowance', false)
-            ->selectRaw('package_id, SUM(amount) v, SUM(qty) q')->groupBy('package_id')->get()->keyBy('package_id');
-        $brk = \App\Models\PackageEntitlement::whereDate('expired_date', '>=', $range[0])->whereDate('expired_date', '<=', $range[1])->selectRaw('package_id, SUM(breakage_amount) b, SUM(qty - consumed_qty) q')->groupBy('package_id')->get()->keyBy('package_id');
+            ->selectRaw('package_id, SUM(amount) v, SUM(qty) q')->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
+        $brk = \App\Models\PackageEntitlement::whereDate('expired_date', '>=', $range[0])->whereDate('expired_date', '<=', $range[1])->selectRaw('package_id, SUM(breakage_amount) b, SUM(qty - consumed_qty) q')->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
         $open = \App\Models\PackageEntitlement::whereIn('status', ['open', 'partial'])->where('is_allowance', true)->whereDate('night_date', '<=', $range[1])
-            ->selectRaw('package_id, SUM(amount - consumed_amount) o')->groupBy('package_id')->get()->keyBy('package_id');
+            ->selectRaw('package_id, SUM(amount - consumed_amount) o')->groupBy('package_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('package_id');
         $rows = $pkgs->map(function ($p) use ($alloc, $used, $brk, $open, $fixedUsed) {
             $a = $alloc[$p->id] ?? null;
             $u = $used[$p->id] ?? null;
@@ -527,7 +527,7 @@ trait FnBPosReports
     protected function r_package_consumption($from, $to): array
     {
         $rows = \App\Models\PackageRedemption::with('package', 'stay.room', 'stay.guest', 'outlet', 'recorder', 'voider')
-            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->get()
+            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['no' => $r->redemption_no, 'date' => $r->business_date->format('d-m-Y'), 'time' => $r->created_at?->format('H:i'), 'room' => $r->stay?->room?->room_no,
                 'guest' => $r->stay?->guest?->full_name, 'package' => $r->package?->name, 'outlet' => $r->outlet?->name, 'covers' => $r->voided_at ? 0 : $r->covers,
                 'amount' => $r->voided_at ? 0 : (float) $r->amount, 'extra_covers' => $r->voided_at ? 0 : $r->extra_covers, 'extra' => $r->voided_at ? 0 : (float) $r->extra_amount,
@@ -543,13 +543,13 @@ trait FnBPosReports
 
     protected function r_package_forecast($from, $to): array
     {
-        $pkgs = \App\Models\Package::where('is_allowance', true)->orderBy('sort')->orderBy('name')->get()->keyBy('id');
+        $pkgs = \App\Models\Package::where('is_allowance', true)->orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
         $bd = bdate()->toDateString();
         $rows = collect();
         $actual = \App\Models\PackageEntitlement::whereDate('service_date', '>=', $from->toDateString())->whereDate('service_date', '<=', min($to->toDateString(), bdate()->copy()->subDay()->toDateString()))
             ->where('status', '!=', 'cancelled')->where('is_allowance', true)
             ->selectRaw('service_date, package_id, COUNT(DISTINCT reservation_room_id) rooms, SUM(adults) adults, SUM(children) children, SUM(qty) covers, SUM(consumed_qty) used, SUM(amount) value')
-            ->groupBy('service_date', 'package_id')->get();
+            ->groupBy('service_date', 'package_id')->limit((int) config('pms.max_list_rows', 5000))->get();
         foreach ($actual as $a) {
             $rows->push(['date' => Carbon::parse($a->service_date)->format('d-m-Y'), '_d' => Carbon::parse($a->service_date)->toDateString(), 'package' => $pkgs[$a->package_id]->name ?? '#'.$a->package_id,
                 'basis' => 'Actual', 'rooms' => (int) $a->rooms, 'adults' => (int) $a->adults, 'children' => (int) $a->children, 'covers' => (int) $a->covers, 'used' => (int) $a->used, 'value' => round((float) $a->value, 2)]);
@@ -577,7 +577,7 @@ trait FnBPosReports
 
     protected function r_pos_bills($from, $to): array
     {
-        $rows = PosOrder::with('outlet', 'table', 'paymentMode', 'payments.paymentMode', 'stay.room', 'user')->whereIn('status', ['settled', 'void'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->get()
+        $rows = PosOrder::with('outlet', 'table', 'paymentMode', 'payments.paymentMode', 'stay.room', 'user')->whereIn('status', ['settled', 'void'])->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($o) {
                 $tenders = $o->payments->where('kind', 'payment')->map(fn ($p) => $p->paymentMode?->name)->filter()->unique()->join(', ');
 
@@ -604,7 +604,7 @@ trait FnBPosReports
             ->where(function ($q) {
                 $q->where('settlement', 'complimentary')
                     ->orWhereHas('items', fn ($items) => $items->where('is_complimentary', true));
-            })->orderBy('business_date')->orderBy('id')->get();
+            })->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         $rows = collect();
         foreach ($orders as $order) {
@@ -696,7 +696,7 @@ trait FnBPosReports
     protected function r_pos_evat_register($from, $to): array
     {
         $rows = \App\Models\PosOrder::with('outlet:id,name')->where('status', 'settled')->where('settlement', 'payment')->where('total', '>', 0)
-            ->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->orderBy('business_date')->orderBy('id')->get()
+            ->whereDate('business_date', '>=', Carbon::parse($from)->toDateString())->whereDate('business_date', '<=', Carbon::parse($to)->toDateString())->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($o) {
                 $l = \App\Services\PosEvatService::lines($o);
 
@@ -713,7 +713,7 @@ trait FnBPosReports
 
     protected function r_pos_items($from, $to): array
     {
-        $rows = PosOrderItem::with('order.outlet', 'menuItem.category')->where('is_cancelled', false)->whereHas('order', fn ($q) => $q->where('status', 'settled')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to))->get()
+        $rows = PosOrderItem::with('order.outlet', 'menuItem.category')->where('is_cancelled', false)->whereHas('order', fn ($q) => $q->where('status', 'settled')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to))->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($i) => $i->order->outlet->name.'|'.$i->item_name)
             ->map(function ($g, $k) {
                 [$o, $n] = explode('|', $k, 2);
@@ -726,7 +726,7 @@ trait FnBPosReports
 
     protected function r_pos_payments($from, $to): array
     {
-        $rows = PosPayment::with('order.outlet', 'paymentMode', 'receiver')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->get()
+        $rows = PosPayment::with('order.outlet', 'paymentMode', 'receiver')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($p) => ['date' => $p->business_date->format('d-m-Y'), 'time' => $p->received_at?->format('H:i'), 'kind' => $p->kind === 'refund' ? 'REFUND' : 'PAYMENT',
                 'bill' => $p->order?->bill_no ?? $p->order?->order_no, 'outlet' => $p->order?->outlet?->name, 'mode' => $p->paymentMode?->name,
                 'amount' => $p->kind === 'refund' ? -(float) $p->amount : (float) $p->amount, 'tendered' => (float) ($p->tendered_amount ?? 0),
@@ -742,7 +742,7 @@ trait FnBPosReports
 
     protected function r_pos_sales($from, $to): array
     {
-        $rows = PosOrder::with('outlet')->where('status', 'settled')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->get()->groupBy('outlet.name')
+        $rows = PosOrder::with('outlet')->where('status', 'settled')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('outlet.name')
             ->map(fn ($g, $o) => ['outlet' => $o, 'bills' => $g->count(), 'covers' => $g->sum('covers'), 'gross' => $g->sum('subtotal'), 'discount' => $g->sum('discount'), 'sc' => $g->sum('service_charge'), 'tax' => $g->sum('tax'), 'total' => $g->sum('total'),
                 'cash' => $g->where('settlement', 'payment')->sum('total'), 'room' => $g->where('settlement', 'room_post')->sum('total'), 'comp' => $g->where('settlement', 'complimentary')->sum('subtotal'), 'apc' => $g->sum('covers') ? round($g->sum('total') / $g->sum('covers'), 2) : 0])->values();
         $m = ['gross', 'discount', 'sc', 'tax', 'total', 'cash', 'room', 'comp', 'apc'];
@@ -754,7 +754,7 @@ trait FnBPosReports
     protected function r_pos_tables($from, $to): array
     {
         // Rewritten against the real schema: table_no/section/shape/capacity/is_active; outlets have no floor relation.
-        $rows = \App\Models\PosTable::with('outlet')->orderBy('table_no')->get()->map(fn ($r) => [
+        $rows = \App\Models\PosTable::with('outlet')->orderBy('table_no')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'table' => $r->table_no, 'outlet' => optional($r->outlet)->name, 'section' => $r->section,
             'capacity' => $r->capacity, 'shape' => $r->shape, 'combinable' => $r->combinable ? 'Yes' : 'No',
             'active' => $r->is_active ? 'Yes' : 'No',
@@ -765,7 +765,7 @@ trait FnBPosReports
     protected function r_spa_rooms($from, $to): array
     {
         // Rewritten against the real schema: spa_rooms holds only name/is_active.
-        $rows = SpaRoom::orderBy('name')->get()->map(fn ($r) => [
+        $rows = SpaRoom::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'active' => $r->is_active ? 'Yes' : 'No',
         ]);
         return ['cols' => ['name' => 'Name', 'active' => 'Active'], 'rows' => $rows, 'note' => 'Spa treatment room list.'];
@@ -917,7 +917,7 @@ trait FnBPosReports
 
     protected function r_fbc_price_changes($from, $to): array
     {
-        $list = \App\Models\FbPriceChange::with(['menuItem', 'user'])->whereDate('effective_on', '>=', $from->toDateString())->whereDate('effective_on', '<=', $to->toDateString())->orderByDesc('effective_on')->orderByDesc('id')->get();
+        $list = \App\Models\FbPriceChange::with(['menuItem', 'user'])->whereDate('effective_on', '>=', $from->toDateString())->whereDate('effective_on', '<=', $to->toDateString())->orderByDesc('effective_on')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($c) => ['date' => $c->effective_on->format('d M Y'), 'dish' => $c->menuItem?->name, 'old' => $c->old_price, 'new' => $c->new_price,
             'change' => $c->old_price > 0 ? round(($c->new_price - $c->old_price) / $c->old_price * 100, 1).'%' : '', 'cost' => $c->cost_at,
             'before' => $c->old_price > 0 && $c->cost_at > 0 ? round($c->cost_at / $c->old_price * 100, 1).'%' : '', 'after' => $c->new_price > 0 && $c->cost_at > 0 ? round($c->cost_at / $c->new_price * 100, 1).'%' : '',

@@ -63,7 +63,7 @@ class PosController extends Controller
         $previousFrom = $previousTo->copy()->subDays($periodDays - 1)->startOfDay();
         $previousDateRange = [$previousFrom->toDateString(), $previousTo->toDateString()];
 
-        $outlets = Outlet::orderBy('name')->get();
+        $outlets = Outlet::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $outletQuery = $request->query('outlet');
         $outletId = is_string($outletQuery) && preg_match('/^\d+$/', $outletQuery) ? (int) $outletQuery : null;
         $selectedOutlet = $outletId ? $outlets->firstWhere('id', $outletId) : null;
@@ -102,7 +102,7 @@ class PosController extends Controller
             ->where(fn ($q) => $q->whereNull('customer_name')->orWhere('customer_name', 'not like', 'DEMO PREVIEW ·%'))
             ->when($selectedOutlet, fn ($q) => $q->where('outlet_id', $selectedOutlet->id))
             ->reorder()->selectRaw('business_date, outlet_id, SUM(total) as sales')
-            ->groupBy('business_date', 'outlet_id')->get();
+            ->groupBy('business_date', 'outlet_id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $trendLookup = $trendRows->keyBy(fn ($row) => \Illuminate\Support\Carbon::parse($row->business_date)->toDateString().'|'.$row->outlet_id);
         $palette = ['#5377ef', '#27b899', '#f59e0b', '#9b59b6', '#ec5367', '#268bd2', '#16a085', '#e67e22', '#64748b', '#be185d'];
         $salesOutletIds = $trendRows->pluck('outlet_id')->unique()->values();
@@ -138,7 +138,7 @@ class PosController extends Controller
         });
 
         $typeRows = (clone $orders)->where('status', 'settled')->reorder()
-            ->selectRaw('order_type, COUNT(*) as checks, SUM(total) as sales')->groupBy('order_type')->get()->keyBy('order_type');
+            ->selectRaw('order_type, COUNT(*) as checks, SUM(total) as sales')->groupBy('order_type')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('order_type');
         $typePalette = ['dine_in' => '#f28c28', 'room_service' => '#25bd9a', 'delivery' => '#e9535c', 'takeaway' => '#5377ef'];
         $typeLabels = ['dine_in' => 'Dine-in', 'room_service' => 'Room service', 'delivery' => 'Delivery', 'takeaway' => 'Take Away'];
         $typeTotal = (float) $typeRows->sum('sales');
@@ -175,7 +175,7 @@ class PosController extends Controller
                 ->where(fn ($w) => $w->whereNull('customer_name')->orWhere('customer_name', 'not like', 'DEMO PREVIEW ·%'))
                 ->when($selectedOutlet, fn ($w) => $w->where('outlet_id', $selectedOutlet->id)))
             ->selectRaw("payment_mode_id, SUM(CASE WHEN kind = 'refund' THEN -amount ELSE amount END) as net_amount, COUNT(DISTINCT pos_order_id) as check_count")
-            ->groupBy('payment_mode_id')->with('paymentMode')->get();
+            ->groupBy('payment_mode_id')->with('paymentMode')->limit((int) config('pms.max_list_rows', 5000))->get();
         $collections = (float) $paymentAggregates->sum('net_amount');
         $previousCollections = (float) (PosPayment::query()->whereBetween('business_date', $previousDateRange)->whereIn('kind', ['payment', 'refund'])
             ->whereDoesntHave('paymentMode', fn ($q) => $q->where('type', 'city_ledger'))
@@ -195,11 +195,11 @@ class PosController extends Controller
         $itemSalesQuery = DB::table('pos_order_items as poi')->whereIn('poi.pos_order_id', $settledOrderIds)
             ->where('poi.is_cancelled', false)->where('poi.is_pending', false)->where('poi.is_complimentary', false)->where('poi.amount', '>', 0);
         $topItems = (clone $itemSalesQuery)->selectRaw('poi.item_name, SUM(poi.qty) as qty, SUM(poi.amount) as sales')
-            ->groupBy('poi.item_name')->orderByDesc('sales')->orderBy('poi.item_name')->limit(5)->get();
+            ->groupBy('poi.item_name')->orderByDesc('sales')->orderBy('poi.item_name')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
         $topItemNames = $topItems->pluck('item_name');
         $lowItems = (clone $itemSalesQuery)->when($topItemNames->isNotEmpty(), fn ($q) => $q->whereNotIn('poi.item_name', $topItemNames))
             ->selectRaw('poi.item_name, SUM(poi.qty) as qty, SUM(poi.amount) as sales')
-            ->groupBy('poi.item_name')->orderBy('sales')->orderBy('poi.item_name')->limit(5)->get();
+            ->groupBy('poi.item_name')->orderBy('sales')->orderBy('poi.item_name')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         $turnaroundForRange = function (array $range) use ($selectedOutlet) {
             $seconds = 0.0;
@@ -306,10 +306,10 @@ class PosController extends Controller
 
     public function index(Request $request)
     {
-        $outlets = Outlet::where('is_active', true)->get();
+        $outlets = Outlet::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         $outlet = $outlets->firstWhere('id', $request->integer('outlet')) ?? $outlets->first();
 
-        $running = $outlet ? PosOrder::with('table', 'stay.room')->where('outlet_id', $outlet->id)->whereIn('status', ['open', 'billed'])->latest()->get() : collect();
+        $running = $outlet ? PosOrder::with('table', 'stay.room')->where('outlet_id', $outlet->id)->whereIn('status', ['open', 'billed'])->latest()->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $pending = PosOrderItem::whereIn('pos_order_id', $running->pluck('id'))->where('is_pending', true)->where('is_cancelled', false)
             ->groupBy('pos_order_id')->selectRaw('pos_order_id, count(*) as n')->pluck('n', 'pos_order_id');
 
@@ -317,14 +317,14 @@ class PosController extends Controller
         $reservedSoon = collect();
         if ($outlet?->tb_enabled) {
             foreach (\App\Models\TableReservation::with('tables')->where('outlet_id', $outlet->id)->whereIn('status', \App\Models\TableReservation::UPCOMING)
-                ->whereBetween('start_at', [now()->subHours(2), now()->addMinutes(90)])->orderBy('start_at')->get() as $r) {
+                ->whereBetween('start_at', [now()->subHours(2), now()->addMinutes(90)])->orderBy('start_at')->limit((int) config('pms.max_list_rows', 5000))->get() as $r) {
                 foreach ($r->tables as $t) {
                     $reservedSoon[$t->id] ??= $r;
                 }
             }
         }
 
-        $tables = $outlet ? PosTable::with('openOrder.items')->where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->get() : collect();
+        $tables = $outlet ? PosTable::with('openOrder.items')->where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $waiterTerminal = DepartmentShiftService::requiresPersonalShift($request->user())
             && DepartmentShiftService::activeForUser((int) $request->user()->id) !== null;
 
@@ -333,7 +333,7 @@ class PosController extends Controller
             'waiterTerminal' => $waiterTerminal,
             'tables' => $tables, 'freeTables' => $tables->filter(fn ($table) => ! $table->openOrder),
             'running' => $running,
-            'inHouse' => ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->get(),
+            'inHouse' => ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -344,7 +344,7 @@ class PosController extends Controller
             return response()->json([]);
         }
 
-        return response()->json(Guest::whereNull('privacy_status')->search($q)->orderBy('first_name')->orderBy('last_name')->limit(8)->get()
+        return response()->json(Guest::whereNull('privacy_status')->search($q)->orderBy('first_name')->orderBy('last_name')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($guest) => ['id' => $guest->id, 'name' => $guest->full_name, 'phone' => $guest->phone, 'email' => $guest->email, 'vip' => (bool) $guest->is_vip])->values());
     }
 
@@ -383,10 +383,10 @@ class PosController extends Controller
     public function terminal(PosOrder $order)
     {
         $order->load('outlet', 'table', 'stay.room', 'items', 'paymentMode', 'payments.paymentMode', 'deliveryDriver', 'folio');
-        $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $order->outlet_id))->orderBy('sort_order')->get();
+        $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $order->outlet_id))->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get();
         $items = MenuItem::with(['category', 'variants'])->with(['modifierGroups' => fn ($q) => $q->where(fn ($w) => $w->whereNull('outlet_id')->orWhere('outlet_id', $order->outlet_id))->with('modifiers')])
             ->where('is_available', true)->whereIn('menu_category_id', $cats->pluck('id'))
-            ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $order->outlet_id))->orderBy('name')->get();
+            ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $order->outlet_id))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $kotPrint = app(KotPrintService::class);
         $kotPrinters = $kotPrint->forOutlet($order->outlet_id);
         $printerMap = [];
@@ -396,7 +396,7 @@ class PosController extends Controller
             $printerMap[$item->id] = $kotPrint->resolve($fake, $kotPrinters, $order->outlet_id)?->name ?? 'Unrouted';
         }
         $flashKot = session('print_kot');
-        $flashJobs = $flashKot ? KotPrintJob::with('printer')->where('pos_order_id', $order->id)->where('kot_no', $flashKot)->latest('id')->limit(12)->get() : collect();
+        $flashJobs = $flashKot ? KotPrintJob::with('printer')->where('pos_order_id', $order->id)->where('kot_no', $flashKot)->latest('id')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $autoPrintUrl = null;
         if ($flashKot && setting('pos_auto_print_kot', '1') === '1' && ! session('print_void') && ! session('print_ask')) {
             $cap = $flashJobs->first(fn ($j) => $j->kind === 'captain' && $j->printer?->connection === 'browser' && $j->status !== 'failed');
@@ -415,10 +415,10 @@ class PosController extends Controller
             'flashJobs' => $flashJobs, 'autoPrintUrl' => $autoPrintUrl,
             'paymentModes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->pluck('name', 'id'),
             'complimentaryCompanies' => Company::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
-            'inHouse' => ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->get(),
-            'freeTables' => PosTable::where('outlet_id', $order->outlet_id)->where('is_active', true)->whereDoesntHave('openOrder')->orderBy('id')->get(),
-            'otherOrders' => PosOrder::with('table')->where('outlet_id', $order->outlet_id)->whereIn('status', ['open', 'billed'])->whereKeyNot($order->id)->latest()->get(),
-            'deliveryDrivers' => Driver::where('is_active', true)->orderBy('name')->get(),
+            'inHouse' => ReservationRoom::with('room', 'reservation.guest')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'freeTables' => PosTable::where('outlet_id', $order->outlet_id)->where('is_active', true)->whereDoesntHave('openOrder')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'otherOrders' => PosOrder::with('table')->where('outlet_id', $order->outlet_id)->whereIn('status', ['open', 'billed'])->whereKeyNot($order->id)->latest()->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'deliveryDrivers' => Driver::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -435,7 +435,7 @@ class PosController extends Controller
         $this->assertEditable($order);
         $kot = null;
         DB::transaction(function () use ($order, &$kot) {
-            $pending = $order->items()->where('is_pending', true)->where('is_cancelled', false)->lockForUpdate()->get();
+            $pending = $order->items()->where('is_pending', true)->where('is_cancelled', false)->lockForUpdate()->limit((int) config('pms.max_list_rows', 5000))->get();
             if ($pending->isEmpty()) {
                 throw ValidationException::withMessages(['order' => 'No pending guest items.']);
             }
@@ -472,9 +472,9 @@ class PosController extends Controller
     /** Printable sheet of QR codes – one per table – linking to the public menu. */
     public function qrSheet(Request $request)
     {
-        $outlets = Outlet::where('is_active', true)->get();
+        $outlets = Outlet::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         $outlet = $outlets->firstWhere('id', $request->integer('outlet')) ?? $outlets->first();
-        $tables = $outlet ? PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->get() : collect();
+        $tables = $outlet ? PosTable::where('outlet_id', $outlet->id)->where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $opts = new \chillerlan\QRCode\QROptions(['outputType' => \chillerlan\QRCode\Output\QROutputInterface::MARKUP_SVG, 'outputBase64' => false, 'svgAddXmlHeader' => false, 'eccLevel' => \chillerlan\QRCode\Common\EccLevel::M, 'addQuietzone' => true]);
         $codes = $tables->mapWithKeys(function ($t) use ($opts) {
             $url = route('qrmenu.show', $t->ensureQrToken());
@@ -753,7 +753,7 @@ class PosController extends Controller
         if (! empty($data['item_id'])) {
             $q->whereKey($data['item_id']);
         }
-        $lines = $q->get();
+        $lines = $q->limit((int) config('pms.max_list_rows', 5000))->get();
         abort_if($lines->isEmpty(), 422, 'Nothing is on hold.');
         foreach ($lines as $line) {
             $line->forceFill(['kitchen_status' => 'new', 'fired_at' => now()])->save();
@@ -1201,7 +1201,7 @@ class PosController extends Controller
         $waiterSummary = (clone $query)->reorder()->selectRaw(
             "COALESCE(NULLIF(TRIM(pos_orders.steward), ''), 'Unassigned') as waiter, " .
             "COUNT(*) as invoice_count, COALESCE(SUM({$balanceSql}), 0) as balance_due"
-        )->groupBy('pos_orders.steward')->orderByDesc('balance_due')->orderBy('waiter')->get();
+        )->groupBy('pos_orders.steward')->orderByDesc('balance_due')->orderBy('waiter')->limit((int) config('pms.max_list_rows', 5000))->get();
         $orders = (clone $query)
             ->with('outlet', 'table', 'stay.room')
             ->withCount([
@@ -1348,7 +1348,7 @@ class PosController extends Controller
         $orders = $ordersQuery->with([
             'outlet', 'table', 'stay.room',
             'items' => fn ($q) => $q->where('is_cancelled', false)->orderBy('id'),
-        ])->latest('created_at')->limit(150)->get();
+        ])->latest('created_at')->limit(150)->limit((int) config('pms.max_list_rows', 5000))->get();
         $itemsByOrder = $orders->mapWithKeys(fn ($order) => [$order->id => $order->items]);
         $rows = $orders->map(function ($order) use ($itemsByOrder) {
             $items = $itemsByOrder[$order->id];
@@ -1429,13 +1429,13 @@ class PosController extends Controller
     {
         $order->load('outlet', 'table', 'stay.room', 'items.menuItem.category');
         $svc = app(KotPrintService::class);
-        $printers = KotPrinter::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get();
+        $printers = KotPrinter::where('is_active', true)->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $all = $order->items->where('kot_no', $kot)->values();
         if ($jobId = $request->integer('job')) {
             $job = KotPrintJob::with('printer')->where('pos_order_id', $order->id)->where('kot_no', $kot)->findOrFail($jobId);
             $items = $all->whereIn('id', $job->item_ids ?? [])->values();
             if ($items->isEmpty()) {
-                $items = PosOrderItem::whereIn('id', $job->item_ids ?? [])->orderBy('id')->get();
+                $items = PosOrderItem::whereIn('id', $job->item_ids ?? [])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
             }
             $slips = [[
                 'printer' => $job->printer, 'kind' => $job->kind, 'items' => $items,

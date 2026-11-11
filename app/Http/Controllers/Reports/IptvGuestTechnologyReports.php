@@ -317,7 +317,7 @@ trait IptvGuestTechnologyReports
     protected function r_iptv_channels($from, $to): array
     {
         $C = \App\Models\TvChannel::class;
-        $list = $C::withCount(['programmes as ahead' => fn ($q) => $q->where('ends_at', '>', now())])->orderBy('number')->get();
+        $list = $C::withCount(['programmes as ahead' => fn ($q) => $q->where('ends_at', '>', now())])->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get();
         $views = \App\Models\TvEvent::where('event', 'channel')->where('created_at', '>=', now()->subDays(30))->selectRaw('target, COUNT(*) n')->groupBy('target')->pluck('n', 'target');
         $rows = $list->map(fn ($c) => ['no' => $c->number, 'name' => $c->name, 'cat' => $c->categoryLabel(), 'lang' => $c->language, 'radio' => $c->is_radio ? 'Radio' : '', 'stream' => $c->stream_url,
             'epg' => $c->epg_id, 'ahead' => $c->epg_id ? $c->ahead : null, 'views' => (int) ($views[$c->number.' '.$c->name] ?? 0) ?: null, 'active' => $c->is_active ? 'Yes' : 'No', '_class' => $c->is_active ? '' : 'muted']);
@@ -330,8 +330,8 @@ trait IptvGuestTechnologyReports
     protected function r_iptv_devices($from, $to): array
     {
         $D = \App\Models\TvDevice::class;
-        $list = $D::with('room')->where('status', '!=', 'pending')->orderBy('kind')->orderBy('name')->get();
-        $stays = \App\Models\ReservationRoom::with(['guest', 'reservation.guest'])->where('status', 'checked_in')->whereIn('room_id', $list->pluck('room_id')->filter())->get()->keyBy('room_id');
+        $list = $D::with('room')->where('status', '!=', 'pending')->orderBy('kind')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $stays = \App\Models\ReservationRoom::with(['guest', 'reservation.guest'])->where('status', 'checked_in')->whereIn('room_id', $list->pluck('room_id')->filter())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('room_id');
         $rows = $list->map(function ($d) use ($D, $stays) {
             $st = $d->room_id ? ($stays[$d->room_id] ?? null) : null;
             $g = $st ? ($st->guest ?? $st->reservation?->guest) : null;
@@ -352,7 +352,7 @@ trait IptvGuestTechnologyReports
     {
         [$a, $b] = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
         $ev = \App\Models\TvEvent::whereBetween('created_at', [$a, $b])->selectRaw("DATE(created_at) d, COUNT(*) n, COUNT(DISTINCT tv_device_id) tvs, SUM(event = 'welcome') w, SUM(event = 'channel') ch, SUM(event = 'rent') r, SUM(event = 'order') o, SUM(event IN ('request', 'wakeup', 'checkout')) q")
-            ->groupBy('d')->get()->keyBy('d');
+            ->groupBy('d')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('d');
         $rows = collect();
         for ($d = $a->copy(); $d->lte($b) && $rows->count() < 400; $d->addDay()) {
             $x = $ev->get($d->toDateString());
@@ -370,7 +370,7 @@ trait IptvGuestTechnologyReports
     protected function r_iptv_messages($from, $to): array
     {
         $M = \App\Models\TvMessage::class;
-        $list = $M::with(['sender', 'closer'])->withCount('reads')->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('starts_at')->get();
+        $list = $M::with(['sender', 'closer'])->withCount('reads')->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('starts_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($m) => ['no' => $m->number, 'kind' => $M::KINDS[$m->kind] ?? $m->kind, 'to' => $m->targetLabel(), 'title' => $m->title, 'prio' => $m->priority === 'high' ? 'High' : '',
             'from' => $m->starts_at->format('d-m-Y H:i'), 'until' => $m->ends_at?->format('d-m-Y H:i') ?? ($m->closed_at?->format('d-m-Y H:i')), 'by' => $m->sender?->name, 'reads' => $m->reads_count ?: null,
             'state' => $m->state(), 'note' => $m->close_note ? $m->close_note.' – '.($m->closer?->name ?? '') : null, '_class' => $m->kind === 'emergency' ? 'row-red' : '']);
@@ -386,16 +386,16 @@ trait IptvGuestTechnologyReports
     {
         [$a, $b] = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
         $rows = collect();
-        foreach (\App\Models\PosOrder::with(['stay.room', 'items'])->where('source', 'tv')->whereBetween('created_at', [$a, $b])->get() as $o) {
+        foreach (\App\Models\PosOrder::with(['stay.room', 'items'])->where('source', 'tv')->whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get() as $o) {
             $items = $o->items->where('is_cancelled', false);
             $rows->push(['at' => $o->created_at, 'type' => 'Dining order', 'ref' => $o->order_no, 'room' => $o->stay?->room?->room_no, 'detail' => $items->map(fn ($i) => $i->qty.'× '.$i->item_name)->implode(', '),
                 'status' => ucfirst((string) $o->status), 'value' => round((float) $items->sum('amount'), 2) ?: null]);
         }
-        foreach (\App\Models\GuestRequest::with('stay.room')->where('source', 'tv')->whereBetween('created_at', [$a, $b])->get() as $r) {
+        foreach (\App\Models\GuestRequest::with('stay.room')->where('source', 'tv')->whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get() as $r) {
             $rows->push(['at' => $r->created_at, 'type' => $r->category === 'checkout' ? 'Express check-out' : 'Service request', 'ref' => $r->request_no, 'room' => $r->stay?->room?->room_no,
                 'detail' => trim($r->categoryLabel().' · '.$r->item, ' ·'), 'status' => \App\Models\GuestRequest::STATUSES[$r->status] ?? $r->status, 'value' => null]);
         }
-        foreach (\App\Models\WakeupCall::with('stay.room')->where('source', 'tv')->whereBetween('created_at', [$a, $b])->get() as $w) {
+        foreach (\App\Models\WakeupCall::with('stay.room')->where('source', 'tv')->whereBetween('created_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get() as $w) {
             $rows->push(['at' => $w->created_at, 'type' => 'Wake-up call', 'ref' => null, 'room' => $w->stay?->room?->room_no, 'detail' => $w->call_at->format('d-m-Y H:i').($w->daily ? ' · daily' : ''),
                 'status' => $w->statusLabel(), 'value' => null]);
         }
@@ -407,7 +407,7 @@ trait IptvGuestTechnologyReports
 
     protected function r_iptv_vod($from, $to): array
     {
-        $list = \App\Models\TvPurchase::with(['room', 'stay.guest', 'stay.reservation.guest', 'refunder'])->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('starts_at')->get();
+        $list = \App\Models\TvPurchase::with(['room', 'stay.guest', 'stay.reservation.guest', 'refunder'])->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('starts_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($p) {
             $g = $p->stay?->guest ?? $p->stay?->reservation?->guest;
 
@@ -427,7 +427,7 @@ trait IptvGuestTechnologyReports
     protected function r_tv_commands($from, $to): array
     {
         // Rewritten against the real schema: command/payload/status/result/sent_at; there is no command type table.
-        $rows = TvCommand::with('device', 'issuer')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TvCommand::with('device', 'issuer')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'device' => optional($r->device)->name, 'command' => $r->command,
             'sent' => $r->sent_at, 'status' => ucfirst((string) $r->status),
             'result' => $r->result, 'issued_by' => optional($r->issuer)->name,
@@ -437,7 +437,7 @@ trait IptvGuestTechnologyReports
 
     protected function r_tv_message_reads($from, $to): array
     {
-        $rows = TvMessageRead::with('message.device.guest')->whereBetween('read_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TvMessageRead::with('message.device.guest')->whereBetween('read_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'message' => optional($r->message)->subject, 'device' => optional($r->device)->device_name,
             'guest' => optional($r->guest)->name, 'read' => $r->read_at, 'status' => $r->status,
         ]);
@@ -447,7 +447,7 @@ trait IptvGuestTechnologyReports
     protected function r_tv_movies($from, $to): array
     {
         // Rewritten against the real schema: genre/rating/duration_min/year/language/price/is_active; no lookup tables.
-        $rows = TvMovie::orderBy('sort')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = TvMovie::orderBy('sort')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'genre' => $r->genre, 'language' => $r->language,
             'duration' => $r->duration_min, 'rating' => $r->rating, 'year' => $r->year,
             'price' => (float) $r->price, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -458,7 +458,7 @@ trait IptvGuestTechnologyReports
     protected function r_tv_pages($from, $to): array
     {
         // Rewritten against the real schema: title/category/icon/language/body/sort/is_active; no lookup tables.
-        $rows = TvPage::orderBy('sort')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = TvPage::orderBy('sort')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'category' => $r->category, 'language' => $r->language,
             'icon' => $r->icon, 'sort' => $r->sort, 'active' => $r->is_active ? 'Yes' : 'No',
         ]);
@@ -467,7 +467,7 @@ trait IptvGuestTechnologyReports
 
     protected function r_tv_programmes($from, $to): array
     {
-        $rows = TvProgramme::with('channel.programmeType')->whereBetween('air_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TvProgramme::with('channel.programmeType')->whereBetween('air_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'channel' => optional($r->channel)->name,
             'type' => optional($r->programmeType)->name, 'air_date' => $r->air_date,
             'start' => $r->start_time, 'end' => $r->end_time, 'duration' => $r->duration_minutes,
@@ -479,7 +479,7 @@ trait IptvGuestTechnologyReports
     protected function r_tv_sessions($from, $to): array
     {
         // Rewritten against the real schema: sessions link a device, stay and welcome template; there is no guest on the session.
-        $rows = TvSession::with('device', 'stay.guest', 'template')->whereBetween('started_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TvSession::with('device', 'stay.guest', 'template')->whereBetween('started_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'device' => optional($r->device)->name,
             'guest' => optional(optional($r->stay)->guest)->name,
             'template' => optional($r->template)->name,
@@ -492,7 +492,7 @@ trait IptvGuestTechnologyReports
     protected function r_tv_welcome_templates($from, $to): array
     {
         // Rewritten against the real schema: segment/priority/headline/body/theme/valid_from/valid_to; no lookup tables.
-        $rows = TvWelcomeTemplate::orderByDesc('priority')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = TvWelcomeTemplate::orderByDesc('priority')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'language' => $r->language, 'segment' => $r->segment,
             'priority' => $r->priority, 'headline' => $r->headline,
             'valid_from' => $r->valid_from, 'valid_to' => $r->valid_to,

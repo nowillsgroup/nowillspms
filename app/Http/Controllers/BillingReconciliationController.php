@@ -58,7 +58,7 @@ class BillingReconciliationController extends Controller
 
     public function show(BillingReconciliation $billingReconciliation)
     {
-        $items = $billingReconciliation->items()->with('folio.guest', 'folio.company', 'folio.original', 'reviewer')->get();
+        $items = $billingReconciliation->items()->with('folio.guest', 'folio.company', 'folio.original', 'reviewer')->limit((int) config('pms.max_list_rows', 5000))->get();
         $billingReconciliation->setRelation('items', $items);
 
         return view('billing-reconciliation.show', [
@@ -134,7 +134,7 @@ class BillingReconciliationController extends Controller
 
     public function print(BillingReconciliation $billingReconciliation)
     {
-        $items = $billingReconciliation->items()->with('folio.guest', 'folio.company', 'reviewer')->get();
+        $items = $billingReconciliation->items()->with('folio.guest', 'folio.company', 'reviewer')->limit((int) config('pms.max_list_rows', 5000))->get();
         $billingReconciliation->setRelation('items', $items);
 
         return view('billing-reconciliation.print', [

@@ -36,8 +36,8 @@ class AuthorisationController extends Controller
             ->where(fn ($q) => $q->where('status', 'checked_in')
                 ->orWhere(fn ($q) => $q->where('status', 'reserved')->whereDate('arrival_date', '<=', bdate()->copy()->addDays(14)->toDateString()))
                 ->orWhere(fn ($q) => $q->where('status', 'checked_out')->whereDate('departure_date', '>=', bdate()->copy()->subDays(7)->toDateString())))
-            ->orderBy('status')->orderBy('arrival_date')->get();
-        $folios = Folio::with('guest', 'stay.room')->where('status', 'open')->orderByDesc('id')->limit(200)->get();
+            ->orderBy('status')->orderBy('arrival_date')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $folios = Folio::with('guest', 'stay.room')->where('status', 'open')->orderByDesc('id')->limit(200)->limit((int) config('pms.max_list_rows', 5000))->get();
         $counts = RevenueAuthorisation::selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status');
 
         return view('income-audit.authorisations', ['rows' => $rows, 'show' => $show, 'stays' => $stays, 'folios' => $folios, 'counts' => $counts,

@@ -47,8 +47,8 @@ class BusinessDevController extends Controller
 
     protected function lookups(): array
     {
-        return ['people' => BD::people(), 'partnerList' => BdPartner::whereNotIn('status', ['terminated'])->orderBy('name')->get(),
-            'sources' => BusinessSource::where('is_active', true)->orderBy('name')->get(), 'promos' => PromoCode::orderBy('code')->get(),
+        return ['people' => BD::people(), 'partnerList' => BdPartner::whereNotIn('status', ['terminated'])->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'sources' => BusinessSource::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'promos' => PromoCode::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'companies' => Company::orderBy('name')->get(['id', 'name'])];
     }
 
@@ -62,9 +62,9 @@ class BusinessDevController extends Controller
         return view('bd.index', ['alerts' => BD::alerts(), 'idx' => BD::indices($last), 'series' => BD::benchmarkSeries(6), 'position' => BD::ratePosition(bdate()->copy(), 14),
             'pipeline' => BD::pipeline(), 'partners' => BD::partnerTotals($ytdFrom, bdate()->copy()->endOfYear()),
             'mix' => BD::marketMix($ytdFrom, bdate()->copy(), 'nationality')->take(6), 'segments' => BD::marketMix($ytdFrom, bdate()->copy(), 'segment'),
-            'awaiting' => BdInitiative::with('owner')->where('stage', 'business_case')->whereNotNull('submitted_at')->orderBy('submitted_at')->get(),
+            'awaiting' => BdInitiative::with('owner')->where('stage', 'business_case')->whereNotNull('submitted_at')->orderBy('submitted_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'milestones' => BdMilestone::with('initiative', 'owner')->whereNull('done_at')->whereDate('due_date', '<=', bdate()->copy()->addDays(14)->toDateString())
-                ->whereHas('initiative', fn ($q) => $q->whereIn('stage', ['idea', 'assessment', 'business_case', 'approved', 'implementation']))->orderBy('due_date')->limit(8)->get(),
+                ->whereHas('initiative', fn ($q) => $q->whereIn('stage', ['idea', 'assessment', 'business_case', 'approved', 'implementation']))->orderBy('due_date')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'lastShop' => BD::lastShop(), 'competitorCount' => BdCompetitor::where('is_active', true)->count()]);
     }
 
@@ -83,7 +83,7 @@ class BusinessDevController extends Controller
 
     public function competitor(BdCompetitor $bdcompetitor)
     {
-        $lines = $bdcompetitor->lines()->with('shop')->get()->sortByDesc(fn ($l) => $l->shop->stay_date)->take(30);
+        $lines = $bdcompetitor->lines()->with('shop')->limit((int) config('pms.max_list_rows', 5000))->get()->sortByDesc(fn ($l) => $l->shop->stay_date)->take(30);
 
         return view('bd.competitor', ['c' => $bdcompetitor, 'lines' => $lines]);
     }
@@ -148,7 +148,7 @@ class BusinessDevController extends Controller
                         ->orWhereHas('company', fn ($q) => $q->where('name', 'like', $like));
                 });
             })
-            ->orderByRaw("FIELD(status, 'active', 'negotiating', 'prospect', 'expired', 'terminated')")->orderBy('name')->get();
+            ->orderByRaw("FIELD(status, 'active', 'negotiating', 'prospect', 'expired', 'terminated')")->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('bd.partners', ['status' => $status, 'q' => $search, 'rows' => $list->map(fn ($p) => [$p, BD::partnerProduction($p), BD::partnerFlags($p)]),
             'totals' => BD::partnerTotals()] + $this->lookups());
@@ -166,7 +166,7 @@ class BusinessDevController extends Controller
 
         return view('bd.partner', ['p' => $p, 'ytd' => BD::partnerProduction($p), 'ly' => BD::partnerProduction($p, bdate()->copy()->subYear()->startOfYear(), bdate()->copy()->subYear()->endOfYear()),
             'months' => $months, 'flags' => BD::partnerFlags($p),
-            'stays' => BD::partnerQuery($p)->with('guest', 'source')->where('status', '!=', 'cancelled')->orderByDesc('arrival_date')->limit(15)->get()] + $this->lookups());
+            'stays' => BD::partnerQuery($p)->with('guest', 'source')->where('status', '!=', 'cancelled')->orderByDesc('arrival_date')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()] + $this->lookups());
     }
 
     public function partnerStore(Request $r)
@@ -189,7 +189,7 @@ class BusinessDevController extends Controller
     public function initiatives(Request $r)
     {
         $view = $r->query('view') === 'list' ? 'list' : 'board';
-        $all = BdInitiative::with('owner', 'milestones', 'results')->orderByDesc('annual_revenue')->get();
+        $all = BdInitiative::with('owner', 'milestones', 'results')->orderByDesc('annual_revenue')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('bd.initiatives', ['view' => $view, 'all' => $all, 'stats' => $all->mapWithKeys(fn ($i) => [$i->id => BD::initiativeStats($i)]), 'pipeline' => BD::pipeline()] + $this->lookups());
     }
@@ -257,7 +257,7 @@ class BusinessDevController extends Controller
 
     public function settings()
     {
-        return view('bd.settings', ['cfg' => BD::cfg(), 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->get(), 'type' => BD::benchmarkType()]);
+        return view('bd.settings', ['cfg' => BD::cfg(), 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get(), 'type' => BD::benchmarkType()]);
     }
 
     public function settingsSave(Request $r)

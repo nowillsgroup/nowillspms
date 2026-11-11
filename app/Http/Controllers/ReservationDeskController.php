@@ -96,7 +96,7 @@ class ReservationDeskController extends Controller
         return $this->card($request, 'reservations.desk-stay', [
             'stay' => $stay,
             'free' => $free,
-            'modes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->orderBy('name')->get(),
+            'modes' => PaymentMode::where('is_active', true)->where('type', '!=', 'city_ledger')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'categories' => config('pms.charge_categories'),
             'taxRate' => TaxService::roomTax((float) $stay->rate)['rate'],
             'title' => $stay->reservation->reservation_no,
@@ -115,15 +115,15 @@ class ReservationDeskController extends Controller
             ->where('status', 'active')
             ->whereDate('ends_on', '>', $today)
             ->orderBy('starts_on')
-            ->get();
-        $tasks = HousekeepingTask::with('employee')->where('room_id', $room->id)->latest('task_date')->limit(5)->get();
-        $tickets = MaintenanceRequest::where('room_id', $room->id)->latest('id')->limit(5)->get();
+            ->limit((int) config('pms.max_list_rows', 5000))->get();
+        $tasks = HousekeepingTask::with('employee')->where('room_id', $room->id)->latest('task_date')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $tickets = MaintenanceRequest::where('room_id', $room->id)->latest('id')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
         $openTicketCount = MaintenanceRequest::where('room_id', $room->id)->whereIn('status', ['open', 'in_progress'])->count();
         $history = ReservationRoom::with('reservation.guest')->where('room_id', $room->id)
-            ->where('status', 'checked_out')->orderByDesc('departure_date')->limit(5)->get();
+            ->where('status', 'checked_out')->orderByDesc('departure_date')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
         $upcomingStays = ReservationRoom::with(['reservation.guest', 'reservation.source'])
             ->where('room_id', $room->id)->where('status', 'reserved')->whereDate('arrival_date', '>=', $today)
-            ->orderBy('arrival_date')->limit(5)->get();
+            ->orderBy('arrival_date')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
         $photo = ReservationDeskService::photoPath($room);
         $roomImages = $room->images->concat($room->roomType?->images ?? collect())->unique('path')->values();
 
@@ -329,6 +329,7 @@ class ReservationDeskController extends Controller
 
     public function tick(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         try {
             $date = \Illuminate\Support\Carbon::parse($request->input('date', bdate()->toDateString()));
         } catch (\Throwable) {
@@ -393,9 +394,9 @@ class ReservationDeskController extends Controller
         ReservationDeskService::syncAmenities();
 
         return view('reservations.amenities', [
-            'amenities' => RoomAmenity::withCount('links')->orderBy('name')->get(),
-            'types' => RoomType::with(['amenityLinks', 'images'])->where('is_active', true)->orderBy('name')->get(),
-            'rooms' => Room::with(['images', 'roomType'])->where('is_active', true)->orderBy('room_no')->get(),
+            'amenities' => RoomAmenity::withCount('links')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'types' => RoomType::with(['amenityLinks', 'images'])->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'rooms' => Room::with(['images', 'roomType'])->where('is_active', true)->orderBy('room_no')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 

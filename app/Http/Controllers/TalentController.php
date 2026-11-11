@@ -45,14 +45,14 @@ class TalentController extends Controller
 
     protected function employees()
     {
-        return Employee::with('department')->where('is_active', true)->orderBy('name')->get();
+        return Employee::with('department')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ------------------------------------------------------------------ dashboard & establishment
 
     public function index(Request $r)
     {
-        $mine = TalentInterview::with('applicant.vacancy')->where('status', 'scheduled')->whereJsonContains('panel', $r->user()->id)->orderBy('scheduled_at')->get();
+        $mine = TalentInterview::with('applicant.vacancy')->where('status', 'scheduled')->whereJsonContains('panel', $r->user()->id)->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.index', TS::dashboard() + ['mine' => $mine, 'canDisc' => TS::can($r->user(), 'discipline')]);
     }
@@ -84,16 +84,16 @@ class TalentController extends Controller
             $q->where('status', $status);
         }
 
-        return view('talent.vacancies', ['rows' => $q->orderByRaw("FIELD(status, 'pending', 'open', 'on_hold', 'draft', 'filled', 'cancelled')")->orderByDesc('id')->get(),
-            'status' => $status, 'departments' => Department::orderBy('name')->get(), 'employees' => $this->employees(), 'mw' => TS::minWage()]);
+        return view('talent.vacancies', ['rows' => $q->orderByRaw("FIELD(status, 'pending', 'open', 'on_hold', 'draft', 'filled', 'cancelled')")->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'status' => $status, 'departments' => Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'employees' => $this->employees(), 'mw' => TS::minWage()]);
     }
 
     public function vacancy(Request $r, TalentVacancy $tvacancy)
     {
         $tvacancy->load(['department', 'requester', 'approver', 'replaces']);
-        $apps = $tvacancy->applicants()->withCount('interviews')->with(['interviews.scorecards'])->orderByDesc('id')->get();
+        $apps = $tvacancy->applicants()->withCount('interviews')->with(['interviews.scorecards'])->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
-        return view('talent.vacancy', ['v' => $tvacancy, 'apps' => $apps, 'chk' => TS::establishmentCheck($tvacancy), 'departments' => Department::orderBy('name')->get(),
+        return view('talent.vacancy', ['v' => $tvacancy, 'apps' => $apps, 'chk' => TS::establishmentCheck($tvacancy), 'departments' => Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'employees' => $this->employees(), 'mw' => TS::minWage(), 'u' => $r->user(), 'careers' => route('careers.index', hotel()->code)]);
     }
 
@@ -142,10 +142,10 @@ class TalentController extends Controller
             $s = '%'.$r->query('q').'%';
             $q->where(fn ($w) => $w->where('name', 'like', $s)->orWhere('phone', 'like', $s)->orWhere('email', 'like', $s)->orWhere('number', 'like', $s));
         }
-        $rows = $q->orderByDesc('stage_changed_at')->get();
+        $rows = $q->orderByDesc('stage_changed_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.applicants', ['cols' => $rows->groupBy('stage'), 'rows' => $rows, 'vac' => $vac,
-            'vacancies' => TalentVacancy::whereIn('status', ['open', 'on_hold', 'filled'])->orderBy('title')->get(), 'employees' => $this->employees()]);
+            'vacancies' => TalentVacancy::whereIn('status', ['open', 'on_hold', 'filled'])->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get(), 'employees' => $this->employees()]);
     }
 
     public function applicant(Request $r, TalentApplicant $tapplicant)
@@ -170,7 +170,7 @@ class TalentController extends Controller
 
     public function cv(Request $r, TalentApplicant $tapplicant)
     {
-        $panel = $tapplicant->interviews()->get()->contains(fn ($i) => in_array($r->user()->id, array_map('intval', $i->panel ?? []), true));
+        $panel = $tapplicant->interviews()->limit((int) config('pms.max_list_rows', 5000))->get()->contains(fn ($i) => in_array($r->user()->id, array_map('intval', $i->panel ?? []), true));
         abort_unless(TS::can($r->user(), 'recruit') || $panel, 403);
         abort_unless($tapplicant->cv_path && Storage::disk('local')->exists($tapplicant->cv_path), 404);
 
@@ -238,7 +238,7 @@ class TalentController extends Controller
         $since = bdate()->subMonths(6)->toDateString();
         $emps = Employee::with(['department', 'onboardingTasks'])->where('is_active', true)
             ->where(fn ($q) => $q->whereDate('joining_date', '>=', $since)->orWhere(fn ($w) => $w->whereNotNull('probation_end')->whereNull('confirmed_on'))->orWhereNull('statement_issued_on'))
-            ->orderByDesc('joining_date')->get();
+            ->orderByDesc('joining_date')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.starters', ['emps' => $emps, 'overdue' => TS::statementsOverdue()->pluck('id')->all()]);
     }
@@ -247,7 +247,7 @@ class TalentController extends Controller
     {
         $temployee->load(['department', 'manager', 'user']);
 
-        return view('talent.starter', ['e' => $temployee, 'tasks' => TS::onboarding($temployee), 'reviews' => TalentProbation::with('reviewer')->where('employee_id', $temployee->id)->orderByDesc('id')->get(),
+        return view('talent.starter', ['e' => $temployee, 'tasks' => TS::onboarding($temployee), 'reviews' => TalentProbation::with('reviewer')->where('employee_id', $temployee->id)->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'hire' => TalentApplicant::with('vacancy')->where('hired_employee_id', $temployee->id)->first(), 'u' => $r->user(),
             'extended' => TalentProbation::where('employee_id', $temployee->id)->where('outcome', 'extend')->exists()]);
     }
@@ -264,7 +264,7 @@ class TalentController extends Controller
 
     public function statement(Employee $temployee)
     {
-        return view('talent.statement', ['e' => $temployee->load(['department', 'manager']), 'cfg' => TS::cfg(), 'leave' => \App\Models\LeaveType::where('is_active', true)->orderBy('id')->get(),
+        return view('talent.statement', ['e' => $temployee->load(['department', 'manager']), 'cfg' => TS::cfg(), 'leave' => \App\Models\LeaveType::where('is_active', true)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'notice' => TS::notice($temployee, 'resignation', bdate())]);
     }
 
@@ -277,14 +277,14 @@ class TalentController extends Controller
 
     public function appraisals()
     {
-        $cycles = TalentCycle::withCount(['appraisals', 'appraisals as signed_count' => fn ($q) => $q->where('status', 'signed')])->orderByDesc('period_to')->get();
+        $cycles = TalentCycle::withCount(['appraisals', 'appraisals as signed_count' => fn ($q) => $q->where('status', 'signed')])->orderByDesc('period_to')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.appraisals', ['cycles' => $cycles, 'cfg' => TS::cfg()]);
     }
 
     public function cycle(TalentCycle $tcycle)
     {
-        $rows = $tcycle->appraisals()->with(['employee.department', 'reviewer', 'cycle'])->get()->sortBy(fn ($a) => $a->employee->name)->values();
+        $rows = $tcycle->appraisals()->with(['employee.department', 'reviewer', 'cycle'])->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($a) => $a->employee->name)->values();
 
         return view('talent.cycle', ['c' => $tcycle, 'rows' => $rows, 'users' => $this->users(),
             'dist' => $rows->whereNotNull('band')->groupBy('band')->map->count()]);
@@ -314,8 +314,8 @@ class TalentController extends Controller
     {
         $u = $r->user();
         $emp = Employee::where('user_id', $u->id)->first();
-        $mine = $emp ? TalentAppraisal::with(['cycle', 'reviewer'])->where('employee_id', $emp->id)->orderByDesc('id')->get() : collect();
-        $team = TalentAppraisal::with(['cycle', 'employee.department'])->where('reviewer_id', $u->id)->whereHas('cycle', fn ($q) => $q->where('status', 'active'))->get();
+        $mine = $emp ? TalentAppraisal::with(['cycle', 'reviewer'])->where('employee_id', $emp->id)->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
+        $team = TalentAppraisal::with(['cycle', 'employee.department'])->where('reviewer_id', $u->id)->whereHas('cycle', fn ($q) => $q->where('status', 'active'))->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.me', ['emp' => $emp, 'mine' => $mine, 'team' => $team]);
     }
@@ -353,8 +353,8 @@ class TalentController extends Controller
         $open = $r->query('show', 'open') === 'open';
         $u = $r->user();
         $rows = TalentCase::with(['employee.department', 'raiser'])->when($kind, fn ($q) => $q->where('kind', $kind))
-            ->when($open, fn ($q) => $q->whereNotIn('status', ['closed', 'withdrawn']))->orderByDesc('id')->get()->filter(fn ($c) => TS::canSeeCase($c, $u))->values();
-        $warnings = TalentCase::with('employee')->whereIn('outcome', ['verbal', 'written', 'final', 'suspension'])->whereDate('expires_on', '>=', bdate()->toDateString())->orderBy('expires_on')->get();
+            ->when($open, fn ($q) => $q->whereNotIn('status', ['closed', 'withdrawn']))->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($c) => TS::canSeeCase($c, $u))->values();
+        $warnings = TalentCase::with('employee')->whereIn('outcome', ['verbal', 'written', 'final', 'suspension'])->whereDate('expires_on', '>=', bdate()->toDateString())->orderBy('expires_on')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('talent.cases', ['rows' => $rows, 'kind' => $kind, 'open' => $open, 'employees' => $this->employees(), 'warnings' => $warnings, 'today' => bdate()->toDateString()]);
     }
@@ -365,7 +365,7 @@ class TalentController extends Controller
         $tcase->load(['employee.department', 'raiser', 'decider', 'exitRecord']);
 
         return view('talent.case', ['c' => $tcase, 'u' => $r->user(), 'warnings' => TS::activeWarnings($tcase->employee, $tcase->id), 'cfg' => TS::cfg(),
-            'history' => TalentCase::where('employee_id', $tcase->employee_id)->where('kind', 'discipline')->where('id', '!=', $tcase->id)->orderByDesc('incident_on')->get()]);
+            'history' => TalentCase::where('employee_id', $tcase->employee_id)->where('kind', 'discipline')->where('id', '!=', $tcase->id)->orderByDesc('incident_on')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function caseLetter(Request $r, TalentCase $tcase, string $kind)
@@ -406,7 +406,7 @@ class TalentController extends Controller
 
     public function exits(Request $r)
     {
-        $rows = TalentExit::with(['employee.department'])->orderByRaw("FIELD(status, 'notice', 'completed', 'withdrawn')")->orderByDesc('last_day')->get();
+        $rows = TalentExit::with(['employee.department'])->orderByRaw("FIELD(status, 'notice', 'completed', 'withdrawn')")->orderByDesc('last_day')->limit((int) config('pms.max_list_rows', 5000))->get();
         $reasons = $rows->where('status', 'completed')->filter(fn ($x) => $x->interview)->groupBy(fn ($x) => $x->interview['primary'] ?? 'other')->map->count()->sortDesc();
 
         return view('talent.exits', ['rows' => $rows, 'employees' => $this->employees(), 'turnover' => TS::turnover(), 'reasons' => $reasons]);

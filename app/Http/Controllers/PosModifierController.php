@@ -17,8 +17,8 @@ class PosModifierController extends Controller
     public function index()
     {
         return view('pos.modifiers', [
-            'groups' => MenuModifierGroup::with('modifiers', 'outlet')->orderBy('sort_order')->orderBy('name')->get(),
-            'items' => MenuItem::with('category', 'outlet', 'modifierGroups')->orderBy('name')->get(),
+            'groups' => MenuModifierGroup::with('modifiers', 'outlet')->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'items' => MenuItem::with('category', 'outlet', 'modifierGroups')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'outlets' => Outlet::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
         ]);
     }
@@ -78,7 +78,7 @@ class PosModifierController extends Controller
     public function assign(Request $request, MenuItem $menuItem)
     {
         $data = $request->validate(['groups' => 'nullable|array|max:20', 'groups.*' => 'integer|owned:menu_modifier_groups']);
-        $groups = MenuModifierGroup::whereIn('id', $data['groups'] ?? [])->where('is_active', true)->get();
+        $groups = MenuModifierGroup::whereIn('id', $data['groups'] ?? [])->where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         foreach ($groups as $group) {
             if ($group->outlet_id && $menuItem->outlet_id && $group->outlet_id !== $menuItem->outlet_id) {
                 throw ValidationException::withMessages(['groups' => "{$group->name} belongs to another outlet."]);

@@ -37,7 +37,7 @@ class KitchenController extends Controller
                 ->orWhere(fn ($w) => $w->where('kitchen_status', 'served')->where('served_at', '>=', now()->subMinutes(10))))
             ->whereHas('order', fn ($q) => $q->whereIn('status', ['open', 'billed'])
                 ->when($request->integer('outlet'), fn ($w, $o) => $w->where('outlet_id', $o)))
-            ->orderBy('id')->get()
+            ->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             // cancelled items stay on the ticket, struck through, so the cook knows to stop
             ->filter(fn ($i) => ! $station || $this->stationOf($i) === $station);
 
@@ -81,8 +81,8 @@ class KitchenController extends Controller
             'station' => 'nullable|string|max:40', 'undo' => 'nullable|boolean']);
         $q = PosOrderItem::with('menuItem.category')->where('is_cancelled', false)->where('is_pending', false)
             ->whereHas('order', fn ($w) => $w->whereIn('status', ['open', 'billed']));
-        $items = ! empty($data['item_id']) ? $q->whereKey($data['item_id'])->get()
-            : $q->where('pos_order_id', $data['order_id'])->where('kot_no', $data['kot'])->get()
+        $items = ! empty($data['item_id']) ? $q->whereKey($data['item_id'])->limit((int) config('pms.max_list_rows', 5000))->get()
+            : $q->where('pos_order_id', $data['order_id'])->where('kot_no', $data['kot'])->limit((int) config('pms.max_list_rows', 5000))->get()
                 ->filter(fn ($i) => empty($data['station']) || $this->stationOf($i) === $data['station']);
         $heldOnly = $items->isNotEmpty() && $items->every(fn ($i) => $i->kitchen_status === 'held');
         $items = $items->reject(fn ($i) => $i->kitchen_status === 'held');
@@ -121,7 +121,7 @@ class KitchenController extends Controller
     /** A PC left open next to one kitchen printer. It claims queued slips and prints them. */
     public function station(Request $request)
     {
-        $printers = KotPrinter::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get();
+        $printers = KotPrinter::where('is_active', true)->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('kitchen.station', [
             'printers' => $printers,
@@ -134,9 +134,9 @@ class KitchenController extends Controller
         KotPrintJob::where('status', 'printing')->where('updated_at', '<', now()->subMinutes(2))->update(['status' => 'queued']);
         $id = $request->integer('printer');
         $waiting = $id ? KotPrintJob::with('order.table', 'order.stay.room')->where('kot_printer_id', $id)->where('status', 'queued')
-            ->where('created_at', '>=', now()->subHours(12))->orderBy('id')->limit(8)->get() : collect();
+            ->where('created_at', '>=', now()->subHours(12))->orderBy('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $recent = $id ? KotPrintJob::with('order.table', 'order.stay.room')->where('kot_printer_id', $id)->whereIn('status', ['printed', 'sent', 'failed'])
-            ->latest('id')->limit(8)->get() : collect();
+            ->latest('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
         $row = fn ($j) => [
             'id' => $j->id, 'kot' => $j->kot_no, 'status' => $j->status, 'error' => $j->error, 'items' => count($j->item_ids ?? []),
             'where' => $j->order ? (new \App\Services\KotPrintService)->whereText($j->order) : '',

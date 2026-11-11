@@ -39,14 +39,14 @@ class DigitalMarketingController extends Controller
 
     protected function people()
     {
-        return User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->get()
+        return User::where('hotel_id', hotel()->id)->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($u) => ((! $u->is_super_admin && ! $u->is_group_admin) || $u->id === auth()->id()) && ($u->hasPermission('digital.content') || $u->hasPermission('digital.manage')))->values();
     }
 
     protected function lookups(): array
     {
-        return ['socialChannels' => DmChannel::where('is_active', true)->orderBy('name')->get()->filter(fn ($c) => $c->kind() === 'social')->values(),
-            'campaignList' => DmCampaign::whereIn('status', ['draft', 'active', 'paused'])->orderBy('name')->get(), 'linkList' => DmLink::where('is_active', true)->orderBy('name')->get(),
+        return ['socialChannels' => DmChannel::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($c) => $c->kind() === 'social')->values(),
+            'campaignList' => DmCampaign::whereIn('status', ['draft', 'active', 'paused'])->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'linkList' => DmLink::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'people' => $this->people()];
     }
 
@@ -57,10 +57,10 @@ class DigitalMarketingController extends Controller
         $month = $this->month($r);
 
         return view('digital.index', ['month' => $month, 'k' => DM::kpis($month), 'alerts' => DM::alerts(), 'trend' => DM::trend(6),
-            'upcoming' => DmPost::with('author')->whereIn('status', ['review', 'approved'])->where('scheduled_at', '>=', now()->subDay())->orderBy('scheduled_at')->limit(8)->get(),
-            'topPosts' => DmPost::where('status', 'published')->where('published_at', '>=', now()->subDays(60))->orderByDesc('engagements')->limit(5)->get(),
-            'campaigns' => DmCampaign::with('channel')->where('status', 'active')->orderBy('start_date')->get()->map(fn ($c) => [$c, DM::campaignStats($c)]),
-            'channels' => DmChannel::where('is_active', true)->orderBy('name')->get()]);
+            'upcoming' => DmPost::with('author')->whereIn('status', ['review', 'approved'])->where('scheduled_at', '>=', now()->subDay())->orderBy('scheduled_at')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'topPosts' => DmPost::where('status', 'published')->where('published_at', '>=', now()->subDays(60))->orderByDesc('engagements')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'campaigns' => DmCampaign::with('channel')->where('status', 'active')->orderBy('start_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($c) => [$c, DM::campaignStats($c)]),
+            'channels' => DmChannel::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     // ------------------------------------------------------------------ content calendar
@@ -70,10 +70,10 @@ class DigitalMarketingController extends Controller
         $month = $this->month($r);
         $status = array_key_exists((string) $r->query('status'), DmPost::STATUSES) ? $r->query('status') : null;
         $list = DmPost::with('author', 'reviewer')->when($status, fn ($q) => $q->where('status', $status), fn ($q) => $q->where('status', '!=', 'cancelled'))
-            ->whereBetween('scheduled_at', [$month->copy()->startOfMonth(), $month->copy()->endOfMonth()])->orderBy('scheduled_at')->get();
+            ->whereBetween('scheduled_at', [$month->copy()->startOfMonth(), $month->copy()->endOfMonth()])->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('digital.calendar', ['month' => $month, 'status' => $status, 'days' => DM::calendar($month, $status), 'list' => $list,
-            'queue' => DmPost::with('author')->where('status', 'review')->orderBy('scheduled_at')->get(), 'channelsById' => DmChannel::get()->keyBy('id')] + $this->lookups());
+            'queue' => DmPost::with('author')->where('status', 'review')->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get(), 'channelsById' => DmChannel::get()->keyBy('id')] + $this->lookups());
     }
 
     public function post(DmPost $dmpost)
@@ -136,19 +136,19 @@ class DigitalMarketingController extends Controller
     public function campaigns(Request $r)
     {
         $status = array_key_exists((string) $r->query('status'), DmCampaign::STATUSES) ? $r->query('status') : null;
-        $rows = DmCampaign::with('channel', 'owner')->when($status, fn ($q) => $q->where('status', $status))->orderByRaw("FIELD(status,'active','paused','draft','ended')")->orderByDesc('start_date')->get()
+        $rows = DmCampaign::with('channel', 'owner')->when($status, fn ($q) => $q->where('status', $status))->orderByRaw("FIELD(status,'active','paused','draft','ended')")->orderByDesc('start_date')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => [$c, DM::campaignStats($c)]);
 
-        return view('digital.campaigns', ['rows' => $rows, 'status' => $status, 'adChannels' => DmChannel::orderBy('name')->get(), 'promos' => PromoCode::orderBy('code')->get(), 'people' => $this->people()]);
+        return view('digital.campaigns', ['rows' => $rows, 'status' => $status, 'adChannels' => DmChannel::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'promos' => PromoCode::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'people' => $this->people()]);
     }
 
     public function campaign(DmCampaign $dmcampaign)
     {
         $c = $dmcampaign->load('channel', 'owner', 'promo');
 
-        return view('digital.campaign', ['c' => $c, 's' => DM::campaignStats($c), 'days' => $c->adStats()->orderByDesc('date')->get(),
-            'links' => $c->links()->get()->map(fn ($l) => [$l, DM::linkStats($l)]), 'posts' => $c->posts()->where('status', '!=', 'cancelled')->orderByDesc('scheduled_at')->get(),
-            'adChannels' => DmChannel::orderBy('name')->get(), 'promos' => PromoCode::orderBy('code')->get(), 'people' => $this->people()]);
+        return view('digital.campaign', ['c' => $c, 's' => DM::campaignStats($c), 'days' => $c->adStats()->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'links' => $c->links()->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($l) => [$l, DM::linkStats($l)]), 'posts' => $c->posts()->where('status', '!=', 'cancelled')->orderByDesc('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'adChannels' => DmChannel::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'promos' => PromoCode::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'people' => $this->people()]);
     }
 
     public function campaignStore(Request $r)
@@ -202,20 +202,20 @@ class DigitalMarketingController extends Controller
     {
         $q = trim((string) $r->query('q'));
         $links = DmLink::with('campaign', 'creator')->when($q !== '', fn ($x) => $x->where(fn ($w) => $w->where('name', 'like', "%$q%")->orWhere('code', 'like', "%$q%")->orWhere('utm_campaign', 'like', "%$q%")))
-            ->orderByDesc('is_active')->orderByDesc('last_click_at')->orderByDesc('id')->get();
+            ->orderByDesc('is_active')->orderByDesc('last_click_at')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $b = Reservation::whereIn('dm_link_id', $links->pluck('id')->all() ?: [0])->where('status', '!=', 'cancelled')->selectRaw('dm_link_id, count(*) n')->groupBy('dm_link_id')->pluck('n', 'dm_link_id');
 
         $clicks30 = DmLinkClick::whereIn('link_id', $links->pluck('id')->all() ?: [0])->where('clicked_at', '>=', now()->subDays(30))->count();
 
-        return view('digital.links', ['links' => $links, 'bookings' => $b, 'q' => $q, 'campaignList' => DmCampaign::where('status', '!=', 'ended')->orderBy('name')->get(),
+        return view('digital.links', ['links' => $links, 'bookings' => $b, 'q' => $q, 'campaignList' => DmCampaign::where('status', '!=', 'ended')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'clicks30' => $clicks30]);
     }
 
     public function link(DmLink $dmlink)
     {
         return view('digital.link', ['l' => $dmlink->load('campaign', 'creator'), 's' => DM::linkStats($dmlink), 'qr' => $this->qrSvg($dmlink->shortUrl()),
-            'recent' => $dmlink->clickLog()->orderByDesc('clicked_at')->limit(15)->get(), 'res' => $dmlink->reservations()->where('status', '!=', 'cancelled')->with('guest')->latest('id')->limit(15)->get(),
-            'campaignList' => DmCampaign::where('status', '!=', 'ended')->orWhere('id', $dmlink->campaign_id)->orderBy('name')->get()]);
+            'recent' => $dmlink->clickLog()->orderByDesc('clicked_at')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(), 'res' => $dmlink->reservations()->where('status', '!=', 'cancelled')->with('guest')->latest('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'campaignList' => DmCampaign::where('status', '!=', 'ended')->orWhere('id', $dmlink->campaign_id)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     protected function qrSvg(string $text): string
@@ -263,7 +263,7 @@ class DigitalMarketingController extends Controller
 
     public function channels()
     {
-        $all = DmChannel::with('owner', 'auditor')->orderByDesc('is_active')->orderBy('name')->get();
+        $all = DmChannel::with('owner', 'auditor')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $prev = DmChannelStat::whereIn('channel_id', $all->pluck('id')->all() ?: [0])->whereDate('month', bdate()->copy()->startOfMonth()->subMonthNoOverflow()->toDateString())->pluck('followers', 'channel_id');
 
         return view('digital.channels', ['groups' => $all->groupBy(fn ($c) => $c->kind()), 'prev' => $prev, 'people' => $this->people()]);
@@ -271,9 +271,9 @@ class DigitalMarketingController extends Controller
 
     public function channel(DmChannel $dmchannel)
     {
-        return view('digital.channel', ['c' => $dmchannel->load('owner', 'auditor'), 'stats' => $dmchannel->stats()->orderByDesc('month')->limit(12)->get(), 'people' => $this->people(),
-            'posts' => DmPost::whereJsonContains('channels', $dmchannel->id)->where('status', 'published')->orderByDesc('published_at')->limit(10)->get(),
-            'campaigns' => DmCampaign::where('channel_id', $dmchannel->id)->orderByDesc('start_date')->get()]);
+        return view('digital.channel', ['c' => $dmchannel->load('owner', 'auditor'), 'stats' => $dmchannel->stats()->orderByDesc('month')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(), 'people' => $this->people(),
+            'posts' => DmPost::whereJsonContains('channels', $dmchannel->id)->where('status', 'published')->orderByDesc('published_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'campaigns' => DmCampaign::where('channel_id', $dmchannel->id)->orderByDesc('start_date')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function channelStore(Request $r)
@@ -308,15 +308,15 @@ class DigitalMarketingController extends Controller
     {
         $status = array_key_exists((string) $r->query('status'), DmInfluencer::STATUSES) ? $r->query('status') : null;
         $rows = DmInfluencer::with('owner', 'link')->when($status, fn ($q) => $q->where('status', $status))
-            ->orderByRaw("FIELD(status,'hosted','agreed','proposed','delivered','cancelled')")->orderBy('stay_from')->get()->map(fn ($i) => [$i, DM::influencerStats($i)]);
+            ->orderByRaw("FIELD(status,'hosted','agreed','proposed','delivered','cancelled')")->orderBy('stay_from')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($i) => [$i, DM::influencerStats($i)]);
 
-        return view('digital.influencers', ['rows' => $rows, 'status' => $status, 'linkList' => DmLink::orderBy('name')->get(), 'people' => $this->people()]);
+        return view('digital.influencers', ['rows' => $rows, 'status' => $status, 'linkList' => DmLink::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'people' => $this->people()]);
     }
 
     public function influencer(DmInfluencer $dminfluencer)
     {
         return view('digital.influencer', ['i' => $dminfluencer->load('owner', 'link', 'reservation.guest'), 's' => DM::influencerStats($dminfluencer),
-            'linkList' => DmLink::orderBy('name')->get(), 'people' => $this->people()]);
+            'linkList' => DmLink::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'people' => $this->people()]);
     }
 
     public function influencerStore(Request $r)

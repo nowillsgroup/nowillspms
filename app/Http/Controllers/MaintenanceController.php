@@ -26,7 +26,7 @@ class MaintenanceController extends Controller
                 ->when($request->filled('asset'), fn ($q) => $q->where('asset_id', $request->integer('asset')))
                 ->orderByRaw("CASE WHEN status IN ('open','in_progress') AND due_date < ? THEN 0 ELSE 1 END", [bdate()->toDateString()])
                 ->latest()->paginate(25)->withQueryString(),
-            'assets' => Asset::where('status', '!=', 'disposed')->orderBy('name')->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.' · '.$a->asset_no]),
+            'assets' => Asset::where('status', '!=', 'disposed')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.' · '.$a->asset_no]),
             'pmOverdue' => PmService::overdueCount(),
             'rooms' => Room::orderBy('room_no')->pluck('room_no', 'id'),
             'staff' => Employee::where('is_active', true)->pluck('name', 'id'),

@@ -350,7 +350,7 @@ trait SustainabilityEsgReports
     protected function r_esg_checklist_items($from, $to): array
     {
         // Rewritten against the real schema: code/section/requirement/guidance/is_mandatory/status/evidence/owner_user_id/reviewed_on.
-        $rows = EsgChecklistItem::with('owner', 'reviewer')->orderBy('sort')->get()->map(fn ($r) => [
+        $rows = EsgChecklistItem::with('owner', 'reviewer')->orderBy('sort')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'section' => $r->section, 'requirement' => $r->requirement,
             'mandatory' => $r->is_mandatory ? 'Yes' : 'No', 'status' => ucfirst((string) $r->status),
             'owner' => optional($r->owner)->name, 'reviewed_on' => $r->reviewed_on,
@@ -361,7 +361,7 @@ trait SustainabilityEsgReports
     protected function r_esg_communities($from, $to): array
     {
         // Rewritten against the real schema: the table is esg_community — number/date/kind/beneficiary/amount/hours/volunteers/people_reached.
-        $rows = EsgCommunity::with('user')->orderByDesc('date')->get()->map(fn ($r) => [
+        $rows = EsgCommunity::with('user')->orderByDesc('date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'number' => $r->number, 'date' => $r->date, 'kind' => $r->kindLabel(),
             'beneficiary' => $r->beneficiary, 'amount' => (float) $r->amount,
             'hours' => $r->hours, 'volunteers' => $r->volunteers, 'people_reached' => $r->people_reached,
@@ -372,7 +372,7 @@ trait SustainabilityEsgReports
 
     protected function r_esg_green($from, $to): array
     {
-        $list = \App\Models\EsgGreenNight::with(['room', 'guest', 'greenStay'])->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('room_id')->get();
+        $list = \App\Models\EsgGreenNight::with(['room', 'guest', 'greenStay'])->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('room_id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $s = \App\Services\EsgService::greenStats($from->toDateString(), $to->toDateString());
         $rows = $list->map(fn ($n) => ['date' => $n->business_date->format('d-m-Y'), 'room' => $n->room?->room_no, 'guest' => $n->guest?->full_name, 'source' => $n->greenStay?->source === 'portal' ? 'Guest portal' : 'Front desk',
             'points' => $n->points ?: null, 'kwh' => $n->kwh, 'litres' => $n->litres, 'co2' => $n->co2_kg]);
@@ -385,7 +385,7 @@ trait SustainabilityEsgReports
 
     protected function r_esg_green_stays($from, $to): array
     {
-        $rows = EsgGreenStay::with('reservation.guest.roomType')->whereBetween('booked_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = EsgGreenStay::with('reservation.guest.roomType')->whereBetween('booked_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'room_type' => optional($r->roomType)->name, 'booked' => $r->booked_at,
             'nights' => $r->nights, 'carbon_saved' => $r->carbon_saved_kg, 'cost_saved' => $r->cost_saved,
@@ -397,7 +397,7 @@ trait SustainabilityEsgReports
     protected function r_esg_initiatives($from, $to): array
     {
         $I = \App\Models\EsgInitiative::class;
-        $list = $I::with(['owner', 'approver'])->orderBy('number')->get();
+        $list = $I::with(['owner', 'approver'])->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($i) => ['no' => $i->number, 'title' => $i->title, 'cat' => $I::CATEGORIES[$i->category] ?? $i->category, 'owner' => $i->owner?->name, 'status' => $i->statusLabel(),
             'capex' => (float) $i->capex, 'saving' => (float) $i->saving_ghs, 'payback' => $i->payback() !== null ? $i->payback().' yrs' : '', 'kwh' => $i->saving_kwh ?: null, 'm3' => $i->saving_m3 ?: null,
             'waste' => $i->saving_waste_kg ?: null, 'co2' => $i->saving_co2_kg, 'approver' => $i->approver?->name, 'due' => $i->due_on?->format('d-m-Y'), 'done' => $i->completed_on?->format('d-m-Y'),
@@ -413,7 +413,7 @@ trait SustainabilityEsgReports
 
     protected function r_esg_laundry_months($from, $to): array
     {
-        $rows = EsgLaundryMonth::with('department')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = EsgLaundryMonth::with('department')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'dept' => optional($r->department)->name, 'period' => $r->period_start . ' to ' . $r->period_end,
             'linens_washed' => $r->linens_washed, 'water_saved_litres' => $r->water_saved_litres,
             'energy_saved_kwh' => $r->energy_saved_kwh, 'status' => $r->status,
@@ -434,7 +434,7 @@ trait SustainabilityEsgReports
     protected function r_esg_policies($from, $to): array
     {
         // Rewritten against the real schema: code/title/pillar/version/approved_*/review_months/next_review_on/status; there is no policy type table.
-        $rows = EsgPolicy::with('owner')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = EsgPolicy::with('owner')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'title' => $r->title, 'pillar' => $r->pillar,
             'version' => $r->version, 'approved_on' => $r->approved_on,
             'approved_by' => $r->approved_by_name, 'owner' => optional($r->owner)->name,
@@ -448,7 +448,7 @@ trait SustainabilityEsgReports
     protected function r_esg_refrigerants($from, $to): array
     {
         $R = \App\Models\EsgRefrigerantLog::class;
-        $list = $R::with(['asset', 'ticket'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->get();
+        $list = $R::with(['asset', 'ticket'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $leaks = collect(\App\Services\EsgService::leakRates())->keyBy(fn ($l) => mb_strtolower($l['equipment']));
         $rows = $list->map(fn ($r) => ['no' => $r->number, 'date' => $r->date->format('d-m-Y'), 'system' => $r->equipment, 'asset' => $r->asset?->asset_no, 'gas' => $r->gas, 'gwp' => $R::gwp($r->gas),
             'work' => $R::REASONS[$r->reason] ?? $r->reason, 'added' => (float) $r->kg_added ?: null, 'recovered' => (float) $r->kg_recovered ?: null, 'co2' => $r->co2e(),
@@ -463,7 +463,7 @@ trait SustainabilityEsgReports
     protected function r_esg_targets($from, $to): array
     {
         // Rewritten against the real schema: metric/baseline_year/baseline_value/target_year/target_value/notes/is_active; there is no target type table.
-        $rows = EsgTarget::orderBy('metric')->get()->map(fn ($r) => [
+        $rows = EsgTarget::orderBy('metric')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'metric' => $r->metric, 'baseline_year' => $r->baseline_year, 'baseline_value' => $r->baseline_value,
             'target_year' => $r->target_year, 'target_value' => $r->target_value,
             'notes' => $r->notes, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -474,7 +474,7 @@ trait SustainabilityEsgReports
     protected function r_esg_waste($from, $to): array
     {
         $ES = \App\Services\EsgService::class;
-        $list = \App\Models\EsgWasteLog::live()->with(['department', 'supplier'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->get();
+        $list = \App\Models\EsgWasteLog::live()->with(['department', 'supplier'])->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($w) => ['no' => $w->number, 'date' => $w->date->format('d-m-Y'), 'stream' => $w->streamLabel(), 'route' => $w->disposalLabel(), 'diverted' => $w->isDiverted() ? 'Yes' : 'No',
             'kg' => (float) $w->weight_kg, 'dept' => $w->department?->name, 'contractor' => $w->supplier?->name ?? $w->contractor, 'wtn' => $w->manifest_no,
             'cost' => (float) $w->cost ?: null, 'income' => (float) $w->income ?: null, 'co2' => round((float) $w->weight_kg * $ES::wasteFactor($w->stream, $w->disposal), 1)]);

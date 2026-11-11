@@ -47,10 +47,10 @@ class ServiceChargeController extends Controller
         return view('servicecharge.index', ['tab' => $tab, 'month' => $month, 'cutoff' => $cutoff,
             'available' => ServiceChargeService::available($cutoff), 'retention' => ServiceChargeService::retentionPct(),
             'bySource' => ServiceChargeService::collectedBySource($mFrom, min($mTo, $cutoff)),
-            'dists' => ScDistribution::with('creator', 'approver', 'run')->withCount(['lines as paid_count' => fn ($q) => $q->where('amount', '>', 0)])->latest('period_end')->latest('id')->limit(36)->get(),
-            'tips' => TipCollection::with('paymentMode', 'creator')->whereDate('date', '>=', $mFrom)->whereDate('date', '<=', $mTo)->latest('date')->latest('id')->get(),
+            'dists' => ScDistribution::with('creator', 'approver', 'run')->withCount(['lines as paid_count' => fn ($q) => $q->where('amount', '>', 0)])->latest('period_end')->latest('id')->limit(36)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'tips' => TipCollection::with('paymentMode', 'creator')->whereDate('date', '>=', $mFrom)->whereDate('date', '<=', $mTo)->latest('date')->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'modes' => PaymentMode::where('is_active', true)->orderBy('id')->pluck('name', 'id'),
-            'staff' => Employee::with('department')->where('is_active', true)->orderBy('department_id')->orderBy('name')->get(),
+            'staff' => Employee::with('department')->where('is_active', true)->orderBy('department_id')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'suggest' => ['from' => $nextFrom->toDateString(), 'to' => $nextTo->toDateString(), 'ok' => $nextFrom->toDateString() <= $cutoff]]);
     }
 
@@ -88,7 +88,7 @@ class ServiceChargeController extends Controller
         $to = $scdist->period_end->toDateString();
 
         return view('servicecharge.show', ['d' => $scdist, 'bySource' => ServiceChargeService::collectedBySource($from, $to),
-            'runs' => PayrollRun::where('status', 'draft')->whereDate('period_end', '>=', $to)->orderBy('period_start')->get(),
+            'runs' => PayrollRun::where('status', 'draft')->whereDate('period_end', '>=', $to)->orderBy('period_start')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'byDept' => $scdist->lines->groupBy(fn ($l) => $l->department?->name ?? '—')->map(fn ($g) => ['n' => $g->where('amount', '>', 0)->count(), 'amt' => $g->sum('amount')]),
             'canApprove' => can_do('servicecharge.approve'), 'canManage' => can_do('servicecharge.manage')]);
     }
@@ -138,7 +138,7 @@ class ServiceChargeController extends Controller
     {
         $d = $request->validate(['points' => 'required|array', 'points.*' => 'numeric|min:0|max:20', 'eligible' => 'nullable|array']);
         $n = 0;
-        foreach (Employee::whereIn('id', array_keys($d['points']))->get() as $e) {
+        foreach (Employee::whereIn('id', array_keys($d['points']))->limit((int) config('pms.max_list_rows', 5000))->get() as $e) {
             $e->sc_points = round((float) $d['points'][$e->id], 2);
             $e->sc_eligible = isset($d['eligible'][$e->id]);
             if ($e->isDirty()) {

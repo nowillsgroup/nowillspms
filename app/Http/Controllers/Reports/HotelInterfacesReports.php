@@ -316,7 +316,7 @@ trait HotelInterfacesReports
 {
     protected function r_admin_call_usage($from, $to): array
     {
-        $rows = \App\Models\CallRecord::with('phoneExtension')->where('status', 'admin')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get()
+        $rows = \App\Models\CallRecord::with('phoneExtension')->where('status', 'admin')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy('extension')->map(fn ($g, $ext) => ['dept' => $g->first()->phoneExtension?->department ?: (\App\Models\PhoneExtension::TYPES[$g->first()->phoneExtension?->type ?? ''] ?? '—'),
                 'ext' => (string) $ext, 'label' => $g->first()->phoneExtension?->label, 'calls' => $g->count(), 'minutes' => (int) round($g->sum('duration_secs') / 60),
                 'isd' => $g->where('call_class', 'isd')->count(), 'cost' => round((float) $g->sum('cost'), 2)])
@@ -333,7 +333,7 @@ trait HotelInterfacesReports
         $names = \App\Models\ApiClient::pluck('name', 'id');
         $rows = (clone $q)->whereNotNull('api_client_id')->groupBy('api_client_id', 'route')
             ->selectRaw('api_client_id, route, count(*) n, sum(status < 400) ok, sum(status between 400 and 499) c4, sum(status >= 500) c5, round(avg(duration_ms)) ms, max(created_at) last_at')
-            ->get()->map(fn ($r) => ['client' => $names[$r->api_client_id] ?? '#'.$r->api_client_id, 'route' => $r->route ?? '(unmatched path)', 'calls' => (int) $r->n, 'ok' => (int) $r->ok,
+            ->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => ['client' => $names[$r->api_client_id] ?? '#'.$r->api_client_id, 'route' => $r->route ?? '(unmatched path)', 'calls' => (int) $r->n, 'ok' => (int) $r->ok,
                 'c4' => (int) $r->c4, 'c5' => (int) $r->c5, 'rate' => $r->n ? round(($r->c4 + $r->c5) * 100 / $r->n, 1) : 0, 'ms' => (int) $r->ms,
                 'last' => \Illuminate\Support\Carbon::parse($r->last_at)->format('d-m-Y H:i')])
             ->sortBy([['client', 'asc'], ['calls', 'desc']])->values();
@@ -350,7 +350,7 @@ trait HotelInterfacesReports
 
     protected function r_call_log($from, $to): array
     {
-        $rows = \App\Models\CallRecord::with('room', 'stay.guest', 'stay.reservation.guest')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('started_at')->get()
+        $rows = \App\Models\CallRecord::with('room', 'stay.guest', 'stay.reservation.guest')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('started_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => ['at' => $c->started_at->format('d-m-Y H:i'), 'ext' => $c->extension, 'room' => $c->room?->room_no, 'guest' => ($c->stay?->guest ?? $c->stay?->reservation?->guest)?->full_name,
                 'number' => $c->maskedNumber(), 'class' => \App\Models\CallTariff::CLASSES[$c->call_class] ?? ucfirst((string) $c->call_class), 'duration' => $c->durationLabel(), 'secs' => $c->duration_secs,
                 'cost' => (float) $c->cost, 'charge' => (float) $c->charge, 'status' => $c->statusLabel(), 'note' => $c->note]);
@@ -363,7 +363,7 @@ trait HotelInterfacesReports
 
     protected function r_call_revenue($from, $to): array
     {
-        $calls = \App\Models\CallRecord::whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->whereNotIn('status', ['admin'])->get();
+        $calls = \App\Models\CallRecord::whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->whereNotIn('status', ['admin'])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $calls->groupBy('call_class')->map(function ($g, $cls) {
             $posted = $g->where('status', 'posted');
 
@@ -380,7 +380,7 @@ trait HotelInterfacesReports
 
     protected function r_interface_commands($from, $to): array
     {
-        $rows = InterfaceCommand::with('interface.commandType')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = InterfaceCommand::with('interface.commandType')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'interface' => optional($r->interface)->name, 'type' => optional($r->commandType)->name,
             'sent' => $r->sent_at, 'command' => $r->command_payload, 'status' => $r->status,
             'response' => $r->response_payload, 'user' => $r->user_id, 'notes' => $r->notes,
@@ -390,7 +390,7 @@ trait HotelInterfacesReports
 
     protected function r_key_card_audit($from, $to): array
     {
-        $rows = \App\Models\KeyCard::with('room', 'issuer', 'fee')->whereDate('valid_from', '>=', $from->copy()->startOfDay())->whereDate('valid_from', '<=', $to->copy()->endOfDay())->orderBy('valid_from')->get()
+        $rows = \App\Models\KeyCard::with('room', 'issuer', 'fee')->whereDate('valid_from', '>=', $from->copy()->startOfDay())->whereDate('valid_from', '<=', $to->copy()->endOfDay())->orderBy('valid_from')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($k) => ['card' => $k->card_no, 'room' => $k->room?->room_no, 'holder' => $k->holder, 'type' => \App\Models\KeyCard::TYPES[$k->type] ?? $k->type, 'serial' => $k->serial,
                 'issued' => $k->valid_from->format('d-m-Y H:i'), 'until' => $k->valid_until->format('d-m-Y H:i'), 'status' => $k->statusLabel(), 'note' => $k->status_note,
                 'by' => $k->issuer?->name, 'fee' => $k->fee && ! $k->fee->is_void ? (float) $k->fee->amount : null]);
@@ -402,7 +402,7 @@ trait HotelInterfacesReports
 
     protected function r_master_key_register($from, $to): array
     {
-        $rows = \App\Models\KeyLoan::with('key', 'issuer', 'receiver')->whereBetween('out_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('out_at')->get()
+        $rows = \App\Models\KeyLoan::with('key', 'issuer', 'receiver')->whereBetween('out_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('out_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($l) => ['key' => $l->key?->key_no, 'name' => $l->key?->name, 'level' => \App\Models\MasterKey::LEVELS[$l->key?->level ?? ''] ?? '', 'holder' => $l->holder, 'purpose' => $l->purpose,
                 'out' => $l->out_at->format('d-m-Y H:i'), 'due' => $l->due_at->format('d-m-Y H:i'), 'in' => $l->in_at?->format('d-m-Y H:i'),
                 'status' => $l->status === 'out' ? ($l->isOverdue() ? 'OVERDUE' : 'Out') : ($l->status === 'lost' ? 'LOST' : ($l->in_at && $l->in_at->gt($l->due_at) ? 'Returned late' : 'Returned')),
@@ -415,7 +415,7 @@ trait HotelInterfacesReports
     protected function r_webhook_deliveries($from, $to): array
     {
         $names = \App\Models\WebhookEndpoint::pluck('name', 'id');
-        $rows = \App\Models\WebhookDelivery::whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get()
+        $rows = \App\Models\WebhookDelivery::whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($d) => $d->webhook_endpoint_id.'|'.$d->event)->map(function ($g) use ($names) {
                 $done = $g->where('status', 'success');
 

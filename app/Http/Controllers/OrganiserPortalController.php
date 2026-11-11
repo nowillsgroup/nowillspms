@@ -184,7 +184,7 @@ class OrganiserPortalController extends Controller
         $e = $this->ownEvent($u, $id);
 
         return view('organiser.event', ['e' => $e, 'money' => OS::money($e), 'changed' => OS::beoChanged($e),
-            'requests' => OrganiserRequest::with('organiserUser', 'decider')->where('banquet_event_id', $e->id)->orderByDesc('id')->get(),
+            'requests' => OrganiserRequest::with('organiserUser', 'decider')->where('banquet_event_id', $e->id)->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'summary' => OS::attendeeSummary($e), 'openChange' => OrganiserRequest::where('banquet_event_id', $e->id)->where('type', 'change')->where('status', 'pending')->exists(),
             'openCancel' => OrganiserRequest::where('banquet_event_id', $e->id)->where('type', 'cancel')->where('status', 'pending')->exists(),
             'canPay' => setting('organiser_pay', '1') === '1' && \App\Services\OnlinePaymentService::enabled()]);
@@ -381,7 +381,7 @@ class OrganiserPortalController extends Controller
 
     public function profile(Request $r)
     {
-        return view('organiser.profile', ['activity' => OrganiserAudit::where('organiser_user_id', $this->me($r)->id)->orderByDesc('id')->limit(15)->get()]);
+        return view('organiser.profile', ['activity' => OrganiserAudit::where('organiser_user_id', $this->me($r)->id)->orderByDesc('id')->limit(15)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function password(Request $r)

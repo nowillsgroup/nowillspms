@@ -43,8 +43,8 @@ class CallController extends Controller
 
         return view('calls.index', [
             'tab' => $tab, 'calls' => $calls, 'from' => $from, 'to' => $to, 'sum' => $sum, 'cfg' => InterfaceService::cfg(), 'counts' => InterfaceService::counts(),
-            'tariffs' => $tab === 'tariffs' ? CallTariff::orderByRaw('length(prefix) desc')->orderBy('prefix')->get() : collect(),
-            'extensions' => $tab === 'extensions' ? PhoneExtension::with('room')->withCount('calls')->orderBy('type')->orderByRaw('cast(extension as unsigned)')->get() : collect(),
+            'tariffs' => $tab === 'tariffs' ? CallTariff::orderByRaw('length(prefix) desc')->orderBy('prefix')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
+            'extensions' => $tab === 'extensions' ? PhoneExtension::with('room')->withCount('calls')->orderBy('type')->orderByRaw('cast(extension as unsigned)')->limit((int) config('pms.max_list_rows', 5000))->get() : collect(),
             'rooms' => Room::where('is_active', true)->orderBy('room_no')->pluck('room_no', 'id')->all(),
             'stays' => FrontDeskOpsService::stayOptions(false),
         ]);

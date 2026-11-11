@@ -50,7 +50,7 @@ class UpsellPublicController extends Controller
         }
 
         return view('public.offers', ['hotel' => Tenant::hotel(), 'r' => $r, 'token' => $token, 'closed' => $closed, 'channel' => $channel, 'groups' => $groups,
-            'orders' => $r->upsellOrders()->with('offer', 'stay.roomType')->orderByDesc('id')->get(), 'cfg' => UpsellService::cfg()]);
+            'orders' => $r->upsellOrders()->with('offer', 'stay.roomType')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => UpsellService::cfg()]);
     }
 
     public function order(Request $request, string $token)

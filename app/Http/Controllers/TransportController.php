@@ -39,11 +39,12 @@ class TransportController extends Controller
 
     public function index(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = Carbon::parse($request->input('date', now()->toDateString()))->startOfDay();
         $end = $date->copy()->endOfDay();
         $trips = TransportTrip::with('vehicle', 'driver', 'stay.room')->where('busy_from', '<=', $end)->where('busy_to', '>=', $date)
-            ->whereNotIn('status', ['cancelled'])->orderBy('busy_from')->get();
-        $vehicles = Vehicle::where('is_active', true)->orderBy('code')->get();
+            ->whereNotIn('status', ['cancelled'])->orderBy('busy_from')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $vehicles = Vehicle::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
         // timeline window: 05:00–23:00 at least, stretched to cover every trip of the day
         $from = 5;
         $to = 23;
@@ -51,12 +52,12 @@ class TransportController extends Controller
             $from = min($from, $t->busy_from->lt($date) ? 0 : (int) $t->busy_from->format('H'));
             $to = max($to, $t->busy_to->gt($end) ? 24 : (int) $t->busy_to->format('H') + 1);
         }
-        $requests = GuestRequest::with('room', 'stay.reservation.guest')->where('category', 'transport')->whereIn('status', GuestRequest::OPEN)->whereNull('linked_type')->orderBy('preferred_at')->get();
+        $requests = GuestRequest::with('room', 'stay.reservation.guest')->where('category', 'transport')->whereIn('status', GuestRequest::OPEN)->whereNull('linked_type')->orderBy('preferred_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('transport.index', [
             'date' => $date, 'trips' => $trips, 'vehicles' => $vehicles, 'from' => $from, 'to' => min(24, max($to, $from + 6)),
             'unassigned' => $trips->whereIn('status', ['requested', 'confirmed'])->where('scheduled_at', '>=', $date)->values(),
-            'stats' => TS::dayStats($date), 'alerts' => TS::alerts(), 'requests' => $requests, 'drivers' => Driver::where('is_active', true)->orderBy('name')->get(),
+            'stats' => TS::dayStats($date), 'alerts' => TS::alerts(), 'requests' => $requests, 'drivers' => Driver::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cfg' => TS::cfg(),
         ]);
     }
@@ -65,13 +66,13 @@ class TransportController extends Controller
     public function options(TransportTrip $trip)
     {
         $s = TS::suggest($trip);
-        $vehicles = Vehicle::where('is_active', true)->orderBy('code')->get()->map(function ($v) use ($trip) {
+        $vehicles = Vehicle::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($trip) {
             $blk = TS::blockers($trip, $v, null);
             $cl = TS::clashes($v->id, null, $trip->busy_from, $trip->busy_to, $trip->id)['vehicle'];
 
             return ['id' => $v->id, 'label' => "{$v->code} · {$v->name} · {$v->seats} seats", 'blocked' => implode(' ', $blk), 'busy' => implode('; ', $cl)];
         });
-        $drivers = Driver::where('is_active', true)->orderBy('name')->get()->map(function ($d) use ($trip) {
+        $drivers = Driver::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($d) use ($trip) {
             $blk = TS::blockers($trip, null, $d);
             $cl = TS::clashes(null, $d->id, $trip->busy_from, $trip->busy_to, $trip->id)['driver'];
 
@@ -114,11 +115,11 @@ class TransportController extends Controller
     {
         $stays = ReservationRoom::with('room', 'reservation.guest', 'guest')->where(fn ($q) => $q->where('status', 'checked_in')
             ->orWhere(fn ($w) => $w->where('status', 'reserved')->whereDate('arrival_date', '>=', bdate()->toDateString())->whereDate('arrival_date', '<=', bdate()->copy()->addDays(30)->toDateString())))
-            ->orderByRaw("CASE status WHEN 'checked_in' THEN 0 ELSE 1 END")->orderBy('arrival_date')->limit(300)->get();
+            ->orderByRaw("CASE status WHEN 'checked_in' THEN 0 ELSE 1 END")->orderBy('arrival_date')->limit(300)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return [
-            'stays' => $stays, 'tariffs' => TransportTariff::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
-            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->get(), 'drivers' => Driver::where('is_active', true)->orderBy('name')->get(),
+            'stays' => $stays, 'tariffs' => TransportTariff::where('is_active', true)->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'drivers' => Driver::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'cfg' => TS::cfg(),
         ];
     }
@@ -177,8 +178,8 @@ class TransportController extends Controller
     public function show(TransportTrip $trip)
     {
         $trip->load('vehicle', 'driver', 'stay.room', 'reservation', 'guest', 'tariff', 'folio', 'folioTransaction', 'paymentMode', 'creator', 'guestRequest');
-        $log = ActivityLog::with('user')->where('subject_type', 'TransportTrip')->where('subject_id', $trip->id)->orderBy('id')->get();
-        $msgs = \App\Models\MessageLog::where('related_type', 'TransportTrip')->where('related_id', $trip->id)->orderBy('id')->get();
+        $log = ActivityLog::with('user')->where('subject_type', 'TransportTrip')->where('subject_id', $trip->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $msgs = \App\Models\MessageLog::where('related_type', 'TransportTrip')->where('related_id', $trip->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('transport.show', $this->formData() + ['t' => $trip, 'log' => $log, 'msgs' => $msgs,
             'suggest' => $trip->isPlanned() ? TS::suggest($trip) : null,
@@ -389,10 +390,10 @@ class TransportController extends Controller
         $trips = $driver ? TransportTrip::with('vehicle', 'stay.room')->where('driver_id', $driver->id)
             ->where(fn ($q) => $q->whereIn('status', TransportTrip::OPEN)->where('busy_from', '<=', now()->addDays(1)->endOfDay())
                 ->orWhere(fn ($w) => $w->whereIn('status', ['completed', 'no_show'])->whereDate('scheduled_at', now()->toDateString())))
-            ->orderByRaw("CASE WHEN status IN ('en_route','onboard') THEN 0 WHEN status = 'assigned' THEN 1 ELSE 2 END")->orderBy('busy_from')->get() : collect();
+            ->orderByRaw("CASE WHEN status IN ('en_route','onboard') THEN 0 WHEN status = 'assigned' THEN 1 ELSE 2 END")->orderBy('busy_from')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
 
         return view('transport.my', ['driver' => $driver, 'trips' => $trips, 'drivers' => can_do('transport.book') ? Driver::where('is_active', true)->orderBy('name')->pluck('name', 'id') : collect(),
-            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->get(),
+            'vehicles' => Vehicle::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'paymentModes' => PaymentMode::where('is_active', true)->whereNotIn('type', ['city_ledger', 'online', 'gift_voucher'])->pluck('name', 'id')]);
     }
 
@@ -440,27 +441,28 @@ class TransportController extends Controller
     {
         $c = TS::cfg();
         $month = now()->startOfMonth();
-        $vehicles = Vehicle::with('asset')->orderByDesc('is_active')->orderBy('code')->get();
+        $vehicles = Vehicle::with('asset')->orderByDesc('is_active')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
         $tripStats = TransportTrip::where('status', 'completed')->where('scheduled_at', '>=', $month)->whereNotNull('vehicle_id')
-            ->selectRaw('vehicle_id, COUNT(*) n, SUM(CASE WHEN COALESCE(odo_end,0) > COALESCE(odo_start,0) THEN COALESCE(odo_end,0) - COALESCE(odo_start,0) ELSE 0 END) km, SUM(CASE WHEN billing <> \'complimentary\' THEN total ELSE 0 END) rev')->groupBy('vehicle_id')->get()->keyBy('vehicle_id');
-        $cost = VehicleExpense::where('date', '>=', $month->toDateString())->selectRaw('vehicle_id, SUM(amount) amt, SUM(COALESCE(litres,0)) l')->groupBy('vehicle_id')->get()->keyBy('vehicle_id');
-        $drivers = Driver::with('user', 'employee')->orderByDesc('is_active')->orderBy('name')->get();
+            ->selectRaw('vehicle_id, COUNT(*) n, SUM(CASE WHEN COALESCE(odo_end,0) > COALESCE(odo_start,0) THEN COALESCE(odo_end,0) - COALESCE(odo_start,0) ELSE 0 END) km, SUM(CASE WHEN billing <> \'complimentary\' THEN total ELSE 0 END) rev')->groupBy('vehicle_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('vehicle_id');
+        $cost = VehicleExpense::where('date', '>=', $month->toDateString())->selectRaw('vehicle_id, SUM(amount) amt, SUM(COALESCE(litres,0)) l')->groupBy('vehicle_id')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('vehicle_id');
+        $drivers = Driver::with('user', 'employee')->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $today = TransportTrip::whereDate('scheduled_at', now()->toDateString())->whereNotIn('status', ['cancelled'])->whereNotNull('driver_id')->selectRaw('driver_id, COUNT(*) n')->groupBy('driver_id')->pluck('n', 'driver_id');
-        $next = TransportTrip::whereIn('status', ['assigned', 'en_route', 'onboard'])->where('busy_to', '>=', now())->orderBy('busy_from')->get()->groupBy('driver_id')->map->first();
-        $nextV = TransportTrip::whereIn('status', ['assigned', 'en_route', 'onboard'])->where('busy_to', '>=', now())->orderBy('busy_from')->get()->groupBy('vehicle_id')->map->first();
+        $next = TransportTrip::whereIn('status', ['assigned', 'en_route', 'onboard'])->where('busy_to', '>=', now())->orderBy('busy_from')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('driver_id')->map->first();
+        $nextV = TransportTrip::whereIn('status', ['assigned', 'en_route', 'onboard'])->where('busy_to', '>=', now())->orderBy('busy_from')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('vehicle_id')->map->first();
 
         return view('transport.fleet', compact('vehicles', 'tripStats', 'cost', 'drivers', 'today', 'next', 'nextV', 'c', 'month'));
     }
 
     public function expenses(Request $request)
     {
+        $request->validate(['month' => 'nullable|date_format:Y-m']);
         $month = Carbon::parse(($request->input('month') ?: now()->format('Y-m')).'-01')->startOfMonth();
         $q = VehicleExpense::with('vehicle', 'driver', 'creator')->whereDate('date', '>=', $month->toDateString())->whereDate('date', '<=', $month->copy()->endOfMonth()->toDateString())
             ->when($request->vehicle, fn ($q, $v) => $q->where('vehicle_id', $v))->when($request->kind, fn ($q, $k) => $q->where('kind', $k));
-        $rows = (clone $q)->orderByDesc('date')->orderByDesc('id')->get();
+        $rows = (clone $q)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('transport.expenses', ['rows' => $rows, 'month' => $month, 'byKind' => $rows->groupBy('kind')->map(fn ($g) => (float) $g->sum('amount')),
-            'vehicles' => Vehicle::orderBy('code')->get(), 'drivers' => Driver::where('is_active', true)->orderBy('name')->pluck('name', 'id')]);
+            'vehicles' => Vehicle::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'drivers' => Driver::where('is_active', true)->orderBy('name')->pluck('name', 'id')]);
     }
 
     public function storeExpense(Request $request)

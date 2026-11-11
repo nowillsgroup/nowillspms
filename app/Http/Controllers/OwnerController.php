@@ -89,9 +89,9 @@ class OwnerController extends Controller
             'unpaid' => (float) OwnerFee::where('status', 'accrued')->sum('total_fee'),
             'feesDue' => OS::feesDue(), 'packsDue' => OS::packsDue(),
             'reserve' => OS::reserveBalance(), 'funded' => OS::reserveFunded($a),
-            'statements' => OwnerStatement::withCount(['queries as open_queries' => fn ($q) => $q->where('status', '!=', 'closed')])->orderByDesc('period')->limit(6)->get(),
-            'capexPending' => CapexProject::with('requester')->where('status', 'submitted')->orderBy('submitted_at')->get(),
-            'openQueries' => OwnerQuery::with('statement', 'raiser')->whereIn('status', ['open', 'answered'])->orderBy('id')->get(),
+            'statements' => OwnerStatement::withCount(['queries as open_queries' => fn ($q) => $q->where('status', '!=', 'closed')])->orderByDesc('period')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'capexPending' => CapexProject::with('requester')->where('status', 'submitted')->orderBy('submitted_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'openQueries' => OwnerQuery::with('statement', 'raiser')->whereIn('status', ['open', 'answered'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
         ]);
     }
 
@@ -150,7 +150,7 @@ class OwnerController extends Controller
             }
         }
 
-        return view('owner.fees', ['agreement' => $a, 'fees' => OwnerFee::with('journal', 'paidJournal', 'paidAccount', 'accruer')->orderByDesc('period')->get(),
+        return view('owner.fees', ['agreement' => $a, 'fees' => OwnerFee::with('journal', 'paidJournal', 'paidAccount', 'accruer')->orderByDesc('period')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'due' => $due, 'preview' => $preview, 'payAccounts' => OS::payAccounts(), 'lock' => LedgerService::lockDate()]);
     }
 
@@ -183,7 +183,7 @@ class OwnerController extends Controller
     {
         $a = OS::agreement();
         $ledger = OS::ledger();
-        $projects = CapexProject::with('assets', 'entries', 'requester')->orderByRaw("FIELD(status, 'submitted', 'approved', 'draft', 'rejected', 'completed', 'cancelled')")->orderByDesc('id')->get();
+        $projects = CapexProject::with('assets', 'entries', 'requester')->orderByRaw("FIELD(status, 'submitted', 'approved', 'draft', 'rejected', 'completed', 'cancelled')")->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $funded = OS::reserveFunded($a);
         $fundUrl = null;
         if ($a?->reserve_account_id && $funded !== null && $ledger['closing'] - $funded > 0.005) {
@@ -294,7 +294,7 @@ class OwnerController extends Controller
 
     public function statements()
     {
-        return view('owner.statements', ['statements' => OwnerStatement::with('issuer', 'acknowledger')->withCount(['queries as open_queries' => fn ($q) => $q->where('status', '!=', 'closed')])->orderByDesc('period')->get(),
+        return view('owner.statements', ['statements' => OwnerStatement::with('issuer', 'acknowledger')->withCount(['queries as open_queries' => fn ($q) => $q->where('status', '!=', 'closed')])->orderByDesc('period')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'packsDue' => OS::packsDue(), 'periods' => $this->periodOptions()]);
     }
 
@@ -359,13 +359,13 @@ class OwnerController extends Controller
     public function setup(Request $r)
     {
         OS::ensureDefaults();
-        $heads = AccountHead::whereIn('type', ['income', 'expense'])->orderBy('code')->get()->each(function ($h) {
+        $heads = AccountHead::whereIn('type', ['income', 'expense'])->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->each(function ($h) {
             [$h->u_dept, $h->u_cat, $h->u_auto] = US::resolve($h);
             $h->u_autodef = US::autoMap($h);
         });
 
         return view('owner.setup', ['agreement' => OS::agreement() ?? new ManagementAgreement(['effective_from' => bdate()->copy()->startOfMonth(), 'base_fee_pct' => 3, 'incentive_pct' => 8, 'incentive_basis' => 'agop', 'ffe_schedule' => [2, 3, 4], 'pay_days' => 15]),
-            'heads' => $heads, 'departments' => Department::orderBy('name')->get(), 'banks' => TreasuryAccount::where('kind', 'bank')->where('is_active', true)->orderBy('name')->get(),
+            'heads' => $heads, 'departments' => Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'banks' => TreasuryAccount::where('kind', 'bank')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'accrued' => OwnerFee::where('status', '!=', 'reversed')->exists()]);
     }
 
@@ -390,7 +390,7 @@ class OwnerController extends Controller
     {
         $r->validate(['dept' => 'required|array', 'dept.*' => ['nullable', Rule::in(array_keys(US::payrollDepts()))]]);
         $n = 0;
-        foreach (Department::whereIn('id', array_map('intval', array_keys($r->dept)))->get() as $d) {
+        foreach (Department::whereIn('id', array_map('intval', array_keys($r->dept)))->limit((int) config('pms.max_list_rows', 5000))->get() as $d) {
             $v = $r->dept[$d->id] ?: US::deptDefault($d);
             if ($d->usali_dept !== $v) {
                 $d->forceFill(['usali_dept' => $v])->save();

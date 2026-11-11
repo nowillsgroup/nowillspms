@@ -318,7 +318,7 @@ trait SelfServiceKioskReports
     {
         $S = \App\Models\KioskSession::class;
         [$a, $b] = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
-        $sess = $S::whereBetween('started_at', [$a, $b])->get();
+        $sess = $S::whereBetween('started_at', [$a, $b])->limit((int) config('pms.max_list_rows', 5000))->get();
         $has = fn ($s, $step) => collect($s->trail)->contains(fn ($t) => ($t[1] ?? '') === $step);
         $ins = \App\Models\ReservationRoom::whereBetween('checked_in_at', [$a, $b])->get(['checked_in_at'])->groupBy(fn ($r) => $r->checked_in_at->toDateString());
         $outs = \App\Models\ReservationRoom::whereBetween('checked_out_at', [$a, $b])->get(['checked_out_at'])->groupBy(fn ($r) => $r->checked_out_at->toDateString());
@@ -346,7 +346,7 @@ trait SelfServiceKioskReports
     protected function r_kiosk_assist($from, $to): array
     {
         $S = \App\Models\KioskSession::class;
-        $list = $S::with('kiosk', 'guest', 'reservation', 'resolvedBy')->where('status', 'assist')->whereBetween('assist_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('assist_at')->get();
+        $list = $S::with('kiosk', 'guest', 'reservation', 'resolvedBy')->where('status', 'assist')->whereBetween('assist_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('assist_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($s) => ['at' => $s->assist_at->format('d-m-Y H:i'), 'no' => $s->number, 'kiosk' => $s->kiosk?->name, 'kind' => $s->kindLabel(), 'guest' => $s->guest?->full_name,
             'res' => $s->reservation?->reservation_no, 'reason' => $s->assistLabel(), 'note' => $s->assist_note, 'wait' => $s->resolved_at ? (int) round($s->assist_at->diffInMinutes($s->resolved_at)) : null,
             'by' => $s->resolvedBy?->name, 'done' => $s->resolution, '_class' => $s->resolved_at ? '' : 'row-red']);
@@ -362,8 +362,8 @@ trait SelfServiceKioskReports
     protected function r_kiosk_payments($from, $to): array
     {
         $S = \App\Models\KioskSession::class;
-        $list = $S::with('kiosk', 'guest', 'reservation')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->where('amount_paid', '>', 0)->orderBy('started_at')->get();
-        $pays = \App\Models\OnlinePayment::whereIn('id', $list->pluck('online_payment_id')->filter())->get()->keyBy('id');
+        $list = $S::with('kiosk', 'guest', 'reservation')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->where('amount_paid', '>', 0)->orderBy('started_at')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $pays = \App\Models\OnlinePayment::whereIn('id', $list->pluck('online_payment_id')->filter())->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('id');
         $rows = $list->map(function ($s) use ($pays) {
             $p = $s->online_payment_id ? ($pays[$s->online_payment_id] ?? null) : null;
             $ref = collect($s->trail)->filter(fn ($t) => ($t[1] ?? '') === 'paid')->map(fn ($t) => strtok((string) $t[2], ' '))->implode(', ');
@@ -380,7 +380,7 @@ trait SelfServiceKioskReports
     protected function r_kiosk_sessions($from, $to): array
     {
         $S = \App\Models\KioskSession::class;
-        $list = $S::with('kiosk', 'guest', 'reservation', 'room')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('started_at')->get();
+        $list = $S::with('kiosk', 'guest', 'reservation', 'room')->whereBetween('started_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('started_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($s) => ['no' => $s->number, 'at' => $s->started_at->format('d-m-Y H:i'), 'kiosk' => $s->kiosk?->name, 'kind' => $s->kindLabel(), 'guest' => $s->guest?->full_name,
             'res' => $s->reservation?->reservation_no, 'room' => $s->room?->room_no, 'step' => $s->stepLabel(), 'secs' => $s->durationLabel(), 'paid' => (float) $s->amount_paid ?: null,
             'status' => $s->statusLabel().($s->status === 'assist' ? ' – '.$s->assistLabel() : ''), '_class' => $s->status === 'assist' && ! $s->resolved_at ? 'row-red' : '']);
@@ -395,7 +395,7 @@ trait SelfServiceKioskReports
     protected function r_kiosks($from, $to): array
     {
         // Rewritten against the real schema: location/serial/status/pairing state/last_seen_at; no kiosk type or floor table.
-        $rows = Kiosk::orderBy('name')->get()->map(fn ($r) => [
+        $rows = Kiosk::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'location' => $r->location, 'serial' => $r->serial,
             'checkin' => $r->allow_checkin ? 'Yes' : 'No', 'checkout' => $r->allow_checkout ? 'Yes' : 'No',
             'walkin' => $r->allow_walkin ? 'Yes' : 'No',

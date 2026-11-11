@@ -54,18 +54,18 @@ class UtilityController extends Controller
         } elseif ($tab === 'readings') {
             $request->validate(['date' => 'nullable|date_format:Y-m-d']);
             $date = $request->query('date') ? min($request->query('date'), bdate()->toDateString()) : bdate()->toDateString();
-            $meters = UtilityMeter::with('parent')->where('is_active', true)->orderByRaw("FIELD(utility,'electricity','dg','solar','water','lpg','diesel','png')")->orderBy('parent_id')->orderBy('code')->get();
-            $today = MeterReading::with('user')->whereDate('reading_date', $date)->get()->keyBy('utility_meter_id');
+            $meters = UtilityMeter::with('parent')->where('is_active', true)->orderByRaw("FIELD(utility,'electricity','dg','solar','water','lpg','diesel','png')")->orderBy('parent_id')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
+            $today = MeterReading::with('user')->whereDate('reading_date', $date)->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('utility_meter_id');
             $rows = $meters->map(fn ($m) => ['meter' => $m, 'prev' => Us::previous($m, $date), 'cur' => $today->get($m->id), 'expected' => Us::expected($m, $date)]);
             $v += ['date' => $date, 'rows' => $rows];
         } elseif ($tab === 'meters') {
-            $v += ['meters' => UtilityMeter::with('parent', 'lastReading')->withCount('readings')->orderBy('utility')->orderBy('code')->get()];
+            $v += ['meters' => UtilityMeter::with('parent', 'lastReading')->withCount('readings')->orderBy('utility')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()];
         } elseif ($tab === 'bills') {
             $v += ['bills' => UtilityBill::with('meter', 'supplier', 'supplierInvoice')->orderByDesc('bill_date')->orderByDesc('id')->paginate(30),
                 'suppliers' => Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
                 'heads' => ApService::chargeableHeads()->mapWithKeys(fn ($h) => [$h->id => trim($h->code.' '.$h->name)])];
         }
-        $v['allMeters'] = UtilityMeter::orderBy('code')->get();
+        $v['allMeters'] = UtilityMeter::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('utilities.index', $v);
     }
@@ -73,11 +73,11 @@ class UtilityController extends Controller
     public function meter(Request $request, UtilityMeter $umeter)
     {
         [$from, $to] = $this->range($request, 60);
-        $readings = MeterReading::with('user')->where('utility_meter_id', $umeter->id)->whereDate('reading_date', '>=', $from)->whereDate('reading_date', '<=', $to)->orderByDesc('reading_date')->get();
+        $readings = MeterReading::with('user')->where('utility_meter_id', $umeter->id)->whereDate('reading_date', '>=', $from)->whereDate('reading_date', '<=', $to)->orderByDesc('reading_date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $sum = ['cons' => $readings->sum('consumption'), 'cost' => $readings->sum('cost'), 'days' => $readings->sum('days')];
 
         return view('utilities.meter', ['m' => $umeter->load('parent', 'children', 'lastReading'), 'readings' => $readings, 'from' => $from, 'to' => $to, 'sum' => $sum,
-            'bills' => $umeter->bills()->orderByDesc('bill_date')->limit(12)->get(), 'allMeters' => UtilityMeter::orderBy('code')->get()]);
+            'bills' => $umeter->bills()->orderByDesc('bill_date')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(), 'allMeters' => UtilityMeter::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveReadings(Request $request)

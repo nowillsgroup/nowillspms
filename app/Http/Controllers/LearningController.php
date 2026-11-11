@@ -36,7 +36,7 @@ class LearningController extends Controller
 
     protected function depts()
     {
-        return Department::orderBy('name')->get();
+        return Department::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ───────────────────────── dashboard & matrix ─────────────────────────
@@ -48,8 +48,8 @@ class LearningController extends Controller
 
         return view('learning.index', [
             'm' => LS::matrix(), 'alerts' => LS::alerts(), 'depts' => LS::byDepartment(), 'gaps' => LS::gaps()->take(12), 'cfg' => LS::cfg(),
-            'upcoming' => TrainingSession::with('course')->withCount('records')->where('status', 'scheduled')->orderBy('date')->orderBy('start_time')->limit(8)->get(),
-            'reviews' => SopDocument::where('status', 'published')->whereDate('review_due', '<=', $warn)->orderBy('review_due')->limit(8)->get(),
+            'upcoming' => TrainingSession::with('course')->withCount('records')->where('status', 'scheduled')->orderBy('date')->orderBy('start_time')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'reviews' => SopDocument::where('status', 'published')->whereDate('review_due', '<=', $warn)->orderBy('review_due')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'sops' => LS::sopOverview()->filter(fn ($r) => $r['required'] > $r['signed'])->sortBy('pct')->take(6)->values(),
             'yearHours' => (float) TrainingRecord::join('training_courses', 'training_courses.id', '=', 'training_records.training_course_id')
                 ->where('training_records.status', 'passed')->whereYear('training_records.completed_on', bdate()->year)->sum('training_courses.duration_hours'),
@@ -73,7 +73,7 @@ class LearningController extends Controller
 
     public function employee(Employee $employee)
     {
-        return view('learning.employee', ['e' => $employee->load('department'), 'mine' => LS::mine($employee), 'courses' => TrainingCourse::where('is_active', true)->orderBy('name')->get()]);
+        return view('learning.employee', ['e' => $employee->load('department'), 'mine' => LS::mine($employee), 'courses' => TrainingCourse::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     // ───────────────────────── courses ─────────────────────────
@@ -81,8 +81,8 @@ class LearningController extends Controller
     public function courses()
     {
         return view('learning.courses', [
-            'courses' => TrainingCourse::with('requirements.department', 'sop')->withCount(['sessions' => fn ($q) => $q->where('status', 'scheduled')])->orderBy('category')->orderBy('name')->get(),
-            'depts' => $this->depts(), 'sops' => SopDocument::where('status', '!=', 'retired')->orderBy('code')->get(), 'm' => LS::matrix(),
+            'courses' => TrainingCourse::with('requirements.department', 'sop')->withCount(['sessions' => fn ($q) => $q->where('status', 'scheduled')])->orderBy('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'depts' => $this->depts(), 'sops' => SopDocument::where('status', '!=', 'retired')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get(), 'm' => LS::matrix(),
             'designations' => Employee::whereNotNull('designation')->distinct()->orderBy('designation')->pluck('designation'),
         ]);
     }
@@ -94,9 +94,9 @@ class LearningController extends Controller
             ->sortBy(fn ($r) => array_search($r['cell']['state'], ['expired', 'overdue', 'expiring', 'due', 'current'], true))->values();
 
         return view('learning.course', ['c' => $tcourse->load('requirements.department', 'sop'), 'holders' => $holders, 'depts' => $this->depts(),
-            'sessions' => $tcourse->sessions()->withCount('records')->orderByDesc('date')->limit(20)->get(), 'needing' => LS::needing($tcourse),
+            'sessions' => $tcourse->sessions()->withCount('records')->orderByDesc('date')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get(), 'needing' => LS::needing($tcourse),
             'designations' => Employee::whereNotNull('designation')->distinct()->orderBy('designation')->pluck('designation'),
-            'sops' => SopDocument::where('status', '!=', 'retired')->orderBy('code')->get()]);
+            'sops' => SopDocument::where('status', '!=', 'retired')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     protected function courseData(Request $r): array
@@ -145,10 +145,10 @@ class LearningController extends Controller
         if ($r->filled('course')) {
             $q->where('training_course_id', (int) $r->course);
         }
-        $upcoming = TrainingSession::with('course')->withCount('records')->where('status', 'scheduled')->orderBy('date')->orderBy('start_time')->get();
+        $upcoming = TrainingSession::with('course')->withCount('records')->where('status', 'scheduled')->orderBy('date')->orderBy('start_time')->limit((int) config('pms.max_list_rows', 5000))->get();
 
-        return view('learning.sessions', ['sessions' => $q->paginate(30)->withQueryString(), 'upcoming' => $upcoming, 'courses' => TrainingCourse::where('is_active', true)->orderBy('name')->get(),
-            'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->get(), 'cfg' => LS::cfg(), 'preset' => $r->integer('course') ?: null]);
+        return view('learning.sessions', ['sessions' => $q->paginate(30)->withQueryString(), 'upcoming' => $upcoming, 'courses' => TrainingCourse::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'cfg' => LS::cfg(), 'preset' => $r->integer('course') ?: null]);
     }
 
     public function session(TrainingSession $tsession)
@@ -225,7 +225,7 @@ class LearningController extends Controller
             $q->where(fn ($w) => $w->where('certificate_no', 'like', $s)->orWhereHas('employee', fn ($e) => $e->where('name', 'like', $s)));
         }
 
-        return view('learning.records', ['records' => $q->paginate(40)->withQueryString(), 'courses' => TrainingCourse::orderBy('name')->get(), 'employees' => LS::employees(), 'depts' => $this->depts()]);
+        return view('learning.records', ['records' => $q->paginate(40)->withQueryString(), 'courses' => TrainingCourse::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'employees' => LS::employees(), 'depts' => $this->depts()]);
     }
 
     public function certificate(TrainingRecord $trecord)
@@ -278,7 +278,7 @@ class LearningController extends Controller
             $s = '%'.trim((string) $r->q).'%';
             $q->where(fn ($w) => $w->where('code', 'like', $s)->orWhere('title', 'like', $s)->orWhere('summary', 'like', $s)->orWhere('body', 'like', $s));
         }
-        $docs = $q->get();
+        $docs = $q->limit((int) config('pms.max_list_rows', 5000))->get();
         $acks = LS::sopOverview()->keyBy(fn ($r) => $r['doc']->id);
 
         return view('learning.sops', ['docs' => $docs, 'acks' => $acks, 'depts' => $this->depts()]);
@@ -289,7 +289,7 @@ class LearningController extends Controller
         $sop->load('department', 'owner', 'versions.publisher');
         $v = $r->filled('v') ? $sop->versions->firstWhere('version', (int) $r->v) : null;
 
-        return view('learning.sop', ['d' => $sop, 'v' => $v, 'ack' => LS::ackStatus($sop), 'courses' => TrainingCourse::where('sop_document_id', $sop->id)->get()]);
+        return view('learning.sop', ['d' => $sop, 'v' => $v, 'ack' => LS::ackStatus($sop), 'courses' => TrainingCourse::where('sop_document_id', $sop->id)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function sopPrint(Request $r, SopDocument $sop)
@@ -317,14 +317,14 @@ class LearningController extends Controller
     public function sopCreate()
     {
         return view('learning.sop_form', ['d' => new SopDocument(['category' => 'operations', 'requires_ack' => true, 'review_months' => 12, 'owner_id' => auth()->id()]),
-            'depts' => $this->depts(), 'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->get()]);
+            'depts' => $this->depts(), 'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function sopEdit(SopDocument $sop)
     {
         abort_if($sop->status === 'retired', 404);
 
-        return view('learning.sop_form', ['d' => $sop, 'depts' => $this->depts(), 'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->get()]);
+        return view('learning.sop_form', ['d' => $sop, 'depts' => $this->depts(), 'users' => User::visibleToHotel()->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     protected function sopData(Request $r): array

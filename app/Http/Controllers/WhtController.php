@@ -46,7 +46,7 @@ class WhtController extends Controller
         $periods = collect(range(0, 12))->map(fn ($i) => bdate()->copy()->startOfMonth()->subMonths($i)->format('Y-m'))->all();
 
         return view('ap.wht', ['period' => $period, 'periods' => $periods, 'r' => WhtService::monthReturn($period), 'alert' => WhtService::alert(),
-            'filings' => WhtPeriod::with('filer')->orderByDesc('period')->limit(12)->get(), 'enabled' => WhtService::enabled(),
+            'filings' => WhtPeriod::with('filer')->orderByDesc('period')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get(), 'enabled' => WhtService::enabled(),
             'cfg' => collect(WhtService::DEFAULTS)->map(fn ($v, $k) => WhtService::cfg($k)), 'closed' => $period < bdate()->format('Y-m')]);
     }
 

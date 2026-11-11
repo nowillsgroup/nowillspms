@@ -939,6 +939,7 @@ class ReportController extends Controller
 
     public function show(Request $request, string $report)
     {
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from', 'view' => 'nullable|integer|min:1']);
         abort_unless(isset(self::REPORTS[$report]), 404);
         [$group, $title, $desc, $mode] = self::REPORTS[$report];
         abort_unless(can_do(self::REPORTS[$report][4] ?? 'reports.view'), 403);
@@ -1023,7 +1024,7 @@ class ReportController extends Controller
     protected function statMonths($from, $to): array
     {
         return \App\Models\PayrollRun::whereBetween('period_start', [Carbon::parse($from)->startOfMonth()->toDateString(), Carbon::parse($to)->toDateString()])
-            ->whereIn('status', ['approved', 'paid'])->orderBy('period_start')->get()->map(fn ($r) => $r->period_start->format('Y-m'))->all();
+            ->whereIn('status', ['approved', 'paid'])->orderBy('period_start')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => $r->period_start->format('Y-m'))->all();
     }
 
 
@@ -1096,14 +1097,14 @@ class ReportController extends Controller
 
     protected function upsellOrdersIn($from, $to)
     {
-        return \App\Models\UpsellOrder::with('offer')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->get();
+        return \App\Models\UpsellOrder::with('offer')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
 
     protected function roomNightsBy($from, $to, string $key): Collection
     {
         return ReservationRoom::with('reservation.source', 'reservation.company', 'folio.transactions')->whereIn('status', ['checked_in', 'checked_out'])
-            ->whereDate('arrival_date', '<=', $to)->whereDate('departure_date', '>', $from)->get()
+            ->whereDate('arrival_date', '<=', $to)->whereDate('departure_date', '>', $from)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($s) => ($key === 'source' ? $s->reservation->source?->name : $s->reservation->company?->name) ?? ($key === 'source' ? 'Direct / Walk-in' : 'Individual (FIT)'))
             ->map(function ($g, $name) use ($from, $to) {
                 $end = $to->copy()->addDay();
@@ -1126,7 +1127,7 @@ class ReportController extends Controller
     protected function tbRows($from, $to)
     {
         return \App\Models\TableReservation::with('outlet', 'tables', 'order')->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', Carbon::parse($to)->toDateString())
-            ->orderBy('start_at')->get();
+            ->orderBy('start_at')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
 
@@ -1135,7 +1136,7 @@ class ReportController extends Controller
     protected function trRows($from, $to)
     {
         return \App\Models\TransportTrip::with('vehicle', 'driver', 'stay.room')->whereBetween('scheduled_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])
-            ->orderBy('scheduled_at')->get();
+            ->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ─────────────── v3.4 foreign guests ───────────────
@@ -1175,7 +1176,7 @@ class ReportController extends Controller
     protected function cgRows($from, $to)
     {
         return \App\Models\ActivityBooking::with('activity', 'vendor', 'creator')->whereDate('date', '>=', Carbon::parse($from)->toDateString())->whereDate('date', '<=', Carbon::parse($to)->toDateString())
-            ->orderBy('date')->orderBy('time')->orderBy('id')->get();
+            ->orderBy('date')->orderBy('time')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
 

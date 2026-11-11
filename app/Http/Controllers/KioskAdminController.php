@@ -34,13 +34,14 @@ class KioskAdminController extends Controller
     public function kiosks()
     {
         KS::sweep();
-        $kiosks = Kiosk::withCount(['sessions', 'sessions as today_count' => fn ($q) => $q->where('started_at', '>=', now()->startOfDay())])->orderByRaw("status = 'pending'")->orderBy('name')->get();
+        $kiosks = Kiosk::withCount(['sessions', 'sessions as today_count' => fn ($q) => $q->where('started_at', '>=', now()->startOfDay())])->orderByRaw("status = 'pending'")->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('kiosk-admin.kiosks', ['kiosks' => $kiosks, 'setupUrl' => route('kiosk.setup', hotel()->code), 'canManage' => KS::canManage(auth()->user())]);
     }
 
     public function sessions(Request $r)
     {
+        $r->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from']);
         try {
             $from = $r->filled('from') ? Carbon::parse($r->query('from'))->startOfDay() : now()->subDays(6)->startOfDay();
             $to = $r->filled('to') ? Carbon::parse($r->query('to'))->endOfDay() : now()->endOfDay();
@@ -58,10 +59,10 @@ class KioskAdminController extends Controller
             $q->where(fn ($w) => $w->where('number', 'like', $term)->orWhereHas('guest', fn ($g) => $g->where('last_name', 'like', $term)->orWhere('first_name', 'like', $term))
                 ->orWhereHas('reservation', fn ($x) => $x->where('reservation_no', 'like', $term)));
         }
-        $all = (clone $q)->get();
+        $all = (clone $q)->limit((int) config('pms.max_list_rows', 5000))->get();
         $list = $q->orderByDesc('started_at')->paginate(30)->withQueryString();
 
-        return view('kiosk-admin.sessions', ['list' => $list, 'from' => $from->toDateString(), 'to' => $to->toDateString(), 'kiosks' => Kiosk::orderBy('name')->get(),
+        return view('kiosk-admin.sessions', ['list' => $list, 'from' => $from->toDateString(), 'to' => $to->toDateString(), 'kiosks' => Kiosk::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'totals' => ['visits' => $all->count(), 'completed' => $all->where('status', 'completed')->count(), 'assist' => $all->where('status', 'assist')->count(),
                 'abandoned' => $all->whereIn('status', ['abandoned', 'cancelled'])->count(), 'paid' => round((float) $all->sum('amount_paid'), 2)]]);
     }
@@ -69,7 +70,7 @@ class KioskAdminController extends Controller
     public function session(KioskSession $ksession)
     {
         $ksession->load('kiosk', 'guest', 'reservation', 'stay.roomType', 'room', 'payment', 'resolvedBy');
-        $docs = $ksession->guest ? $ksession->guest->documents()->where('reservation_room_id', $ksession->reservation_room_id)->latest('id')->get() : collect();
+        $docs = $ksession->guest ? $ksession->guest->documents()->where('reservation_room_id', $ksession->reservation_room_id)->latest('id')->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
 
         return view('kiosk-admin.session', ['s' => $ksession, 'docs' => $docs, 'canAssist' => KS::canAssist(auth()->user())]);
     }

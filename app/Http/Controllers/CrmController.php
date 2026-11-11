@@ -46,9 +46,9 @@ class CrmController extends Controller
         return view('crm.index', [
             'total' => $total, 'consent' => $consent, 'sent' => $sent, 'clicks' => $clicks, 'ctr' => $sent ? round($clicks / $sent * 100, 1) : 0,
             'unsubs' => (clone $msgs)->whereNotNull('unsubscribed_at')->count(), 'value' => $value,
-            'campaigns' => MarketingCampaign::with('segment')->latest('id')->limit(6)->get(),
-            'journeys' => MarketingJourney::withCount(['messages as sent_30' => fn ($q) => $q->where('status', 'sent')->where('created_at', '>=', $since)])->orderByDesc('is_active')->orderBy('name')->get(),
-            'bookings' => Reservation::with('guest', 'campaign', 'journey', 'promo')->whereNotNull('attribution')->latest('id')->limit(8)->get(),
+            'campaigns' => MarketingCampaign::with('segment')->latest('id')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'journeys' => MarketingJourney::withCount(['messages as sent_30' => fn ($q) => $q->where('status', 'sent')->where('created_at', '>=', $since)])->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'bookings' => Reservation::with('guest', 'campaign', 'journey', 'promo')->whereNotNull('attribution')->latest('id')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'birthdays' => $birthdays, 'mix' => $mix,
             'daily' => MarketingMessage::where('status', 'sent')->where('created_at', '>=', now()->subDays(13)->startOfDay())
                 ->selectRaw('DATE(created_at) d, COUNT(*) n')->groupBy('d')->pluck('n', 'd'),

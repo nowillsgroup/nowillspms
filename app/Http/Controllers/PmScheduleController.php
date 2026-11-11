@@ -18,7 +18,7 @@ class PmScheduleController extends Controller
     public function index(Request $request)
     {
         $filter = $request->input('show', 'all');
-        $all = PmSchedule::with('asset', 'room', 'employee', 'openTicket')->orderBy('next_due')->get();
+        $all = PmSchedule::with('asset', 'room', 'employee', 'openTicket')->orderBy('next_due')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $all->filter(fn ($s) => $filter === 'all' || $s->state() === $filter)->values();
         $from = bdate()->copy()->subDays(90)->toDateString();
 
@@ -26,7 +26,7 @@ class PmScheduleController extends Controller
             'schedules' => $rows,
             'counts' => $all->countBy(fn ($s) => $s->state()),
             'total' => $all->count(),
-            'assets' => Asset::where('status', '!=', 'disposed')->orderBy('name')->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.' · '.$a->asset_no]),
+            'assets' => Asset::where('status', '!=', 'disposed')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.' · '.$a->asset_no]),
             'rooms' => Room::orderBy('room_no')->pluck('room_no', 'id'),
             'staff' => Employee::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
             'compliance' => PmService::compliance($from, bdate()->toDateString()),

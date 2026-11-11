@@ -49,9 +49,9 @@ class HseController extends Controller
     {
         return view('hse.index', ['k' => HS::kpis(), 'eq' => HS::equipmentStats(), 'alerts' => HS::alerts(), 'due' => HS::dueList(8), 'drills' => HS::drillStatus(),
             'cover' => HS::coverage(), 'heat' => HS::heatmap(),
-            'live' => HsePermit::with(['issuer'])->whereIn('status', ['issued', 'requested'])->orderByRaw("FIELD(status, 'issued', 'requested')")->orderBy('ends_at')->get(),
-            'recent' => HseAccident::with(['employee', 'guest'])->orderByDesc('occurred_at')->orderByDesc('id')->limit(6)->get(),
-            'reviews' => HseRisk::where('status', '!=', 'archived')->where(fn ($q) => $q->whereDate('review_on', '<', bdate()->toDateString())->orWhere('status', 'pending'))->orderBy('review_on')->limit(6)->get(),
+            'live' => HsePermit::with(['issuer'])->whereIn('status', ['issued', 'requested'])->orderByRaw("FIELD(status, 'issued', 'requested')")->orderBy('ends_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'recent' => HseAccident::with(['employee', 'guest'])->orderByDesc('occurred_at')->orderByDesc('id')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'reviews' => HseRisk::where('status', '!=', 'archived')->where(fn ($q) => $q->whereDate('review_on', '<', bdate()->toDateString())->orWhere('status', 'pending'))->orderBy('review_on')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'trend' => $this->monthly(), 'lk' => $this->accidentLookups()]);
     }
 
@@ -78,7 +78,7 @@ class HseController extends Controller
             ->when($r->filled('floor'), fn ($q) => $q->where('floor', $r->query('floor')))
             ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('code', 'like', '%'.$r->query('q').'%')->orWhere('location', 'like', '%'.$r->query('q').'%')->orWhere('gnfs_tag', 'like', '%'.$r->query('q').'%')))
             ->when(! $r->boolean('retired'), fn ($q) => $q->where('status', '!=', 'retired'))
-            ->orderBy('code')->get()->each(fn ($e) => $e->setAttribute('st', $e->state()));
+            ->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->each(fn ($e) => $e->setAttribute('st', $e->state()));
         if ($r->filled('state')) {
             $items = $items->where('st', $r->query('state'))->values();
         }
@@ -118,7 +118,7 @@ class HseController extends Controller
         $items = HseEquipment::where('status', '!=', 'retired')
             ->when($r->filled('floor'), fn ($q) => $q->where('floor', $r->query('floor')))
             ->when($scope === 'due', fn ($q) => $q->where(fn ($w) => $w->whereNull('next_check_on')->orWhereDate('next_check_on', '<=', bdate()->copy()->addDays(7)->toDateString())->orWhereIn('status', ['defective', 'out_of_service'])))
-            ->orderBy('floor')->orderBy('code')->get()->each(fn ($e) => $e->setAttribute('st', $e->state($today)));
+            ->orderBy('floor')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->each(fn ($e) => $e->setAttribute('st', $e->state($today)));
 
         return view('hse.round', ['items' => $items, 'scope' => $scope, 'floors' => HseEquipment::whereNotNull('floor')->distinct()->orderBy('floor')->pluck('floor')]);
     }
@@ -179,7 +179,7 @@ class HseController extends Controller
     {
         return [
             'employees' => Employee::where('is_active', true)->orderBy('name')->get(['id', 'name', 'designation']),
-            'stays' => ReservationRoom::with(['guest', 'room'])->where('status', 'checked_in')->get()->sortBy(fn ($s) => $s->room?->room_no ?? 'zzz')->values(),
+            'stays' => ReservationRoom::with(['guest', 'room'])->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($s) => $s->room?->room_no ?? 'zzz')->values(),
             'rooms' => Room::orderBy('room_no')->get(['id', 'room_no']),
             'incidents' => SecurityIncident::whereIn('type', ['accident', 'medical', 'fire_alarm'])->where('occurred_at', '>=', now()->subDays(30))->orderByDesc('occurred_at')->get(['id', 'incident_no', 'title', 'occurred_at']),
         ];
@@ -258,7 +258,7 @@ class HseController extends Controller
     public function risks(Request $r)
     {
         $risks = HseRisk::with(['owner', 'department'])->when($r->filled('status'), fn ($q) => $q->where('status', $r->query('status')), fn ($q) => $q->where('status', '!=', 'archived'))
-            ->when($r->filled('area'), fn ($q) => $q->where('area', $r->query('area')))->orderBy('number')->get();
+            ->when($r->filled('area'), fn ($q) => $q->where('area', $r->query('area')))->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get();
         if ($r->filled('band')) {
             $risks = $risks->filter(fn ($x) => HseRisk::band($x->residual())[0] === $r->query('band'))->values();
         }
@@ -301,9 +301,9 @@ class HseController extends Controller
 
     public function drills()
     {
-        return view('hse.drills', ['drills' => HseDrill::with('leader')->orderByRaw("FIELD(status, 'planned', 'done', 'cancelled')")->orderByDesc('scheduled_at')->limit(60)->get(),
+        return view('hse.drills', ['drills' => HseDrill::with('leader')->orderByRaw("FIELD(status, 'planned', 'done', 'cancelled')")->orderByDesc('scheduled_at')->limit(60)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'status' => HS::drillStatus(), 'cover' => HS::coverage(), 'cfg' => HS::cfg(), 'users' => $this->users(),
-            'wardens' => HseWarden::with('employee.department')->orderByRaw("FIELD(shift, 'morning', 'evening', 'night')")->orderByRaw("FIELD(role, 'chief', 'floor', 'first_aider', 'fire_team')")->get(),
+            'wardens' => HseWarden::with('employee.department')->orderByRaw("FIELD(shift, 'morning', 'evening', 'night')")->orderByRaw("FIELD(role, 'chief', 'floor', 'first_aider', 'fire_team')")->limit((int) config('pms.max_list_rows', 5000))->get(),
             'employees' => Employee::where('is_active', true)->orderBy('name')->get(['id', 'name', 'designation'])]);
     }
 

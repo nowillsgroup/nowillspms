@@ -130,7 +130,7 @@ class MasterController extends Controller
         }
         $extra = [];
         if (! empty($def['photos'])) {
-            $extra['photos'] = $row->images()->get();
+            $extra['photos'] = $row->images()->limit((int) config('pms.max_list_rows', 5000))->get();
         }
 
         return view($view, ['def' => $def, 'row' => $row, 'options' => $this->options($def)] + $extra);

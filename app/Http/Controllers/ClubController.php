@@ -42,7 +42,7 @@ class ClubController extends Controller
 
     protected function modes()
     {
-        return PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'card', 'bank', 'wallet'])->orderBy('id')->get();
+        return PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'card', 'bank', 'wallet'])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
     }
 
     // ───────────────────────── dashboard ─────────────────────────
@@ -57,11 +57,11 @@ class ClubController extends Controller
             'occ' => ClubService::occupancy(),
             'arrears' => ClubBillingService::arrears()->take(8),
             'expiring' => ClubMembership::with('plan')->whereIn('status', ['active', 'frozen'])->whereDate('end_date', '>=', $today)->whereDate('end_date', '<=', Carbon::parse($today)->addDays(14)->toDateString())
-                ->orderBy('end_date')->take(10)->get(),
-            'inNow' => ClubService::openVisits()->with('member.membership')->latest('checked_in_at')->take(12)->get(),
-            'denied' => ClubVisit::where('denied', true)->where('checked_in_at', '>=', now()->subDays(7))->latest('checked_in_at')->take(6)->get(),
+                ->orderBy('end_date')->take(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'inNow' => ClubService::openVisits()->with('member.membership')->latest('checked_in_at')->take(12)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'denied' => ClubVisit::where('denied', true)->where('checked_in_at', '>=', now()->subDays(7))->latest('checked_in_at')->take(6)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'sessions' => $week['days'][bdate()->isoWeekday()]['sessions'] ?? collect(),
-            'plans' => ClubPlan::withCount(['memberships as live' => fn ($q) => $q->whereIn('status', ['active', 'frozen'])])->where('is_active', true)->orderBy('price')->get(),
+            'plans' => ClubPlan::withCount(['memberships as live' => fn ($q) => $q->whereIn('status', ['active', 'frozen'])])->where('is_active', true)->orderBy('price')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'trend' => collect(range(13, 0))->map(fn ($i) => ['d' => now()->subDays($i), 'n' => (int) ClubVisit::where('denied', false)->whereDate('checked_in_at', now()->subDays($i)->toDateString())->sum('pax')]),
         ]);
     }
@@ -85,8 +85,8 @@ class ClubController extends Controller
             'balance' => $person ? ClubBillingService::balance($person->membership) : 0,
             'passesLeft' => $person ? ClubService::guestPassesLeft($person->membership) : 0,
             'occ' => ClubService::occupancy(),
-            'inNow' => ClubService::openVisits()->with('member')->latest('checked_in_at')->get(),
-            'recent' => ClubVisit::with('member', 'overrider')->whereDate('checked_in_at', now()->toDateString())->latest('id')->take(15)->get(),
+            'inNow' => ClubService::openVisits()->with('member')->latest('checked_in_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'recent' => ClubVisit::with('member', 'overrider')->whereDate('checked_in_at', now()->toDateString())->latest('id')->take(15)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'modes' => $modes, 'splitModes' => $modes->mapWithKeys(fn ($m) => [$m->id => $m->name]),
         ]);
     }
@@ -199,12 +199,12 @@ class ClubController extends Controller
         $bal = ClubCharge::whereIn('club_membership_id', $rows->pluck('id'))->whereNull('cancelled_at')->selectRaw('club_membership_id, SUM(total - paid) o')->groupBy('club_membership_id')->pluck('o', 'club_membership_id');
         $counts = ClubMembership::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status');
 
-        return view('club.members', ['rows' => $rows, 'bal' => $bal, 'counts' => $counts, 'status' => $status, 'plans' => ClubPlan::orderBy('price')->get()]);
+        return view('club.members', ['rows' => $rows, 'bal' => $bal, 'counts' => $counts, 'status' => $status, 'plans' => ClubPlan::orderBy('price')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function create()
     {
-        return view('club.enrol', ['plans' => ClubPlan::where('is_active', true)->orderBy('category')->orderBy('price')->get(), 'companies' => Company::orderBy('name')->get(['id', 'name']),
+        return view('club.enrol', ['plans' => ClubPlan::where('is_active', true)->orderBy('category')->orderBy('price')->limit((int) config('pms.max_list_rows', 5000))->get(), 'companies' => Company::orderBy('name')->get(['id', 'name']),
             'modes' => $this->modes(), 'splitModes' => $this->modes()->mapWithKeys(fn ($pm) => [$pm->id => $pm->name]), 'tax' => ClubBillingService::tax(100)['rate']]);
     }
 
@@ -257,15 +257,15 @@ class ClubController extends Controller
 
         return view('club.show', [
             'm' => $membership,
-            'charges' => ClubCharge::with('creditOf', 'user')->where('club_membership_id', $membership->id)->orderByDesc('date')->orderByDesc('id')->get(),
-            'payments' => $membership->payments()->with('paymentMode', 'user')->orderByDesc('date')->orderByDesc('id')->get(),
+            'charges' => ClubCharge::with('creditOf', 'user')->where('club_membership_id', $membership->id)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'payments' => $membership->payments()->with('paymentMode', 'user')->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'balance' => ClubBillingService::balance($membership),
             'overdue' => ClubBillingService::overdue($membership),
-            'visits' => ClubVisit::whereIn('club_member_id', $cards)->orWhereIn('host_member_id', $cards)->latest('checked_in_at')->take(20)->get(),
-            'bookings' => ClubBooking::with('klass')->whereIn('club_member_id', $cards)->latest('date')->take(10)->get(),
+            'visits' => ClubVisit::whereIn('club_member_id', $cards)->orWhereIn('host_member_id', $cards)->latest('checked_in_at')->take(20)->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'bookings' => ClubBooking::with('klass')->whereIn('club_member_id', $cards)->latest('date')->take(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'unused' => ClubService::unusedValue($membership),
             'passesLeft' => $membership->plan ? ClubService::guestPassesLeft($membership) : 0,
-            'plans' => ClubPlan::where('is_active', true)->orderBy('price')->get(),
+            'plans' => ClubPlan::where('is_active', true)->orderBy('price')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'companies' => Company::orderBy('name')->get(['id', 'name']),
             'modes' => $this->modes(),
             'splitModes' => $this->modes()->mapWithKeys(fn ($pm) => [$pm->id => $pm->name]),
@@ -443,7 +443,7 @@ class ClubController extends Controller
     public function plans()
     {
         return view('club.plans', [
-            'plans' => ClubPlan::withCount(['memberships as live' => fn ($q) => $q->whereIn('status', ['active', 'frozen'])])->orderByDesc('is_active')->orderBy('category')->orderBy('price')->get(),
+            'plans' => ClubPlan::withCount(['memberships as live' => fn ($q) => $q->whereIn('status', ['active', 'frozen'])])->orderByDesc('is_active')->orderBy('category')->orderBy('price')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'settings' => collect(ClubService::SETTINGS)->map(fn ($s, $k) => ['label' => $s[0], 'value' => ClubService::cfg($k)]),
             'rate' => ClubBillingService::tax(100)['rate'],
         ]);

@@ -11,7 +11,7 @@ class SegmentController extends Controller
 {
     public function index()
     {
-        $segments = MarketingSegment::withCount(['campaigns', 'journeys'])->orderByDesc('is_active')->orderBy('name')->get()
+        $segments = MarketingSegment::withCount(['campaigns', 'journeys'])->orderByDesc('is_active')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->each(function ($s) {
                 $q = $s->guests();
                 $s->size = (clone $q)->count();
@@ -103,7 +103,7 @@ class SegmentController extends Controller
         return response()->json([
             'count' => (clone $q)->count(), 'describe' => CrmService::describeRules($rules, $match),
             'reach' => collect(CrmService::CHANNELS)->map(fn ($l, $ch) => (clone $ok)->where($ch.'_opt_in', true)->count()),
-            'sample' => (clone $q)->orderByDesc('total_revenue')->limit(8)->get()->map(fn ($g) => ['name' => $g->full_name, 'stays' => $g->stays_count,
+            'sample' => (clone $q)->orderByDesc('total_revenue')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($g) => ['name' => $g->full_name, 'stays' => $g->stays_count,
                 'revenue' => money($g->total_revenue), 'country' => $g->country, 'url' => route('guests.show', $g)]),
         ]);
     }
@@ -111,7 +111,7 @@ class SegmentController extends Controller
     public function export(MarketingSegment $segment)
     {
         ActivityLogger::log('crm', 'export', "Exported segment \"{$segment->name}\"", $segment);
-        $rows = $segment->guests()->orderBy('first_name')->get();
+        $rows = $segment->guests()->orderBy('first_name')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');

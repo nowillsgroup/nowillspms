@@ -14,7 +14,7 @@ class DesktopSyncController extends Controller
     {
         $user = Auth::user();
         $pack = DesktopSyncService::pack($user, DesktopSyncService::WINDOW_DAYS);
-        $ops = OfflineSyncOperation::where('hotel_id', $user->hotel_id)->latest('id')->limit(40)->get();
+        $ops = OfflineSyncOperation::where('hotel_id', $user->hotel_id)->latest('id')->limit(40)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('offline.desktop', [
             'pack' => $pack['meta'],

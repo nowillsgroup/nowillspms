@@ -28,12 +28,12 @@ class RevenueController extends Controller
         $all = RevenueService::forecast($from, max($days, 30));
         $rows = array_slice($all, 0, $days, true);
         $since = bdate()->copy()->subDays(7)->startOfDay();
-        $sources = Reservation::with('source:id,name', 'rooms')->where('created_at', '>=', $since)->where('status', '!=', 'cancelled')->get()
+        $sources = Reservation::with('source:id,name', 'rooms')->where('created_at', '>=', $since)->where('status', '!=', 'cancelled')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($r) => $r->source?->name ?? 'Unspecified')
             ->map(fn ($g, $name) => ['name' => $name, 'bookings' => $g->count(), 'nights' => $g->sum(fn ($r) => $r->rooms->sum(fn ($s) => $s->nights)),
                 'revenue' => $g->sum(fn ($r) => $r->rooms->sum(fn ($s) => $s->nights * $s->nightlyTotal()))])
             ->sortByDesc('revenue')->values();
-        $types = RoomType::where('is_active', true)->orderBy('base_rate')->get();
+        $types = RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rec = RevenueService::recommendations($types, $from, 14);
         $pending = collect($rec['grid'])->flatten(1)->where('change', true)->count();
 
@@ -46,10 +46,10 @@ class RevenueController extends Controller
 
     public function pricing(Request $request)
     {
-        $request->validate(['from' => 'nullable|date', 'days' => 'nullable|integer|in:7,14,21,28']);
+        $request->validate(['from' => 'nullable|date_format:Y-m-d', 'days' => 'nullable|integer|in:7,14,21,28']);
         $from = Carbon::parse($request->input('from', bdate()->toDateString()))->startOfDay()->max(bdate()->copy()->startOfDay());
         $days = (int) $request->input('days', 14);
-        $types = RoomType::where('is_active', true)->orderBy('base_rate')->get();
+        $types = RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rec = RevenueService::recommendations($types, $from, $days);
 
         return view('revenue.pricing', [
@@ -61,7 +61,7 @@ class RevenueController extends Controller
     public function publish(Request $request)
     {
         $request->validate([
-            'accept_all' => 'nullable|boolean', 'from' => 'required|date', 'days' => 'required|integer|in:7,14,21,28',
+            'accept_all' => 'nullable|boolean', 'from' => 'required|date_format:Y-m-d', 'days' => 'required|integer|in:7,14,21,28',
             'pick' => 'nullable|array|max:400', 'pick.*' => ['string', 'regex:/^\d+\|\d{4}-\d{2}-\d{2}$/'],
             'rate' => 'nullable|array', 'rate.*' => 'array', 'rate.*.*' => 'nullable|numeric|min:1|max:99999999',
         ]);
@@ -71,7 +71,7 @@ class RevenueController extends Controller
         }
         $cells = [];
         if ($request->boolean('accept_all')) {
-            $types = RoomType::where('is_active', true)->get();
+            $types = RoomType::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
             $rec = RevenueService::recommendations($types, Carbon::parse($request->input('from')), (int) $request->input('days'));
             foreach ($rec['grid'] as $typeId => $dates) {
                 foreach ($dates as $date => $c) {
@@ -117,8 +117,8 @@ class RevenueController extends Controller
     public function rules()
     {
         return view('revenue.rules', [
-            'rules' => YieldRule::with('roomType')->orderBy('priority')->orderBy('id')->get(),
-            'types' => RoomType::where('is_active', true)->orderBy('base_rate')->get(),
+            'rules' => YieldRule::with('roomType')->orderBy('priority')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'types' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'mode' => RevenueService::mode(), 'roundTo' => setting('rm_round_to', 50), 'horizon' => RevenueService::horizon(),
         ]);
     }
@@ -146,7 +146,7 @@ class RevenueController extends Controller
     public function limits(Request $request)
     {
         $request->validate(['min_rate' => 'array', 'min_rate.*' => 'nullable|numeric|min:0|max:99999999', 'max_rate' => 'array', 'max_rate.*' => 'nullable|numeric|min:0|max:99999999']);
-        $types = RoomType::where('is_active', true)->get();
+        $types = RoomType::where('is_active', true)->limit((int) config('pms.max_list_rows', 5000))->get();
         $errors = [];
         foreach ($types as $t) {
             $min = $request->input("min_rate.{$t->id}");
@@ -170,12 +170,12 @@ class RevenueController extends Controller
 
     public function createRule()
     {
-        return view('revenue.rule-form', ['rule' => new YieldRule(['basis' => 'hotel', 'adjust_type' => 'percent', 'priority' => 100, 'is_active' => true]), 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->get()]);
+        return view('revenue.rule-form', ['rule' => new YieldRule(['basis' => 'hotel', 'adjust_type' => 'percent', 'priority' => 100, 'is_active' => true]), 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function editRule(YieldRule $yrule)
     {
-        return view('revenue.rule-form', ['rule' => $yrule, 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->get()]);
+        return view('revenue.rule-form', ['rule' => $yrule, 'types' => RoomType::where('is_active', true)->orderBy('base_rate')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function storeRule(Request $request)

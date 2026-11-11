@@ -20,8 +20,8 @@ class StockTakeController extends Controller
         $takes = StockTake::with('store', 'creator', 'poster')->withCount(['lines', 'lines as counted_count' => fn ($q) => $q->whereNotNull('counted_qty')])->latest('id')->paginate(25);
 
         // v9.21 a count sheet is only worth what the posting made of it: the variance, the coverage behind it and what is still unposted
-        $all = StockTake::with('store', 'creator', 'poster')->get();
-        $lines = StockTakeLine::whereIn('stock_take_id', $all->pluck('id'))->with('item')->get()->groupBy('stock_take_id');
+        $all = StockTake::with('store', 'creator', 'poster')->limit((int) config('pms.max_list_rows', 5000))->get();
+        $lines = StockTakeLine::whereIn('stock_take_id', $all->pluck('id'))->with('item')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('stock_take_id');
         $summary = $all->mapWithKeys(function ($t) use ($lines) {
             $set = $lines[$t->id] ?? collect();
             $counted = $set->filter(fn ($l) => $l->counted_qty !== null);
@@ -221,7 +221,7 @@ class StockTakeController extends Controller
 
         // v9.20 the suggestion is three readings of the same row: what the shelf is short of, what is already coming, and how long the stock lasts
         $usage = StockMovement::where('date', '>=', $since)->where('qty', '<', 0)->groupBy('inventory_item_id')
-            ->selectRaw('inventory_item_id, SUM(-qty) q, SUM(-qty * rate) v')->get()->keyBy('inventory_item_id');
+            ->selectRaw('inventory_item_id, SUM(-qty) q, SUM(-qty * rate) v')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('inventory_item_id');
         $lastMove = StockMovement::groupBy('inventory_item_id')->selectRaw('inventory_item_id, MAX(date) d')->pluck('d', 'inventory_item_id');
         $draft = PurchaseOrderItem::join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
             ->where('purchase_orders.hotel_id', \App\Support\Tenant::id())->where('purchase_orders.status', 'draft')

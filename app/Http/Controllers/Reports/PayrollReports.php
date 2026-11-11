@@ -316,7 +316,7 @@ trait PayrollReports
 {
     protected function r_attendance($from, $to): array
     {
-        $rows = Attendance::with('employee.department')->whereBetween('attendance_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = Attendance::with('employee.department')->whereBetween('attendance_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'dept' => optional(optional($r->employee)->department)->name,
             'date' => $r->attendance_date, 'hours_sched' => $r->hours_scheduled, 'hours_worked' => $r->hours_worked,
             'overtime' => $r->overtime_hours, 'late' => $r->late_minutes, 'absent' => $r->absent, 'leave' => $r->leave_hours, 'status' => $r->status,
@@ -326,7 +326,7 @@ trait PayrollReports
 
     protected function r_employee_pay_components($from, $to): array
     {
-        $rows = EmployeePayComponent::with('employee')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = EmployeePayComponent::with('employee')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'period' => $r->period_start . ' to ' . $r->period_end,
             'type' => $r->component_type, 'gross' => $r->gross_amount, 'basic' => $r->basic_salary,
             'overtime' => $r->overtime_amount, 'allowance' => $r->allowance_amount, 'deduction' => $r->deduction_amount, 'net' => $r->net_amount, 'status' => $r->status,
@@ -337,7 +337,7 @@ trait PayrollReports
     protected function r_leave_register($from, $to): array
     {
         $rows = \App\Models\LeaveRequest::with('employee.department', 'leaveType', 'decider')
-            ->whereDate('date_from', '<=', $to->toDateString())->whereDate('date_to', '>=', $from->toDateString())->orderBy('date_from')->get()
+            ->whereDate('date_from', '<=', $to->toDateString())->whereDate('date_to', '>=', $from->toDateString())->orderBy('date_from')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['employee' => $r->employee->name, 'code' => $r->employee->emp_code, 'dept' => $r->employee->department?->name, 'type' => $r->leaveType->code.' – '.$r->leaveType->name,
                 'paid' => $r->leaveType->is_paid ? 'Paid' : 'Unpaid', 'from' => $r->date_from->format('d-m-Y'), 'to' => $r->date_to->format('d-m-Y'), 'days' => (float) $r->days,
                 'status' => ucfirst($r->status), 'reason' => $r->reason, 'decided' => $r->decider ? $r->decider->name.' '.$r->decided_at?->format('d-m-Y') : '', 'note' => $r->decision_note]);
@@ -349,7 +349,7 @@ trait PayrollReports
     protected function r_leave_types($from, $to): array
     {
         // Rewritten against the real schema: code/days_per_year/is_paid/carry_forward_max/is_active; there is no department on leave types.
-        $rows = LeaveType::orderBy('name')->get()->map(fn ($r) => [
+        $rows = LeaveType::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'name' => $r->name, 'days_per_year' => $r->days_per_year,
             'paid' => $r->is_paid ? 'Yes' : 'No', 'carry_forward_max' => $r->carry_forward_max,
             'active' => $r->is_active ? 'Yes' : 'No',
@@ -359,7 +359,7 @@ trait PayrollReports
 
     protected function r_pay_components($from, $to): array
     {
-        $rows = EmployeePayComponent::with('employee')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = EmployeePayComponent::with('employee')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'period' => $r->period_start . ' to ' . $r->period_end,
             'type' => $r->component_type, 'description' => $r->description,
             'gross' => $r->gross_amount, 'basic' => $r->basic_salary, 'overtime' => $r->overtime_amount,
@@ -392,7 +392,7 @@ trait PayrollReports
         $std = ['BASIC', 'OT', 'BONUS', 'SSNIT', 'PAYE', 'BONUS_TAX', 'ADV'];
         $rows = \App\Models\Payslip::with('employee.department', 'run', 'lines')
             ->whereHas('run', fn ($q) => $q->whereDate('period_start', '>=', $from->copy()->startOfMonth()->toDateString())->whereDate('period_start', '<=', $to->toDateString()))
-            ->get()->sortBy(fn ($p) => $p->run->period_start->format('Ymd').$p->employee->emp_code)->values()
+            ->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy(fn ($p) => $p->run->period_start->format('Ymd').$p->employee->emp_code)->values()
             ->map(function ($p) use ($std) {
                 $by = $p->lines->groupBy('code')->map(fn ($g) => (float) $g->sum('amount'));
                 $earn = $p->lines->where('kind', 'earning');
@@ -417,7 +417,7 @@ trait PayrollReports
     protected function r_payroll_statutory($from, $to): array
     {
         $lines = \App\Models\PayslipLine::with('payslip.run')->whereIn('kind', ['deduction', 'employer'])->whereNull('staff_advance_id')->where('is_manual', false)
-            ->whereHas('payslip.run', fn ($q) => $q->whereIn('status', ['approved', 'paid'])->whereDate('period_start', '>=', $from->copy()->startOfMonth()->toDateString())->whereDate('period_start', '<=', $to->toDateString()))->get();
+            ->whereHas('payslip.run', fn ($q) => $q->whereIn('status', ['approved', 'paid'])->whereDate('period_start', '>=', $from->copy()->startOfMonth()->toDateString())->whereDate('period_start', '<=', $to->toDateString()))->limit((int) config('pms.max_list_rows', 5000))->get();
         $heads = \App\Models\AccountHead::pluck('name', 'id');
         $rows = $lines->groupBy(fn ($l) => $l->payslip->run->period_start->format('Y-m').'|'.$l->liability_head_id)->map(function ($g) use ($heads) {
             $run = $g->first()->payslip->run;
@@ -438,11 +438,11 @@ trait PayrollReports
     {
         $f = $from->toDateString();
         $t = min($to->toDateString(), now()->toDateString());
-        $shifts = \App\Models\RosterShift::with('template')->where('kind', 'shift')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->get()->groupBy('employee_id');
-        $punches = \App\Models\TimePunch::whereDate('work_date', '>=', $f)->whereDate('work_date', '<=', $t)->get()->groupBy('employee_id');
+        $shifts = \App\Models\RosterShift::with('template')->where('kind', 'shift')->whereDate('date', '>=', $f)->whereDate('date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('employee_id');
+        $punches = \App\Models\TimePunch::whereDate('work_date', '>=', $f)->whereDate('work_date', '<=', $t)->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('employee_id');
         $ids = $shifts->keys()->merge($punches->keys())->unique();
         $leave = \App\Services\RosterService::leaveMap($ids, $f, $t);
-        $rows = \App\Models\Employee::with('department')->whereIn('id', $ids)->orderBy('department_id')->orderBy('name')->get()->map(function ($e) use ($shifts, $punches, $leave) {
+        $rows = \App\Models\Employee::with('department')->whereIn('id', $ids)->orderBy('department_id')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($e) use ($shifts, $punches, $leave) {
             $ss = $shifts[$e->id] ?? collect();
             $ps = $punches[$e->id] ?? collect();
             $punchDays = $ps->pluck('work_date')->map(fn ($d) => $d->toDateString())->unique()->flip();
@@ -467,7 +467,7 @@ trait PayrollReports
     protected function r_roster_weeks($from, $to): array
     {
         // Rewritten against the real schema: department_id/week_start/published_at/published_by/changed_at; there is no roster type.
-        $rows = RosterWeek::with('department', 'publisher')->whereBetween('week_start', [$from, $to])->orderByDesc('week_start')->get()->map(fn ($r) => [
+        $rows = RosterWeek::with('department', 'publisher')->whereBetween('week_start', [$from, $to])->orderByDesc('week_start')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'week_start' => $r->week_start, 'dept' => optional($r->department)->name,
             'published_at' => $r->published_at, 'published_by' => optional($r->publisher)->name,
             'state' => $r->state(),
@@ -477,7 +477,7 @@ trait PayrollReports
 
     protected function r_sc_distribution_lines($from, $to): array
     {
-        $rows = ScDistributionLine::with('distribution.department.account')->whereBetween('distributed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ScDistributionLine::with('distribution.department.account')->whereBetween('distributed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'distribution' => optional($r->distribution)->name, 'dept' => optional($r->department)->name,
             'account' => optional($r->account)->name, 'amount' => $r->amount,
             'period' => $r->period, 'status' => $r->status,
@@ -488,7 +488,7 @@ trait PayrollReports
     protected function r_service_charge_distribution($from, $to): array
     {
         $rows = collect();
-        foreach (\App\Models\ScDistribution::with('lines.employee', 'lines.department', 'run')->where('status', '!=', 'cancelled')->whereDate('period_start', '<=', $to->toDateString())->whereDate('period_end', '>=', $from->toDateString())->orderBy('period_start')->get() as $d) {
+        foreach (\App\Models\ScDistribution::with('lines.employee', 'lines.department', 'run')->where('status', '!=', 'cancelled')->whereDate('period_start', '<=', $to->toDateString())->whereDate('period_end', '>=', $from->toDateString())->orderBy('period_start')->limit((int) config('pms.max_list_rows', 5000))->get() as $d) {
             foreach ($d->lines->sortBy(fn ($l) => [$l->department?->name, $l->employee?->name]) as $l) {
                 $rows->push(['dist' => $d->dist_no, 'period' => $d->label(), 'emp' => $l->employee?->name.' ('.$l->employee?->emp_code.')', 'dept' => $l->department?->name,
                     'points' => (float) $l->points, 'days' => (float) $l->days, 'amount' => (float) $l->amount, 'note' => $l->excluded ? 'excluded: '.$l->exclude_reason : '',
@@ -502,7 +502,7 @@ trait PayrollReports
 
     protected function r_shift_swaps($from, $to): array
     {
-        $rows = ShiftSwap::with('shift1.employee1.shift2.employee2')->whereBetween('requested_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ShiftSwap::with('shift1.employee1.shift2.employee2')->whereBetween('requested_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee1' => optional($r->employee1)->name, 'shift1' => optional($r->shift1)->name,
             'employee2' => optional($r->employee2)->name, 'shift2' => optional($r->shift2)->name,
             'requested' => $r->requested_at, 'status' => $r->status, 'notes' => $r->notes,
@@ -512,7 +512,7 @@ trait PayrollReports
 
     protected function r_shift_templates($from, $to): array
     {
-        $rows = ShiftTemplate::with('department')->get()->map(fn ($r) => [
+        $rows = ShiftTemplate::with('department')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'dept' => optional($r->department)->name, 'start' => $r->start_time,
             'end' => $r->end_time, 'break' => $r->break_minutes, 'hours' => $r->hours,
             'overtime_from' => $r->overtime_from, 'color' => $r->color, 'status' => $r->status,
@@ -544,7 +544,7 @@ trait PayrollReports
 
     protected function r_staff_advances($from, $to): array
     {
-        $rows = StaffAdvance::with('employee')->whereBetween('advanced_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = StaffAdvance::with('employee')->whereBetween('advanced_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'date' => $r->advanced_at, 'amount' => $r->amount,
             'purpose' => $r->purpose, 'repaid' => $r->repaid_amount, 'balance' => $r->balance,
             'interest' => $r->interest_rate, 'due_date' => $r->due_date, 'status' => $r->status, 'user' => $r->user_id,
@@ -555,7 +555,7 @@ trait PayrollReports
     protected function r_statutory_remittances($from, $to): array
     {
         $rows = \App\Models\StatutoryRemittance::with('paymentMode', 'creator')->whereDate('paid_on', '>=', Carbon::parse($from)->toDateString())->whereDate('paid_on', '<=', Carbon::parse($to)->toDateString())
-            ->orderBy('paid_on')->orderBy('id')->get()->map(function ($r) {
+            ->orderBy('paid_on')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($r) {
                 $due = \App\Services\StatutoryService::due($r->kind, $r->period);
                 $late = $r->paid_on->gt($due) ? (int) $due->diffInDays($r->paid_on) : 0;
 
@@ -572,7 +572,7 @@ trait PayrollReports
 
     protected function r_time_punches_detail($from, $to): array
     {
-        $rows = TimePunch::with('employee')->whereBetween('punched_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TimePunch::with('employee')->whereBetween('punched_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'punch_in' => $r->punched_in, 'punch_out' => $r->punched_out,
             'hours' => $r->hours_worked, 'type' => $r->punch_type, 'location' => $r->location, 'device' => $r->device_id, 'status' => $r->status,
         ]);
@@ -582,7 +582,7 @@ trait PayrollReports
     protected function r_timesheet($from, $to): array
     {
         $rows = \App\Models\TimePunch::with('employee.department', 'shift.template', 'editor', 'approver')->whereDate('work_date', '>=', $from->toDateString())->whereDate('work_date', '<=', $to->toDateString())
-            ->orderBy('work_date')->orderBy('clock_in')->get()->map(fn ($p) => ['date' => $p->work_date->format('d M Y'), 'emp' => $p->employee?->name.' ('.$p->employee?->emp_code.')', 'dept' => $p->employee?->department?->name,
+            ->orderBy('work_date')->orderBy('clock_in')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($p) => ['date' => $p->work_date->format('d M Y'), 'emp' => $p->employee?->name.' ('.$p->employee?->emp_code.')', 'dept' => $p->employee?->department?->name,
                 'shift' => $p->shift ? $p->shift->code().' '.$p->shift->label() : 'not rostered', 'in' => $p->clock_in->format('H:i'), 'out' => $p->clock_out ? $p->clock_out->format($p->clock_out->isSameDay($p->clock_in) ? 'H:i' : 'd M H:i') : 'open',
                 'hours' => $p->clock_out ? round($p->worked_minutes / 60, 2) : null, 'late' => $p->late_minutes ?: null, 'early' => $p->early_minutes ?: null, 'source' => $p->in_source.($p->out_source && $p->out_source !== $p->in_source ? ' / '.$p->out_source : ''),
                 'edited' => $p->edit_reason ? ($p->editor?->name.': '.$p->edit_reason) : '', 'status' => $p->status.($p->approver ? ' ('.$p->approver->name.')' : '')]);
@@ -593,7 +593,7 @@ trait PayrollReports
 
     protected function r_tip_collections($from, $to): array
     {
-        $rows = TipCollection::with('employee')->whereBetween('collected_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = TipCollection::with('employee')->whereBetween('collected_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'date' => $r->collected_at, 'shift' => $r->shift_label,
             'cash' => $r->cash_amount, 'card' => $r->card_amount, 'total' => $r->total_amount, 'distributed' => $r->distributed_amount, 'status' => $r->status,
         ]);

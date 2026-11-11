@@ -21,7 +21,7 @@ class LoyaltyController extends Controller
 
         return view('loyalty.index', [
             'members' => $members, 'q' => $q,
-            'ledger' => LoyaltyEntry::with('guest', 'folio', 'user')->latest('id')->limit(30)->get(),
+            'ledger' => LoyaltyEntry::with('guest', 'folio', 'user')->latest('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'stats' => [
                 'members' => Guest::where('loyalty_points', '>', 0)->count(),
                 'outstanding' => (int) Guest::sum('loyalty_points'),

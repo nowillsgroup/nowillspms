@@ -44,7 +44,7 @@ class SurveyPublicController extends Controller
         }
         $pre = $request->query('nps');
 
-        return $this->headers(response()->view('public.survey', ['hotel' => $hotel, 'inv' => $inv, 'survey' => $inv->survey, 'questions' => $inv->survey->activeQuestions()->get(),
+        return $this->headers(response()->view('public.survey', ['hotel' => $hotel, 'inv' => $inv, 'survey' => $inv->survey, 'questions' => $inv->survey->activeQuestions()->limit((int) config('pms.max_list_rows', 5000))->get(),
             'token' => $token, 'preNps' => is_numeric($pre) && (int) $pre >= 0 && (int) $pre <= 10 ? (int) $pre : null, 'preview' => false]));
     }
 

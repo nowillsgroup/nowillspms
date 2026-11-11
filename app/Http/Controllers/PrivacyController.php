@@ -36,7 +36,7 @@ class PrivacyController extends Controller
             'requests' => $requests, 'tab' => $tab, 'counts' => $counts, 'alerts' => PrivacyService::alerts(),
             'onTime' => $done->count() ? round($done->filter(fn ($r) => $r->completed_at->toDateString() <= $r->due_on->toDateString())->count() / $done->count() * 100) : null,
             'avgDays' => $done->count() ? round($done->avg(fn ($r) => $r->received_at->diffInDays($r->completed_at)), 1) : null,
-            'breaches' => DataBreach::where('status', '!=', 'closed')->orderBy('detected_at')->get(),
+            'breaches' => DataBreach::where('status', '!=', 'closed')->orderBy('detected_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'lastRun' => PrivacyRetentionRun::latest('id')->first(),
             'erased' => Guest::whereNotNull('privacy_status')->selectRaw('privacy_status, count(*) n')->groupBy('privacy_status')->pluck('n', 'privacy_status'),
             'reveals' => PiiAccessLog::where('created_at', '>=', now()->subDays(30))->count(),
@@ -64,7 +64,7 @@ class PrivacyController extends Controller
             ->when($request->to, fn ($q, $d) => $q->where('created_at', '<=', $d.' 23:59:59'))
             ->latest('id')->paginate(50)->withQueryString();
         $top = PiiAccessLog::with('user:id,name')->where('created_at', '>=', now()->subDays(30))->selectRaw('user_id, count(*) n, count(distinct guest_id) g')
-            ->groupBy('user_id')->orderByDesc('n')->limit(8)->get();
+            ->groupBy('user_id')->orderByDesc('n')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('privacy.access', ['logs' => $logs, 'top' => $top, 'users' => User::where('hotel_id', hotel()->id)->orderBy('name')->pluck('name', 'id')]);
     }
@@ -72,7 +72,7 @@ class PrivacyController extends Controller
     public function retention()
     {
         return view('privacy.retention', ['settings' => PrivacyService::settings(), 'preview' => PrivacyService::retentionPreview(),
-            'runs' => PrivacyRetentionRun::with('user:id,name')->latest('id')->limit(20)->get()]);
+            'runs' => PrivacyRetentionRun::with('user:id,name')->latest('id')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function saveSettings(Request $request)

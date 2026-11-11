@@ -317,7 +317,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_business_sources($from, $to): array
     {
         // Rewritten against the real schema: type/commission_pct/is_active; there is no source type table.
-        $rows = BusinessSource::orderBy('name')->get()->map(fn ($r) => [
+        $rows = BusinessSource::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => $r->type, 'commission_pct' => (float) $r->commission_pct,
             'active' => $r->is_active ? 'Yes' : 'No',
         ]);
@@ -330,7 +330,7 @@ trait SalesBusinessDevelopmentReports
         $T = Carbon::parse($to)->startOfDay();
         $now = \App\Services\SalesService::production($F->copy(), $T->copy());
         $ly = \App\Services\SalesService::production($F->copy()->subYear(), $T->copy()->subYear());
-        $cos = \App\Models\Company::with('accountManager')->whereIn('id', $now->keys()->merge($ly->keys())->unique()->all() ?: [0])->get();
+        $cos = \App\Models\Company::with('accountManager')->whereIn('id', $now->keys()->merge($ly->keys())->unique()->all() ?: [0])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $cos->map(function ($c) use ($now, $ly) {
             $n = $now[$c->id] ?? ['stays' => 0, 'nights' => 0, 'revenue' => 0, 'otb_nights' => 0, 'otb_revenue' => 0];
             $l = $ly[$c->id] ?? ['nights' => 0, 'revenue' => 0];
@@ -351,7 +351,7 @@ trait SalesBusinessDevelopmentReports
 
     protected function r_agent_commissions($from, $to): array
     {
-        $rows = AgentCommission::with('agent.commissionType.reservation.guest')->whereBetween('earned_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = AgentCommission::with('agent.commissionType.reservation.guest')->whereBetween('earned_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'agent' => optional($r->agent)->name, 'type' => optional($r->commissionType)->name,
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'amount' => $r->commission_amount, 'rate' => $r->commission_rate, 'earned' => $r->earned_at, 'status' => $r->status,
@@ -386,7 +386,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_bd_competitors($from, $to): array
     {
         // Rewritten against the real schema: stars/rooms/positioning/location/distance_km/website/is_active; there is no competitor type.
-        $rows = BdCompetitor::orderBy('sort')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = BdCompetitor::orderBy('sort')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'stars' => $r->stars, 'rooms' => $r->rooms,
             'positioning' => $r->positioning, 'location' => $r->location, 'distance_km' => $r->distance_km,
             'active' => $r->is_active ? 'Yes' : 'No',
@@ -397,7 +397,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_bd_initiatives($from, $to): array
     {
         $I = \App\Models\BdInitiative::class;
-        $rows = $I::with('owner', 'milestones', 'results')->orderByRaw("FIELD(stage, 'live', 'implementation', 'approved', 'business_case', 'assessment', 'idea', 'closed', 'rejected')")->orderByDesc('annual_revenue')->get()
+        $rows = $I::with('owner', 'milestones', 'results')->orderByRaw("FIELD(stage, 'live', 'implementation', 'approved', 'business_case', 'assessment', 'idea', 'closed', 'rejected')")->orderByDesc('annual_revenue')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($i) use ($I) {
                 $s = \App\Services\BusinessDevService::initiativeStats($i);
 
@@ -437,7 +437,7 @@ trait SalesBusinessDevelopmentReports
 
     protected function r_bd_milestones($from, $to): array
     {
-        $rows = BdMilestone::with('businessPlan.milestoneType')->whereBetween('target_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = BdMilestone::with('businessPlan.milestoneType')->whereBetween('target_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'plan' => optional($r->businessPlan)->name, 'type' => optional($r->milestoneType)->name,
             'milestone' => $r->milestone_name, 'target' => $r->target_date, 'achieved' => $r->achieved_date,
             'owner' => $r->owner_name, 'status' => $r->status, 'notes' => $r->notes,
@@ -451,7 +451,7 @@ trait SalesBusinessDevelopmentReports
         $P = \App\Models\BdPartner::class;
         $F = Carbon::parse($from)->startOfDay();
         $T = Carbon::parse($to)->startOfDay();
-        $rows = $P::with('owner', 'source', 'promo', 'company')->where('status', '!=', 'prospect')->orderBy('name')->get()->map(function ($p) use ($BD, $F, $T, $P) {
+        $rows = $P::with('owner', 'source', 'promo', 'company')->where('status', '!=', 'prospect')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($p) use ($BD, $F, $T, $P) {
             $v = $BD::partnerProduction($p, $F, $T);
             $flags = collect($BD::partnerFlags($p))->pluck(1)->implode('; ');
 
@@ -471,7 +471,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_bd_rate_shop($from, $to): array
     {
         $CH = \App\Models\BdRateShop::CHANNELS;
-        $shops = \App\Models\BdRateShop::with('lines.competitor')->whereDate('stay_date', '>=', Carbon::parse($from)->toDateString())->whereDate('stay_date', '<=', Carbon::parse($to)->toDateString())->orderBy('stay_date')->orderBy('channel')->get();
+        $shops = \App\Models\BdRateShop::with('lines.competitor')->whereDate('stay_date', '>=', Carbon::parse($from)->toDateString())->whereDate('stay_date', '<=', Carbon::parse($to)->toDateString())->orderBy('stay_date')->orderBy('channel')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $shops->map(function ($s) use ($CH) {
             $rated = $s->lines->where('sold_out', false)->whereNotNull('rate');
             $avg = $s->compAverage();
@@ -496,7 +496,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_bd_rate_shop_lines($from, $to): array
     {
         // Rewritten against the real schema: shop()/competitor() relations; the parent shop carries stay_date/channel/own_rate/shopped_on/shopped_by.
-        $rows = BdRateShopLine::with('shop', 'competitor')->whereHas('shop', fn ($q) => $q->whereBetween('shopped_on', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = BdRateShopLine::with('shop', 'competitor')->whereHas('shop', fn ($q) => $q->whereBetween('shopped_on', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'shopped_on' => optional($r->shop)->shopped_on, 'stay_date' => optional($r->shop)->stay_date,
             'channel' => optional($r->shop)->channel, 'competitor' => optional($r->competitor)->name,
             'own_rate' => optional($r->shop)->own_rate ? (float) optional($r->shop)->own_rate : null,
@@ -507,7 +507,7 @@ trait SalesBusinessDevelopmentReports
 
     protected function r_bd_results($from, $to): array
     {
-        $rows = BdResult::with('businessPlan.resultType.department')->whereBetween('period_start', [$from, $to])->get()->map(fn ($r) => [
+        $rows = BdResult::with('businessPlan.resultType.department')->whereBetween('period_start', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'plan' => optional($r->businessPlan)->name, 'type' => optional($r->resultType)->name,
             'dept' => optional($r->department)->name, 'metric' => $r->metric_name, 'target' => $r->target_value,
             'actual' => $r->actual_value, 'variance' => $r->variance, 'period' => $r->period_start . ' to ' . $r->period_end, 'status' => $r->status,
@@ -518,7 +518,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_sales_activity($from, $to): array
     {
         $A = \App\Models\SalesActivity::class;
-        $acts = $A::with('owner', 'company')->where('status', 'done')->whereBetween('done_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->get();
+        $acts = $A::with('owner', 'company')->where('status', 'done')->whereBetween('done_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $acts->groupBy(fn ($a) => $a->owner?->name ?? '—')->sortKeys()->map(function ($g, $who) use ($A) {
             $r = ['who' => $who];
             foreach ($A::TYPES as $k => $x) {
@@ -541,7 +541,7 @@ trait SalesBusinessDevelopmentReports
 
     protected function r_sales_contacts($from, $to): array
     {
-        $rows = SalesContact::with('salesRep')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SalesContact::with('salesRep')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'company' => $r->company, 'email' => $r->email, 'phone' => $r->phone,
             'address' => $r->address, 'city' => $r->city, 'country' => $r->country,
             'type' => $r->contact_type, 'rep' => optional($r->salesRep)->name,
@@ -553,7 +553,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_sales_opportunities($from, $to): array
     {
         // Rewritten against the real schema: number/name/type/source/stage/probability/expected_close/total(); owner() is the rep, contact() the person.
-        $rows = SalesOpportunity::with('company', 'contact', 'owner')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SalesOpportunity::with('company', 'contact', 'owner')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'number' => $r->number, 'name' => $r->name, 'company' => optional($r->company)->name,
             'contact' => optional($r->contact)->name, 'owner' => optional($r->owner)->name,
             'type' => $r->typeLabel(), 'source' => $r->source, 'stage' => $r->stageLabel(),
@@ -566,7 +566,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_sales_pipeline($from, $to): array
     {
         $O = \App\Models\SalesOpportunity::class;
-        $opps = $O::with('company', 'owner')->whereIn('stage', $O::OPEN)->orderByRaw("FIELD(stage, 'negotiation', 'proposal', 'qualified', 'prospect')")->orderBy('expected_close')->get();
+        $opps = $O::with('company', 'owner')->whereIn('stage', $O::OPEN)->orderByRaw("FIELD(stage, 'negotiation', 'proposal', 'qualified', 'prospect')")->orderBy('expected_close')->limit((int) config('pms.max_list_rows', 5000))->get();
         $today = bdate()->copy()->startOfDay();
         $rows = collect();
         foreach ($O::OPEN as $s) {
@@ -612,7 +612,7 @@ trait SalesBusinessDevelopmentReports
     protected function r_sales_win_loss($from, $to): array
     {
         $O = \App\Models\SalesOpportunity::class;
-        $opps = $O::with('owner')->whereIn('stage', ['won', 'lost'])->whereDate('closed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('closed_on', '<=', Carbon::parse($to)->toDateString())->get();
+        $opps = $O::with('owner')->whereIn('stage', ['won', 'lost'])->whereDate('closed_on', '>=', Carbon::parse($from)->toDateString())->whereDate('closed_on', '<=', Carbon::parse($to)->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = collect();
         $line = function ($label, $g, $cls = '') {
             $w = $g->where('stage', 'won');

@@ -317,7 +317,7 @@ trait SecurityReports
     protected function r_gate_pass_items($from, $to): array
     {
         // Rewritten against the real schema: items link pass()/asset(); the parent carries pass_no/party_name/created_at/out_at/status; est_value is the item value.
-        $rows = GatePassItem::with('pass', 'asset')->whereHas('pass', fn ($q) => $q->whereBetween('created_at', [$from, $to]))->get()->map(fn ($r) => [
+        $rows = GatePassItem::with('pass', 'asset')->whereHas('pass', fn ($q) => $q->whereBetween('created_at', [$from, $to]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'pass_no' => optional($r->pass)->pass_no, 'party' => optional($r->pass)->party_name,
             'type' => optional($r->pass)->type, 'description' => $r->description,
             'asset' => optional($r->asset)->name, 'quantity' => $r->quantity, 'unit' => $r->unit,
@@ -329,7 +329,7 @@ trait SecurityReports
 
     protected function r_gate_pass_returns($from, $to): array
     {
-        $rows = GatePassReturn::with('gatePass.guest')->whereBetween('returned_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = GatePassReturn::with('gatePass.guest')->whereBetween('returned_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'pass_no' => optional($r->gatePass)->pass_no, 'guest' => optional($r->guest)->name,
             'returned' => $r->returned_at, 'deposit' => $r->deposit_amount, 'refund' => $r->refund_amount,
             'status' => $r->status, 'notes' => $r->notes,
@@ -339,7 +339,7 @@ trait SecurityReports
 
     protected function r_security_gatepasses($from, $to): array
     {
-        $rows = \App\Models\GatePass::with('items', 'department', 'requester', 'approver')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->get();
+        $rows = \App\Models\GatePass::with('items', 'department', 'requester', 'approver')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return ['cols' => ['pass' => 'Pass', 'date' => 'Raised', 'type' => 'Type', 'purpose' => 'Purpose', 'dept' => 'Department', 'party' => 'Party', 'items' => 'Items',
             'value' => 'Est. value', 'by' => 'Raised by', 'approved' => 'Approved by', 'out' => 'Out', 'due' => 'Due back', 'status' => 'Status'],
@@ -356,7 +356,7 @@ trait SecurityReports
 
     protected function r_security_incident_updates($from, $to): array
     {
-        $rows = SecurityIncidentUpdate::with('incident.user')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SecurityIncidentUpdate::with('incident.user')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'incident' => optional($r->incident)->incident_no, 'type' => $r->update_type,
             'description' => $r->description, 'created' => $r->created_at, 'user' => optional($r->user)->name, 'status' => $r->status,
         ]);
@@ -365,7 +365,7 @@ trait SecurityReports
 
     protected function r_security_incidents($from, $to): array
     {
-        $rows = \App\Models\SecurityIncident::with('room', 'guest', 'assignee')->whereBetween('occurred_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('occurred_at')->get();
+        $rows = \App\Models\SecurityIncident::with('room', 'guest', 'assignee')->whereBetween('occurred_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('occurred_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return ['cols' => ['no' => 'Incident', 'when' => 'When', 'type' => 'Type', 'severity' => 'Severity', 'title' => 'Summary', 'where' => 'Location', 'guest' => 'Guest',
             'injury' => 'Injury', 'loss' => 'Loss', 'police' => 'Police ref', 'officer' => 'Officer', 'status' => 'Status', 'resolution' => 'Resolution'],
@@ -383,7 +383,7 @@ trait SecurityReports
     {
         $asAt = $to->copy()->endOfDay();
         $passes = \App\Models\GatePass::with('items', 'department', 'returns')->where('type', 'returnable')->whereNotNull('out_at')->where('out_at', '<=', $asAt)
-            ->where(fn ($q) => $q->whereNull('closed_at')->orWhere('closed_at', '>', $asAt))->orderBy('expected_return_date')->get();
+            ->where(fn ($q) => $q->whereNull('closed_at')->orWhere('closed_at', '>', $asAt))->orderBy('expected_return_date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = collect();
         foreach ($passes as $p) {
             foreach ($p->items as $it) {
@@ -407,7 +407,7 @@ trait SecurityReports
 
     protected function r_security_visitors($from, $to): array
     {
-        $rows = \App\Models\Visitor::with('room', 'inBy', 'outBy', 'watch')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->get();
+        $rows = \App\Models\Visitor::with('room', 'inBy', 'outBy', 'watch')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return ['cols' => ['pass' => 'Pass', 'name' => 'Visitor', 'phone' => 'Mobile', 'id' => 'ID shown', 'host' => 'Visiting', 'purpose' => 'Purpose', 'persons' => 'Persons',
             'in' => 'In', 'out' => 'Out', 'mins' => 'Minutes', 'by' => 'Let in by', 'status' => 'Status', 'flags' => 'Flags'],
@@ -426,7 +426,7 @@ trait SecurityReports
 
     protected function r_security_watch($from, $to): array
     {
-        $rows = SecurityWatch::with('employee.department')->whereBetween('watch_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = SecurityWatch::with('employee.department')->whereBetween('watch_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'employee' => optional($r->employee)->name, 'dept' => optional(optional($r->employee)->department)->name,
             'date' => $r->watch_date, 'shift' => $r->shift, 'location' => $r->location,
             'duty' => $r->duty, 'start' => $r->start_time, 'end' => $r->end_time, 'status' => $r->status,

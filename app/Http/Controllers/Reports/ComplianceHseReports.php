@@ -316,7 +316,7 @@ trait ComplianceHseReports
 {
     protected function r_compliance_events($from, $to): array
     {
-        $rows = ComplianceEvent::with('item.department')->whereBetween('event_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ComplianceEvent::with('item.department')->whereBetween('event_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'item' => optional($r->item)->description, 'dept' => optional($r->department)->name,
             'date' => $r->event_date, 'type' => $r->event_type, 'description' => $r->description,
             'status' => $r->status, 'user' => $r->user_id, 'notes' => $r->notes,
@@ -341,7 +341,7 @@ trait ComplianceHseReports
 
     protected function r_data_breaches($from, $to): array
     {
-        $rows = \App\Models\DataBreach::with('department')->whereBetween('reported_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\DataBreach::with('department')->whereBetween('reported_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'dept' => optional($r->department)->name, 'reported' => $r->reported_at,
             'type' => $r->breach_type, 'description' => $r->description, 'data_affected' => $r->data_affected,
             'status' => $r->status, 'reported_to' => $r->reported_to, 'notes' => $r->notes,
@@ -351,7 +351,7 @@ trait ComplianceHseReports
 
     protected function r_hse_accidents($from, $to): array
     {
-        $list = \App\Models\HseAccident::with(['employee', 'guest'])->whereBetween('occurred_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('occurred_at')->get();
+        $list = \App\Models\HseAccident::with(['employee', 'guest'])->whereBetween('occurred_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('occurred_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($a) => ['no' => $a->number, 'when' => $a->occurred_at->format('d M Y H:i'), 'kind' => $a->kindLabel().($a->occurrence ? ' – '.\App\Models\HseAccident::OCCURRENCES[$a->occurrence] : ''),
             'where' => $a->location, 'person' => $a->personLabel(), 'ptype' => $a->person_type ? \App\Models\HseAccident::PERSONS[$a->person_type] : '',
             'injury' => trim(($a->injury_type ? \App\Models\HseAccident::INJURIES[$a->injury_type] : '').($a->body_part ? ' · '.\App\Models\HseAccident::BODY[$a->body_part] : '')),
@@ -371,7 +371,7 @@ trait ComplianceHseReports
 
     protected function r_hse_checks($from, $to): array
     {
-        $rows = \App\Models\HseCheck::with(['equipment', 'user', 'ticket'])->whereDate('checked_on', '>=', $from->toDateString())->whereDate('checked_on', '<=', $to->toDateString())->orderByDesc('checked_on')->orderByDesc('id')->get()
+        $rows = \App\Models\HseCheck::with(['equipment', 'user', 'ticket'])->whereDate('checked_on', '>=', $from->toDateString())->whereDate('checked_on', '<=', $to->toDateString())->orderByDesc('checked_on')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => ['date' => $c->checked_on->format('d M Y'), 'code' => $c->equipment?->code, 'type' => $c->equipment?->typeLabel(), 'location' => $c->equipment?->location,
                 'kind' => $c->kind === 'service' ? 'Service' : 'Visual', 'result' => $c->result === 'pass' ? 'Pass' : 'FAIL', 'faults' => $c->faults ? implode('; ', $c->faults) : '',
                 'cert' => $c->certificate_no ?? '', 'ticket' => $c->ticket?->ticket_no ?? '', 'by' => $c->contractor ?? $c->user?->name, '_class' => $c->result === 'fail' ? 'row-red' : '']);
@@ -383,7 +383,7 @@ trait ComplianceHseReports
 
     protected function r_hse_drills($from, $to): array
     {
-        $list = \App\Models\HseDrill::with('leader')->whereBetween('scheduled_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('scheduled_at')->get();
+        $list = \App\Models\HseDrill::with('leader')->whereBetween('scheduled_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($x) => ['no' => $x->number, 'type' => $x->typeLabel(), 'shift' => ucfirst($x->shift), 'when' => ($x->alarm_at ?? $x->scheduled_at)->format('d M Y H:i'),
             'evac' => $x->evacLabel(), 'target' => intdiv($x->target_seconds, 60).' min'.($x->target_seconds % 60 ? ' '.($x->target_seconds % 60).' s' : ''),
             'roll' => $x->staff_expected ? $x->staff_accounted.' / '.$x->staff_expected : '', 'guests' => $x->guests_evacuated, 'result' => $x->status === 'done' ? strtoupper($x->result) : ucfirst($x->status),
@@ -399,7 +399,7 @@ trait ComplianceHseReports
     protected function r_hse_equipment($from, $to): array
     {
         $lab = ['ok' => 'In order', 'due' => 'Due soon', 'overdue' => 'Overdue', 'defective' => 'Defective', 'expired' => 'Expired', 'retired' => 'Retired'];
-        $rows = \App\Models\HseEquipment::with('ticket')->where('status', '!=', 'retired')->orderBy('code')->get()->map(function ($e) use ($lab) {
+        $rows = \App\Models\HseEquipment::with('ticket')->where('status', '!=', 'retired')->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($e) use ($lab) {
             $st = $e->state();
 
             return ['code' => $e->code, 'type' => $e->typeLabel(), 'size' => $e->capacity ?? '', 'location' => $e->location, 'floor' => $e->floor ?? '', 'tag' => $e->gnfs_tag ?? '',
@@ -417,7 +417,7 @@ trait ComplianceHseReports
 
     protected function r_hse_permits($from, $to): array
     {
-        $list = \App\Models\HsePermit::with(['requester', 'issuer', 'closer'])->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('starts_at')->get();
+        $list = \App\Models\HsePermit::with(['requester', 'issuer', 'closer'])->whereBetween('starts_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderByDesc('starts_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($p) {
             $late = $p->closed_at && $p->status === 'closed' && $p->closed_at->gt($p->ends_at);
             $extra = array_filter([$p->fire_watch ? 'fire watch '.$p->fire_watch : null, $p->detectors_isolated ? 'detectors off: '.$p->detectors_isolated : null,
@@ -437,7 +437,7 @@ trait ComplianceHseReports
 
     protected function r_hse_risks($from, $to): array
     {
-        $rows = \App\Models\HseRisk::with(['owner', 'acceptor', 'department'])->where('status', '!=', 'archived')->orderBy('number')->get()->map(function ($x) {
+        $rows = \App\Models\HseRisk::with(['owner', 'acceptor', 'department'])->where('status', '!=', 'archived')->orderBy('number')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($x) {
             [, $il] = \App\Models\HseRisk::band($x->score());
             [$rk, $rl] = \App\Models\HseRisk::band($x->residual());
             $late = $x->review_on->toDateString() < bdate()->toDateString();
@@ -458,7 +458,7 @@ trait ComplianceHseReports
     protected function r_hse_wardens($from, $to): array
     {
         // Rewritten against the real schema: role/area/shift/trained_on/trained_until; there is no department FK on wardens.
-        $rows = HseWarden::with('employee')->get()->map(fn ($r) => [
+        $rows = HseWarden::with('employee')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'warden' => optional($r->employee)->name, 'role' => $r->roleLabel(), 'area' => $r->area,
             'shift' => $r->shift, 'trained_on' => $r->trained_on, 'trained_until' => $r->trained_until,
             'current' => $r->trainingValid() ? 'Yes' : 'No', 'active' => $r->is_active ? 'Yes' : 'No',
@@ -469,7 +469,7 @@ trait ComplianceHseReports
     protected function r_pii_access($from, $to): array
     {
         $rows = \App\Models\PiiAccessLog::with('user:id,name', 'guest:id,first_name,last_name,title,privacy_status')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])
-            ->orderBy('id')->get()->map(fn ($l) => ['at' => $l->created_at->format('d M Y H:i'), 'user' => $l->user?->name ?? 'system', 'action' => \App\Models\PiiAccessLog::ACTIONS[$l->action] ?? $l->action,
+            ->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($l) => ['at' => $l->created_at->format('d M Y H:i'), 'user' => $l->user?->name ?? 'system', 'action' => \App\Models\PiiAccessLog::ACTIONS[$l->action] ?? $l->action,
                 'guest' => $l->guest ? $l->guest->full_name.' (G-'.$l->guest_id.')' : '—', 'detail' => $l->detail, 'reason' => $l->reason, 'ip' => $l->ip]);
 
         return ['cols' => ['at' => 'When', 'user' => 'Staff', 'action' => 'Action', 'guest' => 'Guest', 'detail' => 'Detail', 'reason' => 'Reason', 'ip' => 'IP'], 'rows' => $rows->values(), 'sum' => [],
@@ -496,7 +496,7 @@ trait ComplianceHseReports
     protected function r_privacy_request_events($from, $to): array
     {
         // Rewritten against the real schema: action/note/user_id/privacy_request_id (request() relation added to the model).
-        $rows = \App\Models\PrivacyRequestEvent::with('request', 'user')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\PrivacyRequestEvent::with('request', 'user')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'request' => optional($r->request)->request_no, 'action' => $r->action,
             'note' => $r->note, 'user' => optional($r->user)->name, 'created' => $r->created_at,
         ]);
@@ -506,7 +506,7 @@ trait ComplianceHseReports
     protected function r_privacy_requests($from, $to): array
     {
         $rows = \App\Models\PrivacyRequest::with('guest:id', 'completer:id,name')->whereBetween('received_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])
-            ->orderBy('received_at')->get()->map(function ($r) {
+            ->orderBy('received_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($r) {
                 $days = $r->completed_at ? $r->received_at->copy()->startOfDay()->diffInDays($r->completed_at->copy()->startOfDay()) : null;
                 $sla = match (true) {
                     $r->status === 'unverified' => 'awaiting e-mail',
@@ -532,14 +532,14 @@ trait ComplianceHseReports
         $f = Carbon::parse($from)->startOfDay();
         $t = Carbon::parse($to)->endOfDay();
         $days = [];
-        foreach (\App\Models\PrivacyRetentionRun::whereBetween('created_at', [$f, $t])->get() as $r) {
+        foreach (\App\Models\PrivacyRetentionRun::whereBetween('created_at', [$f, $t])->limit((int) config('pms.max_list_rows', 5000))->get() as $r) {
             $d = $r->created_at->toDateString();
             foreach ($r->counts as $k => $n) {
                 $days[$d][$k] = ($days[$d][$k] ?? 0) + (int) $n;
             }
             $days[$d]['runs'] = ($days[$d]['runs'] ?? 0) + 1;
         }
-        foreach (\App\Models\PrivacyRequest::where('type', 'erasure')->where('status', 'completed')->whereBetween('completed_at', [$f, $t])->get() as $r) {
+        foreach (\App\Models\PrivacyRequest::where('type', 'erasure')->where('status', 'completed')->whereBetween('completed_at', [$f, $t])->limit((int) config('pms.max_list_rows', 5000))->get() as $r) {
             $d = $r->completed_at->toDateString();
             $days[$d]['requests'] = ($days[$d]['requests'] ?? 0) + 1;
         }

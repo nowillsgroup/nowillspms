@@ -317,7 +317,7 @@ trait QualityAssuranceReports
     protected function r_qa_actions($from, $to): array
     {
         $X = \App\Models\QaAction::class;
-        $rows = $X::with(['department', 'owner', 'audit'])->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
+        $rows = $X::with(['department', 'owner', 'audit'])->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($x) {
                 $closed = in_array($x->status, ['done', 'verified'], true) && $x->completed_at;
 
@@ -339,7 +339,7 @@ trait QualityAssuranceReports
     protected function r_qa_audit_items($from, $to): array
     {
         // Rewritten against the real schema: audit()/standard() relations; code/area/title/weight/result/note/is_repeat; the parent's date is scheduled_for and its number is `number`.
-        $rows = QaAuditItem::with('audit.department', 'standard')->whereHas('audit', fn ($q) => $q->whereBetween('scheduled_for', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->orderBy('qa_audit_id')->orderBy('sort')->get()->map(fn ($r) => [
+        $rows = QaAuditItem::with('audit.department', 'standard')->whereHas('audit', fn ($q) => $q->whereBetween('scheduled_for', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->orderBy('qa_audit_id')->orderBy('sort')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'audit' => optional($r->audit)->number, 'dept' => optional(optional($r->audit)->department)->name,
             'standard' => optional($r->standard)->title,
             'area' => $r->area, 'title' => $r->title,
@@ -352,7 +352,7 @@ trait QualityAssuranceReports
     protected function r_qa_audits($from, $to): array
     {
         $rows = \App\Models\QaAudit::with(['template', 'department', 'auditor', 'acknowledger'])->where('status', 'completed')
-            ->whereBetween('completed_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('completed_at')->get()
+            ->whereBetween('completed_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('completed_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($a) => ['date' => $a->completed_at->format('d M Y'), 'no' => $a->number, 'checklist' => $a->template?->name ?? $a->title, 'type' => $a->typeLabel(),
                 'dept' => $a->department?->name ?? 'Whole hotel', 'auditor' => $a->auditorName(), 'score' => (float) $a->score_pct, 'pass' => (float) $a->pass_mark,
                 'result' => $a->passed ? 'Pass' : ($a->critical_fails && $a->score_pct >= $a->pass_mark ? 'Fail (critical)' : 'Fail'), 'fails' => $a->fails, 'crit' => $a->critical_fails ?: null,
@@ -368,7 +368,7 @@ trait QualityAssuranceReports
     protected function r_qa_department_scores($from, $to): array
     {
         $cfg = \App\Services\QaService::cfg();
-        $audits = \App\Models\QaAudit::with('department')->where('status', 'completed')->whereBetween('completed_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->get();
+        $audits = \App\Models\QaAudit::with('department')->where('status', 'completed')->whereBetween('completed_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $open = \App\Models\QaAction::whereIn('status', \App\Models\QaAction::OPEN)->get(['department_id', 'due_date'])->groupBy(fn ($x) => (int) $x->department_id);
         $rows = $audits->groupBy(fn ($a) => (int) $a->department_id)->map(function ($g, $id) use ($cfg, $open) {
             $avg = round((float) $g->avg('score_pct'), 1);
@@ -405,7 +405,7 @@ trait QualityAssuranceReports
     protected function r_qa_standards($from, $to): array
     {
         // Rewritten against the real schema: code/department_id/area/title/weight/is_critical/is_active; there is no QA category.
-        $rows = QaStandard::with('department')->orderBy('sort')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = QaStandard::with('department')->orderBy('sort')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'code' => $r->code, 'title' => $r->title, 'area' => $r->area,
             'dept' => optional($r->department)->name, 'weight' => $r->weight,
             'critical' => $r->is_critical ? 'Yes' : 'No', 'active' => $r->is_active ? 'Yes' : 'No',
@@ -419,7 +419,7 @@ trait QualityAssuranceReports
         $t = Carbon::parse($to)->endOfDay();
         $days = (int) $f->diffInDays($t->copy()->startOfDay()) + 1;
         $due = \App\Services\QaService::due()->keyBy(fn ($d) => $d['template']->id);
-        $rows = \App\Models\QaTemplate::with('department')->where('is_active', true)->orderBy('name')->get()->map(function ($tp) use ($f, $t, $days, $due) {
+        $rows = \App\Models\QaTemplate::with('department')->where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($tp) use ($f, $t, $days, $due) {
             $done = \App\Models\QaAudit::where('qa_template_id', $tp->id)->where('status', 'completed')->whereBetween('completed_at', [$f, $t])->get(['score_pct', 'passed', 'completed_at']);
             $req = $tp->frequency_days ? max(1, (int) floor($days / $tp->frequency_days)) : null;
             $pct = $req ? min(100, round($done->count() / $req * 100, 1)) : '';
@@ -440,7 +440,7 @@ trait QualityAssuranceReports
     protected function r_review_templates($from, $to): array
     {
         // Rewritten against the real schema: name/sentiment/body/is_active; there is no review type table.
-        $rows = ReviewTemplate::orderBy('name')->get()->map(fn ($r) => [
+        $rows = ReviewTemplate::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'sentiment' => ucfirst((string) $r->sentiment),
             'body' => $r->body, 'active' => $r->is_active ? 'Yes' : 'No',
         ]);

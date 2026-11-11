@@ -40,12 +40,12 @@ class ClubBillingController extends Controller
         return view('club.billing', [
             'arrears' => ClubBillingService::arrears(),
             'due' => ClubMembership::with('plan', 'company')->whereIn('status', ['active', 'frozen'])->whereNull('cancel_mode')->where('auto_renew', true)
-                ->whereDate('end_date', '>=', Carbon::parse($today)->subDay()->toDateString())->whereDate('end_date', '<=', Carbon::parse($today)->addDays($renewDays)->toDateString())->orderBy('end_date')->get(),
+                ->whereDate('end_date', '>=', Carbon::parse($today)->subDay()->toDateString())->whereDate('end_date', '<=', Carbon::parse($today)->addDays($renewDays)->toDateString())->orderBy('end_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'ending' => ClubMembership::with('plan')->whereIn('status', ['active', 'frozen'])->where(fn ($q) => $q->where('auto_renew', false)->orWhereNotNull('cancel_mode'))
-                ->whereDate('end_date', '>=', $today)->whereDate('end_date', '<=', Carbon::parse($today)->addDays(30)->toDateString())->orderBy('end_date')->get(),
-            'lapsed' => ClubMembership::with('plan')->where('status', 'expired')->whereDate('end_date', '>=', Carbon::parse($today)->subDays(60)->toDateString())->orderByDesc('end_date')->get(),
-            'charges' => ClubCharge::with('membership')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get(),
-            'receipts' => ClubPayment::with('membership', 'paymentMode')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->get(),
+                ->whereDate('end_date', '>=', $today)->whereDate('end_date', '<=', Carbon::parse($today)->addDays(30)->toDateString())->orderBy('end_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'lapsed' => ClubMembership::with('plan')->where('status', 'expired')->whereDate('end_date', '>=', Carbon::parse($today)->subDays(60)->toDateString())->orderByDesc('end_date')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'charges' => ClubCharge::with('membership')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'receipts' => ClubPayment::with('membership', 'paymentMode')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get(),
             'recognised' => ClubBillingService::recognised($from, $to),
             'unearned' => ClubBillingService::unearned($to),
             'receivable' => ClubBillingService::controlBalance($to),
@@ -172,10 +172,10 @@ class ClubBillingController extends Controller
         $to = $request->query('to', bdate()->toDateString());
         $opening = ClubBillingService::balance($membership, Carbon::parse($from)->subDay()->toDateString());
         $lines = collect();
-        foreach (ClubCharge::where('club_membership_id', $membership->id)->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get() as $c) {
+        foreach (ClubCharge::where('club_membership_id', $membership->id)->whereNull('cancelled_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             $lines->push(['date' => $c->date, 'ref' => $c->charge_no, 'desc' => $c->description, 'debit' => max(0, (float) $c->total), 'credit' => max(0, -(float) $c->total), 'sort' => 0, 'id' => $c->id]);
         }
-        foreach (ClubPayment::with('paymentMode')->where('club_membership_id', $membership->id)->whereNull('voided_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->get() as $p) {
+        foreach (ClubPayment::with('paymentMode')->where('club_membership_id', $membership->id)->whereNull('voided_at')->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get() as $p) {
             $refund = $p->kind === 'refund';
             $lines->push(['date' => $p->date, 'ref' => $p->receipt_no, 'desc' => ($refund ? 'Refund' : 'Payment').' – '.$p->paymentMode?->name.($p->reference ? " ({$p->reference})" : ''),
                 'debit' => $refund ? (float) $p->amount : 0, 'credit' => $refund ? 0 : (float) $p->amount, 'sort' => 1, 'id' => $p->id]);

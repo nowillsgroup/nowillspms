@@ -45,10 +45,10 @@ class QrMenuController extends Controller
     public function show(string $token)
     {
         $table = $this->table($token);
-        $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $table->outlet_id))->orderBy('sort_order')->get();
+        $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $table->outlet_id))->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get();
         $items = MenuItem::with(['variants', 'modifierGroups' => fn ($q) => $q->where(fn ($w) => $w->whereNull('outlet_id')->orWhere('outlet_id', $table->outlet_id))->with('modifiers')])
             ->where('is_available', true)->whereIn('menu_category_id', $cats->pluck('id'))
-            ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $table->outlet_id))->orderBy('name')->get();
+            ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $table->outlet_id))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $cats = $cats->filter(fn ($c) => $items->contains('menu_category_id', $c->id))->values();
 
         return view('public.qrmenu', ['table' => $table, 'hotel' => Tenant::hotel(), 'cats' => $cats, 'items' => $items, 'allergenMap' => \App\Services\AllergenService::map($items),
@@ -118,7 +118,7 @@ class QrMenuController extends Controller
         $order = $this->openOrder($this->table($token));
 
         return response()->json(['status' => $order?->status, 'total' => (float) ($order->total ?? 0),
-            'items' => $order ? $order->items()->get()->map(fn ($i) => ['name' => $i->item_name, 'qty' => (float) $i->qty,
+            'items' => $order ? $order->items()->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($i) => ['name' => $i->item_name, 'qty' => (float) $i->qty,
                 'state' => $i->is_cancelled ? 'cancelled' : ($i->is_pending ? 'pending' : 'accepted')]) : []]);
     }
 }

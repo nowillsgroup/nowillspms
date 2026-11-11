@@ -53,7 +53,7 @@ class PrivacyRequestController extends Controller
                 $q->when($preq->requester_email, fn ($w) => $w->orWhere('email', $preq->requester_email))
                     ->when($preq->requester_phone, fn ($w) => $w->orWhere('phone', $preq->requester_phone))
                     ->orWhere(fn ($w) => $w->whereRaw("concat_ws(' ', first_name, last_name) = ?", [$preq->requester_name]));
-            })->limit(10)->get();
+            })->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get();
         }
         $plan = $preq->type === 'erasure' && $preq->guest && ! $preq->guest->isErased() && $preq->isOpen() ? PrivacyService::plan($preq->guest) : null;
 

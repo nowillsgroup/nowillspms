@@ -317,7 +317,7 @@ trait MarketingCrmReports
     protected function r_concierge_places($from, $to): array
     {
         // Rewritten against the real schema: category/area/address/phone/website/distance_km/hours/price_level/tip/portal_visible.
-        $rows = ConciergePlace::orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = ConciergePlace::orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'category' => $r->category, 'area' => $r->area,
             'address' => $r->address, 'phone' => $r->phone, 'distance_km' => $r->distance_km,
             'price_level' => $r->price_level, 'portal' => $r->portal_visible ? 'Yes' : 'No',
@@ -332,9 +332,9 @@ trait MarketingCrmReports
         $row = fn ($name, $kind, $ch, $st) => ['name' => $name, 'kind' => $kind, 'ch' => \App\Services\CrmService::CHANNELS[$ch] ?? $ch, 'rcpt' => $st['recipients'], 'sent' => $st['sent'],
             'skip' => $st['skipped'], 'fail' => $st['failed'], 'clicks' => $st['clicks'], 'ctr' => $st['ctr'], 'unsub' => $st['unsubscribes'],
             'book' => $st['bookings'], 'nights' => $st['nights'], 'rev' => $st['revenue'], 'disc' => $st['discount']];
-        $rows = \App\Models\MarketingCampaign::whereIn('status', ['sent', 'sending'])->whereBetween('sent_at', [$f->copy()->startOfDay(), $t->copy()->endOfDay()])->orderBy('sent_at')->get()
+        $rows = \App\Models\MarketingCampaign::whereIn('status', ['sent', 'sending'])->whereBetween('sent_at', [$f->copy()->startOfDay(), $t->copy()->endOfDay()])->orderBy('sent_at')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($c) => $row($c->name, 'Campaign · '.$c->sent_at?->format('d M Y'), $c->channel, \App\Services\CrmService::stats($c)))
-            ->concat(\App\Models\MarketingJourney::orderBy('name')->get()->map(fn ($j) => $row($j->name, 'Automation · '.$j->triggerLabel(), $j->channel, \App\Services\CrmService::stats($j, $f, $t)))
+            ->concat(\App\Models\MarketingJourney::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($j) => $row($j->name, 'Automation · '.$j->triggerLabel(), $j->channel, \App\Services\CrmService::stats($j, $f, $t)))
                 ->filter(fn ($r) => $r['rcpt'] > 0))->values();
 
         return ['cols' => ['name' => 'Campaign / automation', 'kind' => 'Type', 'ch' => 'Channel', 'rcpt' => 'Recipients', 'sent' => 'Delivered', 'skip' => 'Skipped', 'fail' => 'Failed',
@@ -345,7 +345,7 @@ trait MarketingCrmReports
 
     protected function r_crm_guest_value($from, $to): array
     {
-        $guests = Guest::where('stays_count', '>', 0)->orderByDesc('total_revenue')->get();
+        $guests = Guest::where('stays_count', '>', 0)->orderByDesc('total_revenue')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $guests->map(function ($g) {
             $s = \App\Services\CrmService::rfm($g);
 
@@ -363,8 +363,8 @@ trait MarketingCrmReports
 
     protected function r_crm_promos($from, $to): array
     {
-        $res = Reservation::with('rooms')->whereNotNull('promo_code_id')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->get()->groupBy('promo_code_id');
-        $rows = \App\Models\PromoCode::orderBy('code')->get()->map(function ($p) use ($res) {
+        $res = Reservation::with('rooms')->whereNotNull('promo_code_id')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('promo_code_id');
+        $rows = \App\Models\PromoCode::orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($p) use ($res) {
             $all = $res->get($p->id, collect());
             $live = $all->where('status', '!=', 'cancelled');
             $nights = $live->sum(fn ($r) => $r->rooms->sum(fn ($x) => $x->arrival_date->diffInDays($x->departure_date)));
@@ -381,7 +381,7 @@ trait MarketingCrmReports
     protected function r_cro_contacts($from, $to): array
     {
         // Rewritten against the real schema: CRO contacts are notes on an enquiry (type/note/user_id/created_at).
-        $rows = CroContact::with('enquiry', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->get()->map(fn ($r) => [
+        $rows = CroContact::with('enquiry', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'enquiry' => optional($r->enquiry)->number, 'type' => $r->typeLabel(),
             'note' => $r->note, 'user' => optional($r->user)->name, 'created' => $r->created_at,
         ]);
@@ -394,7 +394,7 @@ trait MarketingCrmReports
         $F = Carbon::parse($from)->startOfDay();
         $T = Carbon::parse($to)->endOfDay();
         $names = \App\Models\DmChannel::pluck('name', 'id');
-        $rows = $P::with('author', 'reviewer')->whereBetween('scheduled_at', [$F, $T])->where('status', '!=', 'cancelled')->orderBy('scheduled_at')->get()->map(fn ($p) => [
+        $rows = $P::with('author', 'reviewer')->whereBetween('scheduled_at', [$F, $T])->where('status', '!=', 'cancelled')->orderBy('scheduled_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($p) => [
             'slot' => $p->scheduled_at->format('d M Y H:i'), 'title' => $p->title, 'channels' => collect((array) $p->channels)->map(fn ($id) => $names[$id] ?? '')->implode(', '), 'pillar' => $P::PILLARS[$p->pillar] ?? '',
             'status' => $p->isMissed() ? 'Missed slot' : $p->statusLabel(), 'author' => $p->author?->name, 'approver' => $p->reviewer?->name ?? '',
             'turnaround' => $p->submitted_at && $p->reviewed_at ? round($p->submitted_at->diffInMinutes($p->reviewed_at) / 60, 1) : '',
@@ -417,7 +417,7 @@ trait MarketingCrmReports
         $F = Carbon::parse($from)->toDateString();
         $T = Carbon::parse($to)->toDateString();
         $rows = $I::where(fn ($q) => $q->whereDate('stay_from', '>=', $F)->whereDate('stay_from', '<=', $T)->orWhere(fn ($w) => $w->whereNull('stay_from')->whereBetween('created_at', [$F.' 00:00:00', $T.' 23:59:59'])))
-            ->orderBy('stay_from')->get()->map(function ($i) use ($I) {
+            ->orderBy('stay_from')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($i) use ($I) {
                 $s = \App\Services\DigitalMarketingService::influencerStats($i);
 
                 return ['no' => $i->number, 'name' => $i->name, 'handle' => $i->handle, 'platform' => \App\Models\DmChannel::PLATFORMS[$i->platform][0] ?? $i->platform, 'followers' => $i->followers,
@@ -437,7 +437,7 @@ trait MarketingCrmReports
     {
         $F = Carbon::parse($from);
         $T = Carbon::parse($to);
-        $rows = \App\Models\DmLink::with('campaign')->orderBy('name')->get()->map(function ($l) use ($F, $T) {
+        $rows = \App\Models\DmLink::with('campaign')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($l) use ($F, $T) {
             $s = \App\Services\DigitalMarketingService::linkStats($l, $F, $T);
 
             return ['code' => '/go/'.$l->code, 'name' => $l->name, 'source' => $l->utm_source, 'medium' => $l->utm_medium, 'campaign' => $l->utm_campaign, 'clicks' => $s['clicks'], 'unique' => $s['unique'],
@@ -458,7 +458,7 @@ trait MarketingCrmReports
         $T = Carbon::parse($to);
         $C = \App\Models\DmCampaign::class;
         $rows = $C::with('channel')->whereDate('start_date', '<=', $T->toDateString())->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $F->toDateString()))
-            ->where('status', '!=', 'draft')->orderBy('start_date')->get()->map(function ($c) use ($F, $T, $C) {
+            ->where('status', '!=', 'draft')->orderBy('start_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($c) use ($F, $T, $C) {
                 $s = \App\Services\DigitalMarketingService::campaignStats($c, $F, $T);
 
                 return ['no' => $c->number, 'name' => $c->name, 'platform' => $c->channel?->platformLabel() ?? '', 'objective' => $C::OBJECTIVES[$c->objective], 'status' => $c->statusLabel(),
@@ -480,8 +480,8 @@ trait MarketingCrmReports
     {
         $F = Carbon::parse($from)->startOfMonth();
         $T = Carbon::parse($to)->startOfMonth();
-        $rows = \App\Models\DmChannel::orderBy('name')->get()->filter(fn ($c) => $c->kind() === 'social')->map(function ($c) use ($F, $T) {
-            $st = \App\Models\DmChannelStat::where('channel_id', $c->id)->whereDate('month', '>=', $F->toDateString())->whereDate('month', '<=', $T->toDateString())->orderBy('month')->get();
+        $rows = \App\Models\DmChannel::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($c) => $c->kind() === 'social')->map(function ($c) use ($F, $T) {
+            $st = \App\Models\DmChannelStat::where('channel_id', $c->id)->whereDate('month', '>=', $F->toDateString())->whereDate('month', '<=', $T->toDateString())->orderBy('month')->limit((int) config('pms.max_list_rows', 5000))->get();
             $before = \App\Models\DmChannelStat::where('channel_id', $c->id)->whereDate('month', '<', $F->toDateString())->orderByDesc('month')->value('followers');
             $start = $before ?? $st->first()?->followers;
             $end = $st->last()?->followers;
@@ -503,7 +503,7 @@ trait MarketingCrmReports
 
     protected function r_dm_ad_stats($from, $to): array
     {
-        $rows = DmAdStat::with('dmChannel.adCampaign')->whereBetween('stat_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = DmAdStat::with('dmChannel.adCampaign')->whereBetween('stat_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'channel' => optional($r->dmChannel)->name, 'campaign' => optional($r->adCampaign)->name,
             'date' => $r->stat_date, 'impressions' => $r->impressions, 'clicks' => $r->clicks,
             'ctr' => $r->ctr_pct, 'cost' => $r->cost, 'status' => $r->status,
@@ -514,7 +514,7 @@ trait MarketingCrmReports
     protected function r_dm_link_clicks($from, $to): array
     {
         // Rewritten against the real schema: clicks reference a link (link()); device/referrer_host/ip_hash are stored.
-        $rows = DmLinkClick::with('link')->whereBetween('clicked_at', [$from, $to])->orderByDesc('clicked_at')->get()->map(fn ($r) => [
+        $rows = DmLinkClick::with('link')->whereBetween('clicked_at', [$from, $to])->orderByDesc('clicked_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'link' => optional($r->link)->name, 'code' => optional($r->link)->code,
             'campaign' => optional($r->link)->utm_campaign,
             'clicked' => $r->clicked_at, 'device' => $r->device, 'referrer' => $r->referrer_host,
@@ -552,7 +552,7 @@ trait MarketingCrmReports
     protected function r_marketing_collateral($from, $to): array
     {
         // Rewritten against the real schema: title/kind/language/version/valid_until/file_name/downloads/is_active; no collateral type table.
-        $rows = MarketingCollateral::with('uploader')->orderBy('title')->get()->map(fn ($r) => [
+        $rows = MarketingCollateral::with('uploader')->orderBy('title')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'kind' => $r->kind, 'language' => $r->language,
             'version' => $r->version, 'valid_until' => $r->valid_until,
             'file' => $r->file_name, 'downloads' => $r->downloads,
@@ -563,7 +563,7 @@ trait MarketingCrmReports
 
     protected function r_marketing_consent_logs($from, $to): array
     {
-        $rows = MarketingConsentLog::with('guest.consentType')->whereBetween('logged_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = MarketingConsentLog::with('guest.consentType')->whereBetween('logged_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'type' => optional($r->consentType)->name,
             'logged' => $r->logged_at, 'consented' => $r->consented, 'source' => $r->source,
             'status' => $r->status, 'notes' => $r->notes,
@@ -573,7 +573,7 @@ trait MarketingCrmReports
 
     protected function r_marketing_messages($from, $to): array
     {
-        $rows = MarketingMessage::with('campaign.messageType.channelType')->whereBetween('sent_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = MarketingMessage::with('campaign.messageType.channelType')->whereBetween('sent_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'campaign' => optional($r->campaign)->name, 'type' => optional($r->messageType)->name,
             'channel' => optional($r->channelType)->name, 'subject' => $r->subject,
             'sent' => $r->sent_at, 'recipients' => $r->recipient_count, 'status' => $r->status,
@@ -584,7 +584,7 @@ trait MarketingCrmReports
     protected function r_marketing_roi($from, $to): array
     {
         $M = \App\Models\MarketingEvent::class;
-        $events = $M::with('owner')->whereDate('start_date', '>=', Carbon::parse($from)->toDateString())->whereDate('start_date', '<=', Carbon::parse($to)->toDateString())->orderBy('start_date')->get();
+        $events = $M::with('owner')->whereDate('start_date', '>=', Carbon::parse($from)->toDateString())->whereDate('start_date', '<=', Carbon::parse($to)->toDateString())->orderBy('start_date')->limit((int) config('pms.max_list_rows', 5000))->get();
         $roi = \App\Services\MarketingPlanService::roi($events);
         $rows = $events->map(fn ($e) => ['no' => $e->number, 'name' => $e->name, 'type' => $e->typeLabel(), 'dates' => $e->start_date->format('d M Y'), 'segment' => $M::SEGMENTS[$e->segment] ?? '',
             'market' => $M::MARKETS[$e->market] ?? '', 'status' => $e->statusLabel(), 'budget' => (float) $e->budget, 'cost' => in_array($e->status, ['done', 'cancelled'], true) ? (float) $e->actual_cost : 0.0,
@@ -603,7 +603,7 @@ trait MarketingCrmReports
     protected function r_marketing_segments($from, $to): array
     {
         // Rewritten against the real schema: name/description/match/rules/is_active/created_by; there is no segment type table.
-        $rows = MarketingSegment::with('creator')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = MarketingSegment::with('creator')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'description' => $r->description, 'match' => $r->match,
             'rules' => $r->describe(), 'created_by' => optional($r->creator)->name,
             'active' => $r->is_active ? 'Yes' : 'No',

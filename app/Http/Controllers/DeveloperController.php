@@ -44,9 +44,9 @@ class DeveloperController extends Controller
                 'sources' => BusinessSource::where('is_active', true)->orderBy('name')->pluck('name', 'id')];
         }
         if ($tab === 'clients') {
-            $v += ['clients' => ApiClient::with('owner', 'creator')->orderByRaw('revoked_at IS NOT NULL')->orderBy('name')->get(), 'usage' => ApiService::usage()];
+            $v += ['clients' => ApiClient::with('owner', 'creator')->orderByRaw('revoked_at IS NOT NULL')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'usage' => ApiService::usage()];
         } elseif ($tab === 'webhooks') {
-            $v += ['endpoints' => WebhookEndpoint::orderBy('name')->get(), 'health' => WebhookService::health()];
+            $v += ['endpoints' => WebhookEndpoint::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'health' => WebhookService::health()];
         } elseif ($tab === 'deliveries') {
             $v += ['deliveries' => WebhookDelivery::with('endpoint')
                 ->when($request->query('endpoint'), fn ($q, $e) => $q->where('webhook_endpoint_id', $e))
@@ -63,7 +63,7 @@ class DeveloperController extends Controller
                 ->orderByDesc('id')->paginate(50)->withQueryString(),
                 'clients' => ApiClient::orderBy('name')->pluck('name', 'id'),
                 'routes' => (clone $day)->whereNotNull('route')->groupBy('route')->selectRaw('route, count(*) n, sum(status >= 400) errors, round(avg(duration_ms)) ms')
-                    ->orderByDesc('n')->limit(8)->get(),
+                    ->orderByDesc('n')->limit(8)->limit((int) config('pms.max_list_rows', 5000))->get(),
                 'refused' => ApiRequestLog::withoutGlobalScope('hotel')->whereNull('hotel_id')->where('created_at', '>=', now()->subDay())->count()];
         } elseif ($tab === 'docs') {
             $v += ['endpoints' => ApiSpec::endpoints()];

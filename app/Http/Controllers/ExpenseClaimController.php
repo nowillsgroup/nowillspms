@@ -96,7 +96,7 @@ class ExpenseClaimController extends Controller
         $threshold = (float) Claims::cfg('claims_receipt_threshold');
         $claimed = ExpenseClaimLine::with('claim.employee')->where('category', '!=', 'mileage')
             ->whereHas('claim', fn ($w) => $w->whereIn('status', ['submitted', 'approved', 'paid']))
-            ->where('amount', '>', $threshold)->orderByDesc('date')->orderByDesc('id')->get()
+            ->where('amount', '>', $threshold)->orderByDesc('date')->orderByDesc('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($l) => ['claim_no' => $l->claim?->claim_no, 'staff' => $l->claim?->employee?->name, 'date' => $l->date,
                 'age' => $ageOf($l->date), 'category' => $l->category, 'amount' => round((float) $l->amount, 2),
                 'description' => $l->description, 'status' => $l->claim?->status,
@@ -112,7 +112,7 @@ class ExpenseClaimController extends Controller
         $window = (int) Claims::cfg('claims_max_age_days');
         $oldestAtSubmit = 0;
         $late = collect();
-        foreach (ExpenseClaim::with('lines', 'employee')->whereIn('status', ['submitted', 'approved', 'paid'])->whereNotNull('submitted_at')->get() as $c) {
+        foreach (ExpenseClaim::with('lines', 'employee')->whereIn('status', ['submitted', 'approved', 'paid'])->whereNotNull('submitted_at')->limit((int) config('pms.max_list_rows', 5000))->get() as $c) {
             foreach ($c->lines as $l) {
                 $age = (int) round((Carbon::parse($c->submitted_at)->startOfDay()->timestamp - $l->date->copy()->startOfDay()->timestamp) / 86400);
                 $oldestAtSubmit = max($oldestAtSubmit, $age);
@@ -127,9 +127,9 @@ class ExpenseClaimController extends Controller
 
         return view('claims.index', [
             'claims' => $claims, 'queue' => $queue, 'waitBuckets' => self::WAIT_BUCKETS, 'receipt' => $receipt, 'windowDoc' => $windowDoc,
-            'counts' => ExpenseClaim::selectRaw('status, count(*) n, sum(total) t')->groupBy('status')->get()->keyBy('status'),
+            'counts' => ExpenseClaim::selectRaw('status, count(*) n, sum(total) t')->groupBy('status')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('status'),
             'status' => $status, 'q' => $q, 'mine' => false,
-            'employees' => Employee::where('is_active', true)->orderBy('name')->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')'])->all(),
+            'employees' => Employee::where('is_active', true)->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->mapWithKeys(fn ($e) => [$e->id => $e->name.' ('.$e->emp_code.')'])->all(),
             'cfg' => collect(Claims::DEFAULTS)->map(fn ($v, $k) => Claims::cfg($k))->all(), 'me' => Claims::employeeFor(),
         ]);
     }
@@ -168,7 +168,7 @@ class ExpenseClaimController extends Controller
             'c' => $eclaim->load('employee.department', 'lines.head', 'approver', 'payer', 'paymentMode', 'pettyTxn.float', 'creator'),
             'canEdit' => Claims::canEdit($eclaim), 'cats' => collect(Claims::CATEGORIES)->map(fn ($c) => $c[0])->all(),
             'modes' => PaymentMode::where('is_active', true)->whereIn('type', ['cash', 'bank', 'wallet'])->orderBy('name')->pluck('name', 'id')->all(),
-            'floats' => PettyFloat::where('is_active', true)->orderBy('code')->get()->filter(fn ($f) => PettyCashService::canOperate($f))
+            'floats' => PettyFloat::where('is_active', true)->orderBy('code')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($f) => PettyCashService::canOperate($f))
                 ->mapWithKeys(fn ($f) => [$f->id => $f->name.' – '.money(PettyCashService::available($f)).' available'])->all(),
             'cfg' => collect(Claims::DEFAULTS)->map(fn ($v, $k) => Claims::cfg($k))->all(),
         ]);

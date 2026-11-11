@@ -317,7 +317,7 @@ trait FixedAssetsEngineeringReports
     protected function r_asset_categories($from, $to): array
     {
         // Rewritten against the real schema: code/method/life_months/wdv_rate/residual_pct/is_active; there is no parent or asset type.
-        $rows = AssetCategory::orderBy('name')->get()->map(fn ($r) => [
+        $rows = AssetCategory::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'code' => $r->code, 'method' => ucfirst((string) $r->method),
             'life_months' => $r->life_months, 'wdv_rate' => (float) $r->wdv_rate,
             'residual_pct' => (float) $r->residual_pct, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -327,7 +327,7 @@ trait FixedAssetsEngineeringReports
 
     protected function r_asset_dep_runs($from, $to): array
     {
-        $rows = AssetDepRun::with('fiscalYear')->whereBetween('run_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = AssetDepRun::with('fiscalYear')->whereBetween('run_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'fiscal_year' => optional($r->fiscalYear)->name, 'run_date' => $r->run_date,
             'assets_processed' => $r->assets_processed, 'total_dep' => $r->total_depreciation,
             'status' => $r->status, 'user' => $r->user_id, 'notes' => $r->notes,
@@ -340,7 +340,7 @@ trait FixedAssetsEngineeringReports
         $d = $to->toDateString();
         $runs = $this->assetAcc($d);
         $rows = \App\Models\Asset::with('category', 'room', 'custodian')->whereDate('purchase_date', '<=', $d)
-            ->where(fn ($q) => $q->whereNull('disposed_date')->orWhereDate('disposed_date', '>', $d))->orderBy('asset_no')->get()
+            ->where(fn ($q) => $q->whereNull('disposed_date')->orWhereDate('disposed_date', '>', $d))->orderBy('asset_no')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($a) use ($runs) {
                 $acc = round((float) $a->opening_acc_dep + (float) ($runs[$a->id] ?? 0), 2);
 
@@ -364,7 +364,7 @@ trait FixedAssetsEngineeringReports
         $accOpen = $this->assetAcc($before);
         $charge = $this->assetAcc($t, $before);
         $rows = \App\Models\Asset::with('category')->whereDate('purchase_date', '<=', $t)
-            ->where(fn ($q) => $q->whereNull('disposed_date')->orWhereDate('disposed_date', '>=', $f))->orderBy('asset_no')->get()
+            ->where(fn ($q) => $q->whereNull('disposed_date')->orWhereDate('disposed_date', '>=', $f))->orderBy('asset_no')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($a) use ($f, $t, $accOpen, $charge) {
                 $isNew = $a->purchase_date->toDateString() >= $f;
                 $gone = $a->disposed_date && $a->disposed_date->toDateString() <= $t;
@@ -391,7 +391,7 @@ trait FixedAssetsEngineeringReports
 
     protected function r_pm_schedules($from, $to): array
     {
-        $rows = PmSchedule::with('asset.assetCategory')->whereBetween('scheduled_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = PmSchedule::with('asset.assetCategory')->whereBetween('scheduled_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'asset' => optional($r->asset)->name, 'category' => optional(optional($r->asset)->assetCategory)->name,
             'scheduled' => $r->scheduled_date, 'completed' => $r->completed_date,
             'type' => $r->pm_type, 'description' => $r->description, 'cost' => $r->estimated_cost,

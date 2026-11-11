@@ -316,7 +316,7 @@ trait TreasuryPaymentsReports
 {
     protected function r_bank_matches($from, $to): array
     {
-        $rows = BankMatch::with('bankTransaction.payment')->whereBetween('matched_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = BankMatch::with('bankTransaction.payment')->whereBetween('matched_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'bank_txn' => optional($r->bankTransaction)->reference, 'payment' => optional($r->bankTransaction->payment)->reference,
             'amount' => $r->amount, 'matched' => $r->matched_at, 'type' => $r->match_type,
             'confidence' => $r->confidence, 'status' => $r->status, 'user' => $r->user_id, 'notes' => $r->notes,
@@ -354,7 +354,7 @@ trait TreasuryPaymentsReports
     protected function r_cash_forecast_lines($from, $to): array
     {
         // Rewritten against the real schema: a line is a recurring direction/category/amount; there is no forecasts table.
-        $rows = \App\Models\CashForecastLine::with('creator')->whereBetween('first_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderBy('first_date')->get()->map(fn ($r) => [
+        $rows = \App\Models\CashForecastLine::with('creator')->whereBetween('first_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])->orderBy('first_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'description' => $r->description, 'direction' => ucfirst((string) $r->direction), 'category' => $r->category,
             'amount' => (float) $r->amount, 'first_date' => $r->first_date, 'frequency' => $r->frequency,
             'until_date' => $r->until_date, 'active' => $r->is_active ? 'Yes' : 'No',
@@ -383,10 +383,10 @@ trait TreasuryPaymentsReports
         $T = $to->toDateString();
         $CR = \App\Models\ChequeReceived::class;
         $CI = \App\Models\ChequeIssued::class;
-        $in = $CR::with('transfer')->whereDate('received_on', '>=', $F)->whereDate('received_on', '<=', $T)->orderBy('received_on')->get()->map(fn ($c) => ['dir' => 'Received', 'date' => $c->received_on->format('d M Y'), 'no' => $c->cheque_no,
+        $in = $CR::with('transfer')->whereDate('received_on', '>=', $F)->whereDate('received_on', '<=', $T)->orderBy('received_on')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($c) => ['dir' => 'Received', 'date' => $c->received_on->format('d M Y'), 'no' => $c->cheque_no,
             'party' => $c->party(), 'bank' => $c->bank_name, 'cheque_date' => $c->cheque_date->format('d M Y'), 'amount' => (float) $c->amount, 'status' => $CR::STATUSES[$c->status],
             'ref' => trim($c->number.' '.($c->transfer?->number ?? '')), 'note' => $c->bounce_reason, '_class' => $c->status === 'bounced' ? 'bold-row' : '']);
-        $out = $CI::with('book.account')->whereDate('cheque_date', '>=', $F)->whereDate('cheque_date', '<=', $T)->orderBy('cheque_date')->get()->map(fn ($c) => ['dir' => 'Written', 'date' => $c->cheque_date->format('d M Y'), 'no' => $c->cheque_no,
+        $out = $CI::with('book.account')->whereDate('cheque_date', '>=', $F)->whereDate('cheque_date', '<=', $T)->orderBy('cheque_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($c) => ['dir' => 'Written', 'date' => $c->cheque_date->format('d M Y'), 'no' => $c->cheque_no,
             'party' => $c->payee ?: '(spoilt)', 'bank' => $c->book?->account?->name, 'cheque_date' => $c->cheque_date->format('d M Y'), 'amount' => -(float) $c->amount, 'status' => $CI::STATUSES[$c->status],
             'ref' => $c->payment?->payment_no, 'note' => $c->void_reason ?: $c->memo, '_class' => '']);
         $rows = $in->concat($out)->values();
@@ -399,7 +399,7 @@ trait TreasuryPaymentsReports
 
     protected function r_gateway_payouts($from, $to): array
     {
-        $rows = GatewayPayout::with('gateway')->whereBetween('requested_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = GatewayPayout::with('gateway')->whereBetween('requested_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'gateway' => optional($r->gateway)->name, 'requested' => $r->requested_at, 'paid' => $r->paid_at,
             'amount' => $r->amount, 'fee' => $r->fee_amount, 'net' => $r->net_amount,
             'currency' => $r->currency, 'status' => $r->status, 'reference' => $r->reference, 'notes' => $r->notes,
@@ -409,7 +409,7 @@ trait TreasuryPaymentsReports
 
     protected function r_gift_voucher_register($from, $to): array
     {
-        $rows = \App\Models\GiftVoucher::with('type', 'paymentMode', 'issuer', 'transactions')->whereDate('issued_on', '>=', $from->toDateString())->whereDate('issued_on', '<=', $to->toDateString())->orderBy('issued_on')->orderBy('id')->get()
+        $rows = \App\Models\GiftVoucher::with('type', 'paymentMode', 'issuer', 'transactions')->whereDate('issued_on', '>=', $from->toDateString())->whereDate('issued_on', '<=', $to->toDateString())->orderBy('issued_on')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($v) => ['code' => $v->code, 'type' => $v->type?->name, 'source' => $v->source === 'promo' ? 'Promo'.($v->campaign ? ': '.$v->campaign : '') : 'Sold', 'purchaser' => $v->purchaser_name, 'recipient' => $v->recipient_name,
                 'issued' => $v->issued_on->format('d-m-Y'), 'expires' => $v->expires_on->format('d-m-Y'), 'mode' => $v->paymentMode?->name, 'value' => $v->face_value,
                 'reloads' => round((float) $v->transactions->where('type', 'reload')->sum('amount'), 2), 'redeemed' => round((float) $v->transactions->where('type', 'redeem')->sum('amount') - (float) $v->transactions->where('type', 'reversal')->sum('amount'), 2),
@@ -424,7 +424,7 @@ trait TreasuryPaymentsReports
     protected function r_online_payment_events($from, $to): array
     {
         // Rewritten against the real schema: payment() relation; provider/event/result/signature_ok; the event payload carries any provider detail.
-        $rows = OnlinePaymentEvent::with('payment', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->get()->map(fn ($r) => [
+        $rows = OnlinePaymentEvent::with('payment', 'user')->whereBetween('created_at', [$from, $to])->orderByDesc('created_at')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'payment' => optional($r->payment)->pay_no, 'provider' => $r->provider,
             'event' => $r->event, 'source' => $r->source,
             'signature_ok' => $r->signature_ok ? 'Yes' : 'No', 'result' => $r->result,
@@ -435,7 +435,7 @@ trait TreasuryPaymentsReports
 
     protected function r_online_refunds($from, $to): array
     {
-        $rows = OnlineRefund::with('reservation.guest.gateway.payment')->whereBetween('refunded_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = OnlineRefund::with('reservation.guest.gateway.payment')->whereBetween('refunded_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'gateway' => optional($r->gateway)->name, 'payment_ref' => optional($r->payment)->reference,
             'original' => $r->original_amount, 'refund' => $r->refund_amount, 'fee' => $r->fee_amount,
@@ -447,7 +447,7 @@ trait TreasuryPaymentsReports
     protected function r_payment_modes($from, $to): array
     {
         // Rewritten against the real schema: name/type/is_active/account_head_id; there is no payment mode type table.
-        $rows = PaymentMode::orderBy('name')->get()->map(fn ($r) => [
+        $rows = PaymentMode::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'type' => $r->type,
             'account_head_id' => $r->account_head_id,
             'active' => $r->is_active ? 'Yes' : 'No',
@@ -458,7 +458,7 @@ trait TreasuryPaymentsReports
     protected function r_transfer_register($from, $to): array
     {
         $TT = \App\Models\TreasuryTransfer::class;
-        $rows = $TT::with('from', 'to', 'requester', 'approver')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->get()
+        $rows = $TT::with('from', 'to', 'requester', 'approver')->whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->orderBy('date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['no' => $t->number, 'date' => $t->date->format('d M Y'), 'kind' => $TT::KINDS[$t->kind], 'from' => $t->from?->name, 'to' => $t->to?->name, 'amount' => (float) $t->amount,
                 'fee' => (float) $t->fee ?: null, 'variance' => abs((float) $t->variance) >= 0.005 ? (float) $t->variance : null, 'status' => $TT::STATUSES[$t->status],
                 'sent' => $t->dispatched_on?->format('d M'), 'credited' => $t->completed_on && $t->status === 'completed' ? $t->completed_on->format('d M') : '',
@@ -474,7 +474,7 @@ trait TreasuryPaymentsReports
     protected function r_voucher_breakage($from, $to): array
     {
         $rows = \App\Models\GiftVoucherTransaction::with('voucher.type', 'paymentMode', 'user')->whereIn('type', ['expire', 'cancel'])
-            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->get()
+            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(function ($t) {
                 $promo = $t->voucher?->source === 'promo';
                 $kind = $t->type === 'expire' ? ($promo ? 'Promo lapsed' : 'Breakage') : ($t->payment_mode_id ? 'Refunded' : 'Withdrawn');
@@ -495,7 +495,7 @@ trait TreasuryPaymentsReports
         $d = $to->toDateString();
         $bal = \App\Models\GiftVoucherTransaction::whereDate('business_date', '<=', $d)->selectRaw("gift_voucher_id, SUM(CASE WHEN type IN ('issue','reload','reversal') THEN amount ELSE -amount END) b")
             ->groupBy('gift_voucher_id')->havingRaw('ABS(b) > 0.004')->pluck('b', 'gift_voucher_id');
-        $rows = \App\Models\GiftVoucher::with('type')->whereIn('id', $bal->keys())->orderBy('expires_on')->get()->map(function ($v) use ($bal, $to) {
+        $rows = \App\Models\GiftVoucher::with('type')->whereIn('id', $bal->keys())->orderBy('expires_on')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($v) use ($bal, $to) {
             $days = (int) $to->diffInDays($v->expires_on, false);
             $bucket = $days < 0 ? 'Past expiry' : ($days <= 30 ? '0–30 days' : ($days <= 90 ? '31–90 days' : ($days <= 180 ? '91–180 days' : 'Over 180 days')));
 
@@ -524,7 +524,7 @@ trait TreasuryPaymentsReports
     protected function r_voucher_redemptions($from, $to): array
     {
         $rows = \App\Models\GiftVoucherTransaction::with('voucher.type', 'user', 'folioTransaction.folio', 'posOrder')->whereIn('type', ['redeem', 'reversal'])
-            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->get()
+            ->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($t) => ['date' => $t->business_date->format('d-m-Y'), 'code' => $t->voucher?->code, 'type' => $t->voucher?->type?->name, 'movement' => $t->type === 'redeem' ? 'Redeemed' : 'Reversed',
                 'where' => $t->outlet ?: ($t->folio_transaction_id ? 'Front office' : '—'), 'doc' => $t->folioTransaction?->folio?->folio_no ?? $t->posOrder?->bill_no ?? $t->reference,
                 'amount' => $t->type === 'redeem' ? $t->amount : -$t->amount, 'balance' => $t->balance_after, 'by' => $t->user?->name, 'note' => $t->note]);
@@ -539,8 +539,8 @@ trait TreasuryPaymentsReports
 
     protected function r_voucher_sales($from, $to): array
     {
-        $tx = \App\Models\GiftVoucherTransaction::with('voucher', 'paymentMode')->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->get();
-        $rows = \App\Models\GiftVoucherType::orderBy('name')->get()->map(function ($type) use ($tx) {
+        $tx = \App\Models\GiftVoucherTransaction::with('voucher', 'paymentMode')->whereDate('business_date', '>=', $from->toDateString())->whereDate('business_date', '<=', $to->toDateString())->limit((int) config('pms.max_list_rows', 5000))->get();
+        $rows = \App\Models\GiftVoucherType::orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(function ($type) use ($tx) {
             $t = $tx->filter(fn ($x) => $x->voucher?->gift_voucher_type_id === $type->id);
             $issue = $t->where('type', 'issue');
 

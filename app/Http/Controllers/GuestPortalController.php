@@ -76,12 +76,12 @@ class GuestPortalController extends Controller
     public function home(string $token)
     {
         $stay = $this->stay($token);
-        $folios = Folio::where('reservation_room_id', $stay->id)->get();
+        $folios = Folio::where('reservation_room_id', $stay->id)->limit((int) config('pms.max_list_rows', 5000))->get();
         $balance = $folios->sum(fn ($f) => $f->totals()['balance']);
         $info = collect(preg_split('/\r?\n/', (string) setting('portal_info', SettingController::KEYS['portal_info'][2])))->map(fn ($l) => trim($l))->filter()->values();
-        $recent = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(3)->get();
-        $spa = SpaAppointment::with('service')->where('reservation_room_id', $stay->id)->where('status', 'booked')->orderBy('date')->orderBy('start_time')->limit(3)->get();
-        $wakeups = \App\Models\WakeupCall::where('reservation_room_id', $stay->id)->where('status', 'scheduled')->orderBy('call_at')->limit(3)->get(); // v3.5
+        $recent = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(3)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $spa = SpaAppointment::with('service')->where('reservation_room_id', $stay->id)->where('status', 'booked')->orderBy('date')->orderBy('start_time')->limit(3)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $wakeups = \App\Models\WakeupCall::where('reservation_room_id', $stay->id)->where('status', 'scheduled')->orderBy('call_at')->limit(3)->limit((int) config('pms.max_list_rows', 5000))->get(); // v3.5
 
         return $this->page($stay, 'portal.home', 'home', compact('balance', 'info', 'recent', 'spa', 'wakeups'));
     }
@@ -91,13 +91,13 @@ class GuestPortalController extends Controller
     public function requests(string $token)
     {
         $stay = $this->stay($token);
-        $list = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(50)->get();
+        $list = GuestRequest::where('reservation_room_id', $stay->id)->latest('id')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get();
         $cats = collect(GuestRequest::CATEGORIES)->except(self::transportOn() ? ['checkout', 'transport'] : ['checkout'])->map(fn ($c, $k) => ['label' => $c[0], 'icon' => $c[1], 'items' => GuestPortalService::items($k)]);
 
         $laundry = [
             'prices' => \App\Services\LaundryService::priceList(), 'express' => \App\Services\LaundryService::expressPct(),
             'hours' => ['normal' => \App\Services\LaundryService::hours('normal'), 'express' => \App\Services\LaundryService::hours('express')],
-            'orders' => \App\Models\LaundryOrder::where('reservation_room_id', $stay->id)->where('status', '!=', 'cancelled')->latest('id')->limit(10)->get(),
+            'orders' => \App\Models\LaundryOrder::where('reservation_room_id', $stay->id)->where('status', '!=', 'cancelled')->latest('id')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get(),
             'tax' => \App\Services\LaundryService::taxInfo(),
         ];
 
@@ -158,13 +158,13 @@ class GuestPortalController extends Controller
         $outlet = GuestPortalService::diningOutlet();
         $cats = $items = collect();
         if ($outlet) {
-            $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))->orderBy('sort_order')->get();
+            $cats = MenuCategory::where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get();
             $items = MenuItem::with(['variants', 'modifierGroups' => fn ($q) => $q->where(fn ($w) => $w->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))->with('modifiers')])
                 ->where('is_available', true)->whereIn('menu_category_id', $cats->pluck('id'))
-                ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))->orderBy('name')->get();
+                ->where(fn ($q) => $q->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
             $cats = $cats->filter(fn ($c) => $items->contains('menu_category_id', $c->id))->values();
         }
-        $orders = PosOrder::with('items')->where('reservation_room_id', $stay->id)->where('source', 'portal')->latest('id')->limit(5)->get();
+        $orders = PosOrder::with('items')->where('reservation_room_id', $stay->id)->where('source', 'portal')->latest('id')->limit(5)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->page($stay, $outlet ? 'portal.dining' : 'portal.unavailable', 'dining', compact('outlet', 'cats', 'items', 'orders'), ['inhouse']);
     }
@@ -195,7 +195,7 @@ class GuestPortalController extends Controller
     public function spa(Request $request, string $token)
     {
         $stay = $this->stay($token);
-        $services = SpaService::where('is_active', true)->orderBy('category')->orderBy('name')->get();
+        $services = SpaService::where('is_active', true)->orderBy('category')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get();
         $service = $request->filled('service') ? $services->firstWhere('id', (int) $request->query('service')) : null;
         $from = max(bdate()->toDateString(), now()->toDateString());
         $to = $stay->departure_date->toDateString();
@@ -205,7 +205,7 @@ class GuestPortalController extends Controller
         }
         $date = in_array($request->query('date'), $dates->all(), true) ? $request->query('date') : $dates->first();
         $slots = $service && $date ? GuestPortalService::spaSlots($service, $date) : [];
-        $mine = SpaAppointment::with('service')->where('reservation_room_id', $stay->id)->latest('date')->latest('start_time')->limit(10)->get();
+        $mine = SpaAppointment::with('service')->where('reservation_room_id', $stay->id)->latest('date')->latest('start_time')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->page($stay, setting('portal_spa_enabled', '1') === '1' ? 'portal.spa' : 'portal.unavailable', 'spa', compact('services', 'service', 'dates', 'date', 'slots', 'mine'), ['inhouse']);
     }
@@ -243,8 +243,8 @@ class GuestPortalController extends Controller
     {
         $stay = $this->stay($token);
         $trips = \App\Models\TransportTrip::with('vehicle', 'driver')->where('reservation_room_id', $stay->id)->where(fn ($q) => $q->whereIn('status', \App\Models\TransportTrip::OPEN)
-            ->orWhere('scheduled_at', '>=', now()->subDays(2)))->orderBy('scheduled_at')->limit(10)->get();
-        $tariffs = \App\Models\TransportTariff::where('is_active', true)->whereIn('kind', ['airport', 'railway'])->orderBy('sort_order')->limit(6)->get();
+            ->orWhere('scheduled_at', '>=', now()->subDays(2)))->orderBy('scheduled_at')->limit(10)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $tariffs = \App\Models\TransportTariff::where('is_active', true)->whereIn('kind', ['airport', 'railway'])->orderBy('sort_order')->limit(6)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->page($stay, 'portal.transport', 'transport', ['trips' => $trips, 'tariffs' => $tariffs, 'cfg' => \App\Services\TransportService::cfg()], ['inhouse', 'upcoming']);
     }
@@ -255,7 +255,7 @@ class GuestPortalController extends Controller
         $stay = $this->stay($token);
         abort_unless(self::forexOn($stay), 404);
         $rates = \App\Services\ForexService::todayRates();
-        $currencies = \App\Models\Currency::where('is_active', true)->orderBy('sort_order')->get()->filter(fn ($c) => isset($rates[$c->id]));
+        $currencies = \App\Models\Currency::where('is_active', true)->orderBy('sort_order')->limit((int) config('pms.max_list_rows', 5000))->get()->filter(fn ($c) => isset($rates[$c->id]));
 
         return $this->page($stay, 'portal.exchange', 'exchange', ['rates' => $rates, 'currencies' => $currencies, 'cfg' => \App\Services\ForexService::cfg()], ['inhouse']);
     }
@@ -265,7 +265,7 @@ class GuestPortalController extends Controller
     public function messages(string $token)
     {
         $stay = $this->stay($token);
-        $list = \App\Models\GuestMessage::where('reservation_room_id', $stay->id)->where('status', '!=', 'cancelled')->latest('id')->limit(30)->get();
+        $list = \App\Models\GuestMessage::where('reservation_room_id', $stay->id)->where('status', '!=', 'cancelled')->latest('id')->limit(30)->limit((int) config('pms.max_list_rows', 5000))->get();
         $unseen = $list->whereNull('portal_read_at')->pluck('id')->all();
         if ($stay->portalState() === 'inhouse') {
             \App\Services\GuestMessageService::portalRead($stay); // opening the page counts as the guest having read them
@@ -337,7 +337,7 @@ class GuestPortalController extends Controller
     {
         $stay = $this->stay($token);
         $list = \App\Models\Visitor::where('reservation_room_id', $stay->id)->whereIn('status', ['expected', 'awaiting', 'in', 'out'])
-            ->where('created_at', '>=', now()->subDays(14))->orderByRaw("FIELD(status, 'in', 'awaiting', 'expected', 'out')")->orderBy('expected_at')->limit(20)->get();
+            ->where('created_at', '>=', now()->subDays(14))->orderByRaw("FIELD(status, 'in', 'awaiting', 'expected', 'out')")->orderBy('expected_at')->limit(20)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return $this->page($stay, 'portal.visitors', 'visitors', ['list' => $list, 'cfg' => \App\Services\SecurityService::cfg(),
             'policies' => \App\Services\SecurityService::POLICIES], ['inhouse', 'upcoming']);
@@ -351,8 +351,8 @@ class GuestPortalController extends Controller
         $CS = \App\Services\ConciergeService::class;
         $bookable = $CS::portalOn() && in_array($stay->status, ['reserved', 'checked_in'], true);
         $mine = \App\Models\ActivityBooking::with('activity.vendor')->where('reservation_room_id', $stay->id)->where(fn ($q) => $q->whereIn('status', \App\Models\ActivityBooking::OPEN)
-            ->orWhereDate('date', '>=', now()->subDays(1)->toDateString()))->orderBy('date')->orderBy('time')->limit(12)->get();
-        $places = \App\Models\ConciergePlace::where('portal_visible', true)->orderBy('sort_order')->orderBy('name')->get()->groupBy('category');
+            ->orWhereDate('date', '>=', now()->subDays(1)->toDateString()))->orderBy('date')->orderBy('time')->limit(12)->limit((int) config('pms.max_list_rows', 5000))->get();
+        $places = \App\Models\ConciergePlace::where('portal_visible', true)->orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('category');
 
         return $this->page($stay, 'portal.explore', 'explore', ['activities' => $bookable ? $CS::portalActivities() : collect(), 'bookable' => $bookable, 'mine' => $mine, 'places' => $places,
             'cfg' => $CS::cfg(), 'fees' => $mine->mapWithKeys(fn ($b) => [$b->id => $CS::cancelFee($b)])], ['inhouse', 'upcoming']);
@@ -492,7 +492,7 @@ class GuestPortalController extends Controller
     {
         $stay = $this->stay($token);
         $folios = Folio::with(['transactions' => fn ($q) => $q->where('is_void', false)->orderBy('business_date')->orderBy('id')])
-            ->where('reservation_room_id', $stay->id)->orderBy('id')->get();
+            ->where('reservation_room_id', $stay->id)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $totals = $folios->mapWithKeys(fn ($f) => [$f->id => $f->totals()]);
         $checkoutReq = GuestRequest::where('reservation_room_id', $stay->id)->where('category', 'checkout')->latest('id')->first();
         $feedback = GuestFeedback::where('reservation_room_id', $stay->id)->first();

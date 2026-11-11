@@ -16,12 +16,12 @@ class RoleController extends Controller
     {
         $counts = User::where('hotel_id', Tenant::id())->selectRaw('role_id, COUNT(*) as c')->groupBy('role_id')->pluck('c', 'role_id');
 
-        return view('roles.index', ['roles' => Role::withCount('permissions')->orderBy('name')->get(), 'counts' => $counts, 'total' => Permission::count()]);
+        return view('roles.index', ['roles' => Role::withCount('permissions')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get(), 'counts' => $counts, 'total' => Permission::count()]);
     }
 
     public function create()
     {
-        return view('roles.form', ['role' => new Role, 'groups' => Permission::orderBy('id')->get()->groupBy('module'), 'selected' => []]);
+        return view('roles.form', ['role' => new Role, 'groups' => Permission::orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('module'), 'selected' => []]);
     }
 
     public function store(Request $request)
@@ -36,7 +36,7 @@ class RoleController extends Controller
 
     public function edit(Role $role)
     {
-        return view('roles.form', ['role' => $role, 'groups' => Permission::orderBy('id')->get()->groupBy('module'), 'selected' => $role->permissions()->pluck('permissions.id')->all()]);
+        return view('roles.form', ['role' => $role, 'groups' => Permission::orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()->groupBy('module'), 'selected' => $role->permissions()->pluck('permissions.id')->all()]);
     }
 
     public function update(Request $request, Role $role)

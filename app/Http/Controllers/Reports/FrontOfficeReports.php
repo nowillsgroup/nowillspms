@@ -317,7 +317,7 @@ trait FrontOfficeReports
     protected function r_logbook_register($from, $to): array
     {
         $E = \App\Models\LogEntry::class;
-        $list = $E::with('author', 'resolver', 'stay.room', 'room')->withCount('reads')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->get();
+        $list = $E::with('author', 'resolver', 'stay.room', 'room')->withCount('reads')->whereDate('business_date', '>=', $from)->whereDate('business_date', '<=', $to)->orderBy('business_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($e) => ['date' => $e->business_date->format('d M Y'), 'time' => $e->created_at->format('H:i'), 'shift' => $E::SHIFTS[$e->shift] ?? $e->shift,
             'dept' => $E::DEPARTMENTS[$e->department] ?? $e->department, 'cat' => $e->categoryLabel(), 'prio' => $E::PRIORITIES[$e->priority] ?? $e->priority,
             'title' => $e->title, 'room' => (string) ($e->stay?->room?->room_no ?? $e->room?->room_no), 'by' => $e->source === 'system' ? 'System' : (string) $e->author?->name,
@@ -339,7 +339,7 @@ trait FrontOfficeReports
     protected function r_lost_found_register($from, $to): array
     {
         $I = \App\Models\LostFoundItem::class;
-        $list = $I::with('room', 'guest', 'releaser', 'disposer', 'witness', 'report')->whereDate('found_date', '>=', $from)->whereDate('found_date', '<=', $to)->orderBy('found_date')->orderBy('id')->get();
+        $list = $I::with('room', 'guest', 'releaser', 'disposer', 'witness', 'report')->whereDate('found_date', '>=', $from)->whereDate('found_date', '<=', $to)->orderBy('found_date')->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($i) => ['no' => (string) $i->item_no, 'found' => $i->found_date->format('d M Y'), 'item' => $i->item_name, 'cat' => $i->categoryLabel(),
             'val' => $i->valuable ? 'Yes' : '', 'where' => (string) $i->location, 'finder' => (string) $i->found_by, 'store' => (string) $i->storage_location,
             'owner' => (string) ($i->guest?->full_name ?? ''), 'report' => (string) $i->report?->report_no, 'status' => $i->statusLabel(),
@@ -364,7 +364,7 @@ trait FrontOfficeReports
     {
         $D = \App\Services\TraceService::DEPARTMENTS;
         $list = \App\Models\Trace::with('reservation', 'stay.room', 'guest', 'creator', 'doer')
-            ->where(fn ($q) => $q->whereDate('trace_date', '>=', $from)->whereDate('trace_date', '<=', $to)->orWhere(fn ($b) => $b->whereDate('carried_from', '>=', $from)->whereDate('carried_from', '<=', $to)))->orderBy('trace_date')->orderBy('due_time')->get();
+            ->where(fn ($q) => $q->whereDate('trace_date', '>=', $from)->whereDate('trace_date', '<=', $to)->orWhere(fn ($b) => $b->whereDate('carried_from', '>=', $from)->whereDate('carried_from', '<=', $to)))->orderBy('trace_date')->orderBy('due_time')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(fn ($t) => ['date' => ($t->carried_from ?? $t->trace_date)->format('d M Y'), 'time' => $t->due_time ? substr($t->due_time, 0, 5) : '',
             'dept' => $D[$t->department] ?? $t->department, 'text' => $t->text, 'res' => (string) $t->reservation?->reservation_no, 'room' => (string) $t->stay?->room?->room_no,
             'carried' => $t->carried_from ? 'to '.$t->trace_date->format('d M') : '', 'status' => ucfirst($t->status), 'done' => $t->done_at?->format('d M H:i') ?? '',
@@ -384,7 +384,7 @@ trait FrontOfficeReports
     {
         $W = \App\Models\WakeupCall::class;
         $list = $W::with('stay.room', 'stay.guest', 'stay.reservation.guest', 'room', 'attemptsLog', 'completer')
-            ->whereBetween('call_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('call_at')->get();
+            ->whereBetween('call_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $list->map(function ($w) use ($W) {
             $first = $w->attemptsLog->first();
             $late = $first ? (int) max(0, round($w->call_at->diffInMinutes($first->attempted_at, false))) : null;
@@ -408,7 +408,7 @@ trait FrontOfficeReports
 
     protected function r_activity_bookings($from, $to): array
     {
-        $rows = ActivityBooking::with('activity.guest.bookedBy')->whereBetween('booked_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ActivityBooking::with('activity.guest.bookedBy')->whereBetween('booked_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'activity' => optional($r->activity)->name, 'guest' => optional($r->guest)->name,
             'date' => $r->activity_date, 'quantity' => $r->quantity, 'price' => $r->unit_price,
             'amount' => $r->total_amount, 'status' => $r->status, 'booked' => $r->booked_at,
@@ -420,7 +420,7 @@ trait FrontOfficeReports
     protected function r_arrivals($from, $to): array
     {
         $rows = ReservationRoom::with('reservation.guest', 'reservation.company', 'guest', 'room', 'roomType')->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)
-            ->whereIn('status', ['reserved', 'checked_in', 'checked_out'])->orderBy('arrival_date')->get()->map(fn ($s) => $this->stayRow($s));
+            ->whereIn('status', ['reserved', 'checked_in', 'checked_out'])->orderBy('arrival_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($s) => $this->stayRow($s));
 
         return ['cols' => $this->stayCols(), 'rows' => $rows, 'money' => ['rate'], 'sum' => ['nights']];
     }
@@ -428,7 +428,7 @@ trait FrontOfficeReports
     protected function r_cancellations($from, $to): array
     {
         $rows = ReservationRoom::with('reservation.guest', 'reservation.company', 'guest', 'room', 'roomType')->whereIn('status', ['cancelled', 'no_show'])
-            ->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)->get()->map(fn ($s) => $this->stayRow($s) + ['reason' => $s->reservation->cancel_reason]);
+            ->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($s) => $this->stayRow($s) + ['reason' => $s->reservation->cancel_reason]);
 
         return ['cols' => $this->stayCols() + ['reason' => 'Reason'], 'rows' => $rows, 'money' => ['rate'], 'sum' => ['nights']];
     }
@@ -441,14 +441,14 @@ trait FrontOfficeReports
     protected function r_departures($from, $to): array
     {
         $rows = ReservationRoom::with('reservation.guest', 'reservation.company', 'guest', 'room', 'roomType')->whereDate('departure_date', '>=', $from)->whereDate('departure_date', '<=', $to)
-            ->whereIn('status', ['checked_in', 'checked_out'])->orderBy('departure_date')->get()->map(fn ($s) => $this->stayRow($s));
+            ->whereIn('status', ['checked_in', 'checked_out'])->orderBy('departure_date')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($s) => $this->stayRow($s));
 
         return ['cols' => $this->stayCols(), 'rows' => $rows, 'money' => ['rate'], 'sum' => ['nights']];
     }
 
     protected function r_guest_documents($from, $to): array
     {
-        $rows = \App\Models\GuestDocument::with('guest.documentType')->whereBetween('uploaded_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\GuestDocument::with('guest.documentType')->whereBetween('uploaded_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'type' => optional($r->documentType)->name,
             'filename' => $r->filename, 'uploaded' => $r->uploaded_at,
             'expiry' => $r->expiry_date, 'status' => $r->status, 'notes' => $r->notes,
@@ -459,7 +459,7 @@ trait FrontOfficeReports
     protected function r_guest_requests($from, $to): array
     {
         $sla = max(1, (int) setting('portal_sla_minutes', 15));
-        $all = \App\Models\GuestRequest::whereBetween('created_at', [$from, $to->copy()->endOfDay()])->get();
+        $all = \App\Models\GuestRequest::whereBetween('created_at', [$from, $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get();
         $rows = $all->groupBy('category')->map(function ($g, $cat) use ($sla) {
             $resp = $g->filter(fn ($r) => $r->acknowledged_at)->map(fn ($r) => $r->created_at->diffInMinutes($r->acknowledged_at));
             $comp = $g->where('status', 'done')->filter(fn ($r) => $r->completed_at)->map(fn ($r) => $r->created_at->diffInMinutes($r->completed_at));
@@ -479,7 +479,7 @@ trait FrontOfficeReports
 
     protected function r_inhouse($from, $to): array
     {
-        $stays = ReservationRoom::with('reservation.guest', 'reservation.company', 'guest', 'room', 'roomType', 'folio')->where('status', 'checked_in')->get()->sortBy('room.room_no');
+        $stays = ReservationRoom::with('reservation.guest', 'reservation.company', 'guest', 'room', 'roomType', 'folio')->where('status', 'checked_in')->limit((int) config('pms.max_list_rows', 5000))->get()->sortBy('room.room_no');
         $rows = $stays->map(fn ($s) => $this->stayRow($s) + ['balance' => $s->folio ? $s->folio->balance() : 0]);
 
         return ['cols' => $this->stayCols() + ['balance' => 'Balance'], 'rows' => $rows->values(), 'money' => ['rate', 'balance'], 'sum' => ['balance']];
@@ -487,7 +487,7 @@ trait FrontOfficeReports
 
     protected function r_loyalty_entries($from, $to): array
     {
-        $rows = LoyaltyEntry::with('guest.loyaltyTier.reward')->whereBetween('earned_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = LoyaltyEntry::with('guest.loyaltyTier.reward')->whereBetween('earned_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'tier' => optional($r->loyaltyTier)->name,
             'type' => $r->entry_type, 'points' => $r->points, 'reward' => optional($r->reward)->name,
             'reward_value' => $r->reward_value, 'earned' => $r->earned_at, 'expires' => $r->expires_at, 'status' => $r->status,
@@ -497,7 +497,7 @@ trait FrontOfficeReports
 
     protected function r_nationality($from, $to): array
     {
-        $rows = ReservationRoom::with('reservation.guest', 'guest')->whereIn('status', ['checked_in', 'checked_out'])->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)->get()
+        $rows = ReservationRoom::with('reservation.guest', 'guest')->whereIn('status', ['checked_in', 'checked_out'])->whereDate('arrival_date', '>=', $from)->whereDate('arrival_date', '<=', $to)->limit((int) config('pms.max_list_rows', 5000))->get()
             ->groupBy(fn ($s) => ($s->guest ?? $s->reservation->guest)?->nationality ?: 'Unknown')
             ->map(fn ($g, $n) => ['nat' => $n, 'arrivals' => $g->count(), 'pax' => $g->sum('adults') + $g->sum('children'), 'nights' => $g->sum(fn ($s) => $s->nights)])->sortByDesc('arrivals')->values();
 
@@ -530,7 +530,7 @@ trait FrontOfficeReports
     protected function r_police($from, $to): array
     {
         $home = strtolower(hotel()->country ?? 'india');
-        $rows = ReservationRoom::with('reservation.guest', 'guest', 'room')->whereIn('status', ['checked_in', 'checked_out'])->whereBetween('checked_in_at', [$from, $to->copy()->endOfDay()])->get()
+        $rows = ReservationRoom::with('reservation.guest', 'guest', 'room')->whereIn('status', ['checked_in', 'checked_out'])->whereBetween('checked_in_at', [$from, $to->copy()->endOfDay()])->limit((int) config('pms.max_list_rows', 5000))->get()
             ->filter(fn ($s) => ($n = strtolower((string) ($s->guest ?? $s->reservation->guest)?->nationality)) && ! in_array($n, [$home, 'indian', 'india'], true))
             ->map(function ($s) {
                 $g = $s->guest ?? $s->reservation->guest;
@@ -544,7 +544,7 @@ trait FrontOfficeReports
 
     protected function r_reservation_amendments($from, $to): array
     {
-        $rows = ReservationAmendment::with('reservation.guest')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ReservationAmendment::with('reservation.guest')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'type' => $r->change_type, 'field' => $r->field_name, 'old_val' => $r->old_value, 'new_val' => $r->new_value,
             'reason' => $r->reason, 'charge' => $r->charge_amount, 'user' => $r->user_id, 'created' => $r->created_at,
@@ -554,7 +554,7 @@ trait FrontOfficeReports
 
     protected function r_reservation_desk_views($from, $to): array
     {
-        $rows = ReservationDeskView::with('reservation.guest')->whereBetween('viewed_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ReservationDeskView::with('reservation.guest')->whereBetween('viewed_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'viewed' => $r->viewed_at, 'duration' => $r->view_duration_seconds,
             'user' => $r->user_id, 'ip' => $r->ip_address, 'action' => $r->action_taken,
@@ -564,7 +564,7 @@ trait FrontOfficeReports
 
     protected function r_reservation_waitlist($from, $to): array
     {
-        $rows = ReservationWaitlist::with('guest.requestedBy')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = ReservationWaitlist::with('guest.requestedBy')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->guest)->name, 'date' => $r->date_needed,
             'room_type' => $r->room_type_id, 'nights' => $r->nights, 'rate' => $r->rate_offered,
             'priority' => $r->priority, 'reason' => $r->reason, 'created' => $r->created_at,
@@ -575,7 +575,7 @@ trait FrontOfficeReports
 
     protected function r_reservations($from, $to): array
     {
-        $rows = Reservation::with('guest', 'company', 'source', 'rooms', 'creator')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->get()
+        $rows = Reservation::with('guest', 'company', 'source', 'rooms', 'creator')->whereBetween('created_at', [$from, $to->copy()->endOfDay()])->latest()->limit((int) config('pms.max_list_rows', 5000))->get()
             ->map(fn ($r) => ['no' => $r->reservation_no, 'date' => $r->created_at->format('d-m-Y'), 'guest' => $r->guest?->full_name, 'arr' => $r->arrival_date->format('d-m-Y'), 'dep' => $r->departure_date->format('d-m-Y'),
                 'rooms' => $r->rooms->count(), 'nights' => $r->nights, 'value' => $r->rooms->sum(fn ($s) => $s->rate * $s->nights), 'source' => $r->source?->name, 'company' => $r->company?->name, 'status' => $r->status, 'by' => $r->creator?->username]);
 
@@ -586,7 +586,7 @@ trait FrontOfficeReports
     protected function r_room_amenities($from, $to): array
     {
         // Rewritten against the real schema: the catalog is name/category/show flags; there is no roomType/amenityType relation.
-        $rows = RoomAmenity::orderBy('sort_order')->orderBy('name')->get()->map(fn ($r) => [
+        $rows = RoomAmenity::orderBy('sort_order')->orderBy('name')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'name' => $r->name, 'category' => $r->category, 'description' => $r->description,
             'desk' => $r->show_on_desk ? 'Yes' : 'No', 'online' => $r->show_online ? 'Yes' : 'No',
             'active' => $r->is_active ? 'Yes' : 'No',
@@ -596,7 +596,7 @@ trait FrontOfficeReports
 
     protected function r_room_amenity_links($from, $to): array
     {
-        $rows = RoomAmenityLink::with('room.roomType.amenityType')->get()->map(fn ($r) => [
+        $rows = RoomAmenityLink::with('room.roomType.amenityType')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'room' => optional($r->room)->room_no, 'type' => optional($r->roomType)->name,
             'amenity' => $r->amenity_name, 'amenity_type' => optional($r->amenityType)->name,
             'status' => $r->status, 'notes' => $r->notes,
@@ -607,7 +607,7 @@ trait FrontOfficeReports
     protected function r_room_block_lines($from, $to): array
     {
         // Rewritten against the real schema: block()/roomType() relations; block_no/name/arrival/departure/status on the parent; the line is room_type_id + rooms.
-        $rows = RoomBlockLine::with('block', 'roomType')->whereHas('block', fn ($q) => $q->whereBetween('arrival_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->get()->map(fn ($r) => [
+        $rows = RoomBlockLine::with('block', 'roomType')->whereHas('block', fn ($q) => $q->whereBetween('arrival_date', [$from->format('Y-m-d'), $to->format('Y-m-d')]))->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'block' => optional($r->block)->block_no, 'block_name' => optional($r->block)->name,
             'room_type' => optional($r->roomType)->name, 'rooms' => $r->rooms,
             'arrival' => optional($r->block)->arrival_date, 'departure' => optional($r->block)->departure_date,
@@ -618,7 +618,7 @@ trait FrontOfficeReports
 
     protected function r_room_blocks($from, $to): array
     {
-        $rows = RoomBlock::with('blockType.roomType')->whereBetween('blocked_from', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RoomBlock::with('blockType.roomType')->whereBetween('blocked_from', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'room_type' => optional($r->roomType)->name, 'type' => optional($r->blockType)->name,
             'from' => $r->blocked_from, 'to' => $r->blocked_to, 'reason' => $r->reason,
             'status' => $r->status, 'user' => $r->user_id, 'notes' => $r->notes,
@@ -628,7 +628,7 @@ trait FrontOfficeReports
 
     protected function r_room_counts($from, $to): array
     {
-        $rows = RoomCount::whereBetween('count_date', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RoomCount::whereBetween('count_date', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'date' => $r->count_date, 'room_type' => $r->room_type_id, 'total' => $r->total_rooms,
             'clean' => $r->clean, 'dirty' => $r->dirty, 'out_of_order' => $r->out_of_order,
             'available' => $r->available, 'occupied' => $r->occupied, 'arrivals' => $r->arrivals, 'departures' => $r->departures,
@@ -640,7 +640,7 @@ trait FrontOfficeReports
     {
         // room_images keeps path / caption / is_primary / is_active / timestamps — the
         // register reads those, not columns the table never had.
-        $rows = RoomImage::with('room.roomType', 'roomType')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RoomImage::with('room.roomType', 'roomType')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'room' => optional($r->room)->room_no ?: optional($r->roomType)->name,
             'type' => optional(optional($r->room)->roomType ?? $r->roomType)->name,
             'filename' => basename((string) $r->path), 'uploaded' => $r->created_at,
@@ -652,7 +652,7 @@ trait FrontOfficeReports
 
     protected function r_room_moves($from, $to): array
     {
-        $rows = RoomMove::with('reservation.guest')->whereBetween('moved_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = RoomMove::with('reservation.guest')->whereBetween('moved_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'from_room' => $r->from_room_id, 'to_room' => $r->to_room_id,
             'from_type' => $r->from_room_type_id, 'to_type' => $r->to_room_type_id,
@@ -670,7 +670,7 @@ trait FrontOfficeReports
         $rows = RoomOutage::with(['room.roomType', 'creator'])
             ->whereDate('starts_on', '<=', $to)
             ->whereDate('ends_on', '>', $from)
-            ->orderBy('starts_on')->orderBy('room_id')->get()->map(fn ($r) => [
+            ->orderBy('starts_on')->orderBy('room_id')->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
                 'room' => optional($r->room)->room_no,
                 'type' => optional($r->room?->roomType)->name,
                 'from' => $r->starts_on,
@@ -691,7 +691,7 @@ trait FrontOfficeReports
 
     protected function r_stay_fixed_charges($from, $to): array
     {
-        $rows = \App\Models\StayFixedCharge::with('reservation.guest.chargeType')->whereBetween('charged_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = \App\Models\StayFixedCharge::with('reservation.guest.chargeType')->whereBetween('charged_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'res' => optional($r->reservation)->reservation_no, 'guest' => optional($r->reservation->guest)->name,
             'type' => optional($r->chargeType)->name, 'description' => $r->description,
             'amount' => $r->amount, 'charged' => $r->charged_at, 'status' => $r->status,
@@ -701,7 +701,7 @@ trait FrontOfficeReports
 
     protected function r_upsell_offers($from, $to): array
     {
-        $rows = UpsellOffer::with('roomType.guestType')->whereBetween('created_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = UpsellOffer::with('roomType.guestType')->whereBetween('created_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'title' => $r->title, 'room_type' => optional($r->roomType)->name,
             'guest_type' => optional($r->guestType)->name, 'description' => $r->description,
             'price' => $r->price, 'cost' => $r->cost, 'margin' => $r->margin_pct,
@@ -712,7 +712,7 @@ trait FrontOfficeReports
 
     protected function r_wakeup_attempts($from, $to): array
     {
-        $rows = WakeupAttempt::with('wakeupCall.guest')->whereBetween('attempted_at', [$from, $to])->get()->map(fn ($r) => [
+        $rows = WakeupAttempt::with('wakeupCall.guest')->whereBetween('attempted_at', [$from, $to])->limit((int) config('pms.max_list_rows', 5000))->get()->map(fn ($r) => [
             'guest' => optional($r->wakeupCall->guest)->name, 'room' => optional($r->wakeupCall->reservation->room)->room_no,
             'attempted' => $r->attempted_at, 'result' => $r->result, 'notes' => $r->notes, 'status' => $r->status,
         ]);
@@ -723,7 +723,7 @@ trait FrontOfficeReports
     {
         $range = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
         $pres = \App\Models\UpsellPresentation::whereBetween('created_at', $range)->groupBy('channel')
-            ->selectRaw('channel, count(*) n, sum(opened_at is not null) opened, sum(converted_at is not null) conv')->get()->keyBy('channel');
+            ->selectRaw('channel, count(*) n, sum(opened_at is not null) opened, sum(converted_at is not null) conv')->limit((int) config('pms.max_list_rows', 5000))->get()->keyBy('channel');
         $orders = $this->upsellOrdersIn($from, $to);
         $rows = collect(\App\Models\UpsellOrder::CHANNELS)->map(function ($label, $ch) use ($pres, $orders) {
             $p = $pres[$ch] ?? null;

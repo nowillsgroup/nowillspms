@@ -139,7 +139,7 @@ class FrontDeskOpsController extends Controller
     public function acknowledge(Request $request)
     {
         $ids = array_filter(array_map('intval', (array) $request->input('ids', [])));
-        $entries = $ids ? LogEntry::whereIn('id', $ids)->get() : LogBookService::unreadQuery((int) auth()->id())->get();
+        $entries = $ids ? LogEntry::whereIn('id', $ids)->limit((int) config('pms.max_list_rows', 5000))->get() : LogBookService::unreadQuery((int) auth()->id())->limit((int) config('pms.max_list_rows', 5000))->get();
         $n = LogBookService::markRead($entries, (int) auth()->id());
 
         return back()->with('success', $n ? "{$n} entr".($n === 1 ? 'y' : 'ies').' acknowledged.' : 'Nothing new to acknowledge.');
@@ -192,28 +192,29 @@ class FrontDeskOpsController extends Controller
     public function handover()
     {
         return view('desk.handover', LogBookService::handover() + ['snap' => FrontDeskOpsService::snapshot(), 'shift' => FrontDeskOpsService::currentShift(),
-            'wakeups' => WakeupCall::with('stay.room', 'stay.guest', 'stay.reservation.guest')->where('status', 'scheduled')->whereBetween('call_at', [now()->subHours(2), now()->addHours(12)])->orderBy('call_at')->get(),
-            'traces' => Trace::with('stay.room', 'reservation', 'guest')->where('status', 'open')->whereDate('trace_date', '<=', bdate()->toDateString())->orderBy('due_time')->get(),
-            'messages' => GuestMessage::with('stay.room', 'guest')->whereIn('status', GuestMessage::OPEN)->orderBy('id')->get()]);
+            'wakeups' => WakeupCall::with('stay.room', 'stay.guest', 'stay.reservation.guest')->where('status', 'scheduled')->whereBetween('call_at', [now()->subHours(2), now()->addHours(12)])->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'traces' => Trace::with('stay.room', 'reservation', 'guest')->where('status', 'open')->whereDate('trace_date', '<=', bdate()->toDateString())->orderBy('due_time')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'messages' => GuestMessage::with('stay.room', 'guest')->whereIn('status', GuestMessage::OPEN)->orderBy('id')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     public function handoverPrint()
     {
         return view('desk.handover-print', LogBookService::handover() + ['snap' => FrontDeskOpsService::snapshot(), 'shift' => FrontDeskOpsService::currentShift(),
-            'wakeups' => WakeupCall::with('stay.room', 'stay.guest', 'stay.reservation.guest')->where('status', 'scheduled')->whereBetween('call_at', [now()->subHours(2), now()->addHours(12)])->orderBy('call_at')->get(),
-            'traces' => Trace::with('stay.room', 'reservation', 'guest')->where('status', 'open')->whereDate('trace_date', '<=', bdate()->toDateString())->orderBy('due_time')->get()]);
+            'wakeups' => WakeupCall::with('stay.room', 'stay.guest', 'stay.reservation.guest')->where('status', 'scheduled')->whereBetween('call_at', [now()->subHours(2), now()->addHours(12)])->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get(),
+            'traces' => Trace::with('stay.room', 'reservation', 'guest')->where('status', 'open')->whereDate('trace_date', '<=', bdate()->toDateString())->orderBy('due_time')->limit((int) config('pms.max_list_rows', 5000))->get()]);
     }
 
     // ───────────────────────── wake-up calls ─────────────────────────
 
     public function wakeups(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = $request->query('date') ? Carbon::parse($request->query('date')) : null;
         $with = ['stay.room', 'stay.guest', 'stay.reservation.guest', 'attemptsLog.user', 'creator', 'completer'];
-        $queue = WakeupCall::with($with)->where('status', 'scheduled')->orderBy('call_at')->get();
+        $queue = WakeupCall::with($with)->where('status', 'scheduled')->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $done = WakeupCall::with($with)->where('status', '!=', 'scheduled')
             ->when($date, fn ($q) => $q->whereDate('call_at', $date->toDateString()), fn ($q) => $q->where('call_at', '>=', now()->subDay()))
-            ->orderByDesc('call_at')->limit(200)->get();
+            ->orderByDesc('call_at')->limit(200)->limit((int) config('pms.max_list_rows', 5000))->get();
 
         // the "Answered (24 h)" card always covers the last 24 hours, whatever date the history below is showing
         $last24 = WakeupCall::where('status', '!=', 'scheduled')->where('call_at', '>=', now()->subDay())->pluck('status');
@@ -226,7 +227,7 @@ class FrontDeskOpsController extends Controller
     {
         $from = now()->startOfHour();
         $calls = WakeupCall::with('stay.room', 'stay.guest', 'stay.reservation.guest')->where('status', 'scheduled')
-            ->where('call_at', '<=', now()->addHours(24))->orderBy('call_at')->get();
+            ->where('call_at', '<=', now()->addHours(24))->orderBy('call_at')->limit((int) config('pms.max_list_rows', 5000))->get();
 
         return view('desk.wakeups-print', ['calls' => $calls, 'from' => $from]);
     }
@@ -354,16 +355,17 @@ class FrontDeskOpsController extends Controller
 
     public function traces(Request $request)
     {
+        $request->validate(['date' => 'nullable|date_format:Y-m-d']);
         $date = Carbon::parse($request->query('date', bdate()->toDateString()));
         $dept = array_key_exists((string) $request->query('department'), TraceService::DEPARTMENTS) ? $request->query('department') : null;
         $with = ['stay.room', 'reservation', 'guest', 'creator', 'doer'];
         $isToday = $date->isSameDay(bdate());
         $open = Trace::with($with)->where('status', 'open')->when($isToday, fn ($q) => $q->whereDate('trace_date', '<=', $date->toDateString()), fn ($q) => $q->whereDate('trace_date', $date->toDateString()))
-            ->when($dept, fn ($q) => $q->where('department', $dept))->orderBy('trace_date')->orderByRaw('due_time IS NULL')->orderBy('due_time')->get();
+            ->when($dept, fn ($q) => $q->where('department', $dept))->orderBy('trace_date')->orderByRaw('due_time IS NULL')->orderBy('due_time')->limit((int) config('pms.max_list_rows', 5000))->get();
         $closed = Trace::with($with)->where('status', '!=', 'open')->where(fn ($q) => $q->whereDate('trace_date', $date->toDateString())->orWhereDate('done_at', $date->toDateString()))
-            ->when($dept, fn ($q) => $q->where('department', $dept))->orderByDesc('done_at')->get();
+            ->when($dept, fn ($q) => $q->where('department', $dept))->orderByDesc('done_at')->limit((int) config('pms.max_list_rows', 5000))->get();
         $upcoming = $isToday ? Trace::with($with)->where('status', 'open')->whereDate('trace_date', '>', $date->toDateString())
-            ->when($dept, fn ($q) => $q->where('department', $dept))->orderBy('trace_date')->limit(50)->get() : collect();
+            ->when($dept, fn ($q) => $q->where('department', $dept))->orderBy('trace_date')->limit(50)->limit((int) config('pms.max_list_rows', 5000))->get() : collect();
 
         return view('desk.traces', ['open' => $open, 'closed' => $closed, 'upcoming' => $upcoming, 'date' => $date, 'dept' => $dept, 'isToday' => $isToday,
             'stays' => FrontDeskOpsService::stayOptions()]);
