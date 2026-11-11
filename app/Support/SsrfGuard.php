@@ -76,24 +76,27 @@ class SsrfGuard
 
     public static function isPublicIp(string $ip): bool
     {
-        // Link-local (cloud metadata 169.254.169.254, IPv6 fe80::/10) — NOT covered
-        // by FILTER_FLAG_NO_RES_RANGE, so check explicitly.
-        if (str_starts_with($ip, '169.254.') || str_starts_with($ip, 'fe80:') || str_starts_with($ip, 'fe80::')) {
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
             return false;
         }
-        // IPv6 loopback / unique-local / unspecified.
-        $lower = strtolower($ip);
-        if ($lower === '::1' || $lower === '::' || str_starts_with($lower, 'fc') || str_starts_with($lower, 'fd')) {
-            return false;
-        }
-        // IPv4-mapped IPv6 (::ffff:127.0.0.1) — unwrap and re-check.
-        if (str_starts_with($lower, '::ffff:')) {
-            $mapped = substr($lower, 7);
-            if (filter_var($mapped, FILTER_VALIDATE_IP, FILTER_VALIDATE_IP)) {
-                return self::isPublicIp($mapped);
-            }
 
-            return false;
+        if (strlen($packed) === 4) {
+            // Explicitly reject 169.254/16 (cloud metadata/link-local).
+            if (ord($packed[0]) === 169 && ord($packed[1]) === 254) {
+                return false;
+            }
+        } else {
+            $first = ord($packed[0]);
+            $second = ord($packed[1]);
+            // ::ffff:0:0/96 IPv4-mapped addresses: unwrap the final 32 bits.
+            if (substr($packed, 0, 12) === str_repeat("\0", 10)."\xff\xff") {
+                return self::isPublicIp(inet_ntop(substr($packed, 12)) ?: '');
+            }
+            // fe80::/10 link-local (fe80 through febf) and fc00::/7 ULA.
+            if (($first === 0xfe && ($second & 0xc0) === 0x80) || ($first & 0xfe) === 0xfc) {
+                return false;
+            }
         }
 
         return (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
