@@ -27,6 +27,9 @@ jobs:
             echo "::error title=PHPUnit failed::$message"
           fi
           exit "$status"
+      # PHPStan is installed ephemerally: source releases intentionally keep the
+      # lockfile limited to runtime/test dependencies, while CI owns analysis tools.
+      - run: composer require --dev phpstan/phpstan:^2.1 --no-interaction
       - name: Run static analysis
         shell: bash
         run: |
