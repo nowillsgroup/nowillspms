@@ -8,8 +8,5 @@ parameters:
         - app/Services/EInvoiceService.php
         - app/Services/WebhookService.php
         - app/Services/Payments
-    excludePaths:
-        analyse:
-            - app/Support/helpers.php
     tmpDir: storage/framework/cache/phpstan
     checkMissingIterableValueType: false
