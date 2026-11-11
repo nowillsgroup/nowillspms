@@ -71,7 +71,7 @@ class LinenService
             if ($to) {
                 $t->increment(self::col($to), $qty);
             }
-            $value = in_array($type, ['purchase', 'discard', 'lost']) ? round(($type === 'purchase' && isset($o['value']) ? (float) $o['value'] / max(1, $qty) : (float) $t->unit_cost) * $qty, 2) : 0;
+            $value = in_array($type, ['purchase', 'discard', 'lost'], true) ? round(($type === 'purchase' && isset($o['value']) ? (float) $o['value'] / max(1, $qty) : (float) $t->unit_cost) * $qty, 2) : 0;
 
             return LinenMovement::create(['linen_type_id' => $t->id, 'date' => $o['date'] ?? bdate()->toDateString(), 'type' => $type, 'qty' => $qty,
                 'from_loc' => $from, 'to_loc' => $to, 'linen_batch_id' => $o['batch'] ?? null, 'value' => $value,

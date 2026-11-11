@@ -54,7 +54,7 @@ class ChannelManagerController extends Controller
 
     public function reprocess(ChannelMessage $chmsg)
     {
-        abort_unless(in_array($chmsg->status, ['attention', 'failed']) && $chmsg->attention !== 'overbooked', 403, 'Only rejected or needs-attention messages (not overbookings) can be reprocessed.');
+        abort_unless(in_array($chmsg->status, ['attention', 'failed'], true) && $chmsg->attention !== 'overbooked', 403, 'Only rejected or needs-attention messages (not overbookings) can be reprocessed.');
         [$code, $body] = ChannelService::process($chmsg->fresh(), true);
         $chmsg->refresh();
 
@@ -66,7 +66,7 @@ class ChannelManagerController extends Controller
 
     public function resolve(Request $request, ChannelMessage $chmsg)
     {
-        abort_unless(in_array($chmsg->status, ['attention', 'failed']), 403);
+        abort_unless(in_array($chmsg->status, ['attention', 'failed'], true), 403);
         $data = $request->validate(['note' => 'required|string|min:5|max:255']);
         ChannelService::resolve($chmsg, $data['note'], auth()->id());
 

@@ -102,7 +102,7 @@ class GstController extends Controller
         $r = GstService::vatReturn($period);
 
         return view('gst.vat-return', ['period' => $period, 'periods' => $this->periods(), 'r' => $r, 'checks' => GstService::checks($period, $r),
-            'tab' => in_array($request->tab, ['summary', 'sales', 'levy', 'docs']) ? $request->tab : 'summary']);
+            'tab' => in_array($request->tab, ['summary', 'sales', 'levy', 'docs'], true) ? $request->tab : 'summary']);
     }
 
     public function exportReturn(Request $request)

@@ -18,7 +18,7 @@ class GrcController extends Controller
 {
     public function sign(ReservationRoom $stay)
     {
-        abort_if(in_array($stay->status, ['cancelled', 'no_show']), 422, 'This stay is '.$stay->status.'.');
+        abort_if(in_array($stay->status, ['cancelled', 'no_show'], true), 422, 'This stay is '.$stay->status.'.');
         $stay->load('reservation.guest.documents', 'reservation.company', 'room', 'roomType', 'ratePlan', 'guest.documents');
 
         // Whether a signature exists is the controller's business, not the template's:
@@ -36,7 +36,7 @@ class GrcController extends Controller
 
     public function saveSignature(Request $request, ReservationRoom $stay)
     {
-        abort_if(in_array($stay->status, ['cancelled', 'no_show']), 422);
+        abort_if(in_array($stay->status, ['cancelled', 'no_show'], true), 422);
         $data = $request->validate(['signature' => ['required', 'string', 'max:700000', 'starts_with:data:image/png;base64,'], 'accept' => 'accepted']);
         $bin = base64_decode(substr($data['signature'], strlen('data:image/png;base64,')), true);
         $info = $bin ? @getimagesizefromstring($bin) : false;
@@ -72,7 +72,7 @@ class GrcController extends Controller
         ]);
         $file = $request->file('file');
         $ext = strtolower($file->guessExtension() ?: 'bin');
-        abort_unless(in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf']), 422);
+        abort_unless(in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf'], true), 422);
         $path = $file->storeAs('guest-docs/'.$guest->hotel_id.'/'.$guest->id, Str::random(32).'.'.$ext, 'local');
         $doc = $guest->documents()->create(['type' => $data['type'], 'reservation_room_id' => $data['reservation_room_id'] ?? null, 'path' => $path,
             'original_name' => mb_substr(basename($file->getClientOriginalName()), 0, 190), 'mime' => $file->getMimeType(), 'size' => $file->getSize(), 'uploaded_by' => auth()->id()]);

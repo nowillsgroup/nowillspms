@@ -50,7 +50,7 @@ class PmSchedule extends Model
         if ($this->every === 1) {
             return ucfirst($map[$this->every_unit][0]);
         }
-        if ($this->every_unit === 'month' && in_array($this->every, [3, 6, 12])) {
+        if ($this->every_unit === 'month' && in_array($this->every, [3, 6, 12], true)) {
             return [3 => 'Quarterly', 6 => 'Every 6 months', 12 => 'Yearly'][$this->every];
         }
 

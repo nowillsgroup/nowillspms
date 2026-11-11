@@ -41,8 +41,8 @@ class PartnerUser extends Model
     public function can(string $what): bool
     {
         return match ($what) {
-            'book' => in_array($this->role, ['admin', 'booker']),
-            'finance' => in_array($this->role, ['admin', 'finance']),
+            'book' => in_array($this->role, ['admin', 'booker'], true),
+            'finance' => in_array($this->role, ['admin', 'finance'], true),
             'users' => $this->role === 'admin',
             default => false,
         };

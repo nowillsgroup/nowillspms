@@ -32,7 +32,7 @@ class PreCheckinController extends Controller
     /** null = open, otherwise the reason the form is closed */
     protected function closedReason(Reservation $r): ?string
     {
-        if (! in_array($r->status, ['confirmed', 'tentative'])) {
+        if (! in_array($r->status, ['confirmed', 'tentative'], true)) {
             return match ($r->status) {
                 'checked_in', 'checked_out' => 'You are already checked in. Enjoy your stay!',
                 default => 'This reservation is '.str_replace('_', '-', $r->status).'. Please contact the hotel.',
@@ -95,7 +95,7 @@ class PreCheckinController extends Controller
             foreach (['id_front' => 'id_front', 'id_back' => 'id_back', 'visa_scan' => 'visa'] as $field => $type) {
                 if ($file = $request->file($field)) {
                     $ext = strtolower($file->guessExtension() ?: 'bin');
-                    abort_unless(in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf']), 422);
+                    abort_unless(in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf'], true), 422);
                     $path = $file->storeAs('guest-docs/'.$guest->hotel_id.'/'.$guest->id, Str::random(32).'.'.$ext, 'local');
                     $guest->documents()->create(['type' => $type, 'reservation_room_id' => $r->rooms->first()->id, 'path' => $path,
                         'original_name' => 'Online check-in – '.mb_substr(basename($file->getClientOriginalName()), 0, 150), 'mime' => $file->getMimeType(), 'size' => $file->getSize(), 'uploaded_by' => null]);

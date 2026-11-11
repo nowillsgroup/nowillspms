@@ -67,7 +67,7 @@ class FeedbackCase extends Model
 
     public function isActive(): bool
     {
-        return in_array($this->status, ['open', 'in_progress']);
+        return in_array($this->status, ['open', 'in_progress'], true);
     }
 
     public function isOverdue(): bool

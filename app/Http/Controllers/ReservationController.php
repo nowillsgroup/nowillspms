@@ -460,7 +460,7 @@ class ReservationController extends Controller
 
     public function edit(Reservation $reservation)
     {
-        abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403, 'Only confirmed/tentative reservations can be edited.');
+        abort_unless(in_array($reservation->status, ['confirmed', 'tentative'], true), 403, 'Only confirmed/tentative reservations can be edited.');
         abort_if($reservation->rooms()->where('status', '!=', 'reserved')->where('status', '!=', 'cancelled')->exists(), 403, 'Some rooms are already checked in. Use Front Desk → Amend stay.');
         $reservation->load('rooms', 'guest');
 
@@ -476,7 +476,7 @@ class ReservationController extends Controller
 
     public function update(Request $request, Reservation $reservation)
     {
-        abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403);
+        abort_unless(in_array($reservation->status, ['confirmed', 'tentative'], true), 403);
         $data = $this->resolveGuestTitle($request->validate($this->rules(true)));
         // The stay type is chosen when the booking is taken; an amendment keeps the
         // stay that is already on the books, so a posted stay type is not applied here.
@@ -495,7 +495,7 @@ class ReservationController extends Controller
             // The edit form's status check happened before the transaction;
             // repeat it after the reservation lock so a concurrent check-in or
             // cancellation cannot be overwritten by a stale form submission.
-            abort_unless(in_array($reservation->status, ['confirmed', 'tentative']), 403);
+            abort_unless(in_array($reservation->status, ['confirmed', 'tentative'], true), 403);
             abort_if($reservation->rooms()->where('status', '!=', 'reserved')->where('status', '!=', 'cancelled')->exists(), 403, 'Some rooms are already checked in. Use Front Desk → Amend stay.');
             $before = ReservationAmendmentService::snapshot($reservation);
             $existingStays = $reservation->rooms()->where('status', 'reserved')->lockForUpdate()->get()->keyBy('id');

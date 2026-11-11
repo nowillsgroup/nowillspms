@@ -541,7 +541,7 @@ trait AccountsReports
             ->whereBetween('submitted_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('submitted_at')->get()
             ->map(fn ($c) => ['claim' => $c->claim_no, 'submitted' => $c->submitted_at->format('d M Y'), 'staff' => $c->employee?->name, 'dept' => $c->employee?->department?->name, 'title' => $c->title,
                 'total' => (float) $c->total, 'vat' => (float) $c->vat_total ?: null, 'status' => ucfirst($c->status).($c->status === 'rejected' && $c->reject_reason ? ' – '.$c->reject_reason : ''),
-                'approver' => in_array($c->status, ['approved', 'paid']) ? $c->approver?->name : '', 'paid' => $c->paid_on?->format('d M Y'),
+                'approver' => in_array($c->status, ['approved', 'paid'], true) ? $c->approver?->name : '', 'paid' => $c->paid_on?->format('d M Y'),
                 'method' => $c->status === 'paid' ? ($c->pay_method === 'petty' ? 'Petty cash – '.$c->pettyTxn?->float?->code : $c->paymentMode?->name) : '']);
 
         return ['cols' => ['claim' => 'Claim', 'submitted' => 'Submitted', 'staff' => 'Staff', 'dept' => 'Department', 'title' => 'Title', 'total' => 'Amount', 'vat' => 'Input VAT', 'status' => 'Status', 'approver' => 'Approved by', 'paid' => 'Paid', 'method' => 'Paid by'],

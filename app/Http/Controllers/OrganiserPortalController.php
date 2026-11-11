@@ -154,12 +154,12 @@ class OrganiserPortalController extends Controller
     public function events(Request $r)
     {
         $rows = OS::eventsFor($this->me($r));
-        $tab = in_array($r->query('tab'), ['upcoming', 'past', 'cancelled', 'all']) ? $r->query('tab') : 'upcoming';
+        $tab = in_array($r->query('tab'), ['upcoming', 'past', 'cancelled', 'all'], true) ? $r->query('tab') : 'upcoming';
         $today = bdate()->toDateString();
         $rows = match ($tab) {
             'upcoming' => $rows->filter(fn ($e) => $e->isOpen() && ($e->end_date?->toDateString() ?? $e->event_date?->toDateString()) >= $today),
-            'past' => $rows->filter(fn ($e) => ! $e->isOpen() || ($e->end_date?->toDateString() ?? $e->event_date?->toDateString()) < $today)->reject(fn ($e) => in_array($e->status, ['cancelled', 'lost'])),
-            'cancelled' => $rows->filter(fn ($e) => in_array($e->status, ['cancelled', 'lost'])),
+            'past' => $rows->filter(fn ($e) => ! $e->isOpen() || ($e->end_date?->toDateString() ?? $e->event_date?->toDateString()) < $today)->reject(fn ($e) => in_array($e->status, ['cancelled', 'lost'], true)),
+            'cancelled' => $rows->filter(fn ($e) => in_array($e->status, ['cancelled', 'lost'], true)),
             default => $rows,
         };
 

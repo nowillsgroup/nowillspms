@@ -40,7 +40,7 @@ class DemoGateway extends Gateway
         $amount = (float) $p->amount;
 
         return ['state' => 'paid', 'amount' => $amount, 'currency' => $p->currency, 'payment_id' => 'DEMO-'.strtoupper(substr(hash('sha1', $ref), 0, 10)),
-            'fee' => round($amount * 0.0195, 2), 'channel' => in_array($channel, ['card', 'mobile_money', 'upi']) ? $channel : 'card', 'message' => null];
+            'fee' => round($amount * 0.0195, 2), 'channel' => in_array($channel, ['card', 'mobile_money', 'upi'], true) ? $channel : 'card', 'message' => null];
     }
 
     public function webhook(Request $request): ?array

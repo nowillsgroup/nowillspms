@@ -92,7 +92,7 @@ class PartnerService
     /** Portal terms of a company (staff: Partner accounts › company). */
     public static function saveTerms(Company $c, array $d): void
     {
-        self::need(in_array($c->type, ['corporate', 'travel_agent']), 'Only corporate clients and travel agents can use the partner portal.');
+        self::need(in_array($c->type, ['corporate', 'travel_agent'], true), 'Only corporate clients and travel agents can use the partner portal.');
         $over = ($d['portal_approval_over'] ?? '') === '' ? null : (float) $d['portal_approval_over'];
         self::need($over === null || $over >= 0, 'The approval threshold cannot be negative.');
         $max = (int) ($d['portal_max_rooms'] ?? 5);
@@ -114,7 +114,7 @@ class PartnerService
 
     public static function eligible(?Company $c): bool
     {
-        return $c && $c->is_active && $c->portal_enabled && in_array($c->type, ['corporate', 'travel_agent']);
+        return $c && $c->is_active && $c->portal_enabled && in_array($c->type, ['corporate', 'travel_agent'], true);
     }
 
     // ------------------------------------------------------------------ accounts
@@ -122,7 +122,7 @@ class PartnerService
     /** Invite a partner user (by staff or by the company's own portal administrator). Returns [user, plain token]. */
     public static function invite(Company $c, array $d, ?User $staff = null, ?PartnerUser $by = null): array
     {
-        self::need(in_array($c->type, ['corporate', 'travel_agent']), 'Only corporate clients and travel agents can use the partner portal.');
+        self::need(in_array($c->type, ['corporate', 'travel_agent'], true), 'Only corporate clients and travel agents can use the partner portal.');
         self::need(! $by || ($by->company_id === $c->id && $by->can('users')), 'Only your company administrator can add users.');
         $email = Str::lower(trim((string) ($d['email'] ?? '')));
         $name = trim((string) ($d['name'] ?? ''));
@@ -451,7 +451,7 @@ class PartnerService
 
     public static function cancellable(Reservation $r): bool
     {
-        return in_array($r->status, ['confirmed', 'tentative']) && $r->rooms->where('status', 'reserved')->isNotEmpty() && $r->rooms->where('status', 'checked_in')->isEmpty();
+        return in_array($r->status, ['confirmed', 'tentative'], true) && $r->rooms->where('status', 'reserved')->isNotEmpty() && $r->rooms->where('status', 'checked_in')->isEmpty();
     }
 
     public static function cancelQuote(Reservation $r): array
@@ -482,7 +482,7 @@ class PartnerService
         self::ownBooking($u, $r);
         self::need($u->can('book'), 'Your role cannot change bookings.');
         self::need(setting('partner_amend', '1') === '1', 'Change requests are switched off – please contact the hotel.');
-        self::need(in_array($r->status, ['confirmed', 'tentative', 'checked_in']), "Booking {$r->reservation_no} cannot be changed.");
+        self::need(in_array($r->status, ['confirmed', 'tentative', 'checked_in'], true), "Booking {$r->reservation_no} cannot be changed.");
         $details = trim((string) ($d['details'] ?? ''));
         self::need(mb_strlen($details) >= 5, 'Describe the change you need.');
         $payload = array_filter(['arrival' => $d['arrival'] ?? null, 'departure' => $d['departure'] ?? null, 'rooms' => isset($d['rooms']) && $d['rooms'] !== '' ? (int) $d['rooms'] : null]);
@@ -493,7 +493,7 @@ class PartnerService
             // The pending-request check and insert share the reservation lock;
             // two portal clicks cannot open duplicate amendment requests.
             $locked = Reservation::whereKey($r->id)->lockForUpdate()->firstOrFail();
-            self::need(in_array($locked->status, ['confirmed', 'tentative', 'checked_in']), "Booking {$locked->reservation_no} cannot be changed.");
+            self::need(in_array($locked->status, ['confirmed', 'tentative', 'checked_in'], true), "Booking {$locked->reservation_no} cannot be changed.");
             self::need(! PartnerRequest::where('reservation_id', $locked->id)->where('type', 'amendment')->where('status', 'pending')->exists(), 'There is already an open change request for this booking.');
 
             return PartnerRequest::create(['number' => Numbering::next('partner_request'), 'company_id' => $u->company_id, 'partner_user_id' => $u->id, 'reservation_id' => $locked->id,
@@ -569,7 +569,7 @@ class PartnerService
             $lockedQ = PartnerRequest::whereKey($q->id)->lockForUpdate()->firstOrFail();
             self::need($lockedQ->status === 'pending', 'This request has already been answered.');
             $lockedR = $lockedQ->reservation_id ? Reservation::whereKey($lockedQ->reservation_id)->lockForUpdate()->first() : null;
-            if ($lockedQ->type === 'approval' && $lockedR && in_array($lockedR->status, ['tentative', 'confirmed']) && $lockedR->rooms()->where('status', 'reserved')->exists()) {
+            if ($lockedQ->type === 'approval' && $lockedR && in_array($lockedR->status, ['tentative', 'confirmed'], true) && $lockedR->rooms()->where('status', 'reserved')->exists()) {
                 CancellationService::cancel($lockedR, null, 'Partner booking not approved: '.mb_substr($note, 0, 200), true, 'Declined by hotel', ' (partner approval declined)');
             }
             $lockedQ->update(['status' => 'declined', 'decided_by' => $by->id, 'decided_at' => now(), 'decision_note' => mb_substr($note, 0, 500)]);
@@ -589,7 +589,7 @@ class PartnerService
         self::need(mb_strlen($note) >= 3, 'Add a short note for the partner (what was changed / quoted).');
         $q = DB::transaction(function () use ($q, $by, $note) {
             $locked = PartnerRequest::whereKey($q->id)->lockForUpdate()->firstOrFail();
-            self::need(in_array($locked->type, ['amendment', 'group']) && $locked->status === 'pending', 'Only a pending change or group request can be completed.');
+            self::need(in_array($locked->type, ['amendment', 'group'], true) && $locked->status === 'pending', 'Only a pending change or group request can be completed.');
             $locked->update(['status' => 'done', 'decided_by' => $by->id, 'decided_at' => now(), 'decision_note' => mb_substr($note, 0, 500)]);
             ActivityLogger::log('partner', 'done', "Completed partner request {$locked->number}: {$note}", $locked->reservation);
             self::audit(null, 'done', "Hotel completed {$locked->number}: {$note}", $locked->company_id);

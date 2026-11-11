@@ -587,7 +587,7 @@ trait MarketingCrmReports
         $events = $M::with('owner')->whereDate('start_date', '>=', Carbon::parse($from)->toDateString())->whereDate('start_date', '<=', Carbon::parse($to)->toDateString())->orderBy('start_date')->get();
         $roi = \App\Services\MarketingPlanService::roi($events);
         $rows = $events->map(fn ($e) => ['no' => $e->number, 'name' => $e->name, 'type' => $e->typeLabel(), 'dates' => $e->start_date->format('d M Y'), 'segment' => $M::SEGMENTS[$e->segment] ?? '',
-            'market' => $M::MARKETS[$e->market] ?? '', 'status' => $e->statusLabel(), 'budget' => (float) $e->budget, 'cost' => in_array($e->status, ['done', 'cancelled']) ? (float) $e->actual_cost : 0.0,
+            'market' => $M::MARKETS[$e->market] ?? '', 'status' => $e->statusLabel(), 'budget' => (float) $e->budget, 'cost' => in_array($e->status, ['done', 'cancelled'], true) ? (float) $e->actual_cost : 0.0,
             'leads' => $e->leads, 'cpl' => $roi[$e->id]['cpl'] ?? '', 'opps' => $roi[$e->id]['opps'], 'won' => $roi[$e->id]['won_value'], 'roi' => $roi[$e->id]['roi'] ?? '',
             '_class' => $e->status === 'cancelled' ? 'row-alert' : ''])->values();
         $cost = $rows->sum('cost');

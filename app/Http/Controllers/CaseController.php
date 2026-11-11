@@ -30,7 +30,7 @@ class CaseController extends Controller
             $counts[$t] = $this->tab(clone $base, $t)->count();
         }
         $items = $this->tab(clone $base, $tab)->with('assignee', 'guest')
-            ->orderByRaw(in_array($tab, ['open', 'mine', 'overdue']) ? "field(severity, 'high', 'medium', 'low'), due_at" : 'id desc')->paginate(25)->withQueryString();
+            ->orderByRaw(in_array($tab, ['open', 'mine', 'overdue'], true) ? "field(severity, 'high', 'medium', 'low'), due_at" : 'id desc')->paginate(25)->withQueryString();
         $done = FeedbackCase::whereNotNull('resolved_at')->where('resolved_at', '>=', now()->subDays(90))->get(['created_at', 'resolved_at', 'due_at', 'outcome', 'status']);
 
         return view('reputation.cases', ['items' => $items, 'tab' => $tab, 'counts' => $counts, 'staff' => FeedbackService::caseStaff(),

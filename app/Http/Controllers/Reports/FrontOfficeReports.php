@@ -392,7 +392,7 @@ trait FrontOfficeReports
             return ['time' => $w->call_at->format('d M Y H:i'), 'room' => (string) ($w->stay?->room?->room_no ?? $w->room?->room_no),
                 'guest' => (string) \App\Services\GuestMessageService::stayGuest($w->stay)?->full_name, 'source' => $W::SOURCES[$w->source] ?? $w->source,
                 'daily' => $w->daily ? 'Yes' : '', 'attempts' => (int) $w->attempts, 'late' => $late ?? '', 'result' => $w->statusLabel(), 'by' => (string) $w->completer?->name,
-                '_class' => in_array($w->status, ['no_answer', 'missed']) || ($late ?? 0) > 5 ? 'row-alert' : ''];
+                '_class' => in_array($w->status, ['no_answer', 'missed'], true) || ($late ?? 0) > 5 ? 'row-alert' : ''];
         })->values();
         $made = $list->whereIn('status', ['done', 'no_answer']);
         $firsts = $list->map(fn ($w) => $w->attemptsLog->first() ? max(0, $w->call_at->diffInMinutes($w->attemptsLog->first()->attempted_at, false)) : null)->filter(fn ($x) => $x !== null);
@@ -531,7 +531,7 @@ trait FrontOfficeReports
     {
         $home = strtolower(hotel()->country ?? 'india');
         $rows = ReservationRoom::with('reservation.guest', 'guest', 'room')->whereIn('status', ['checked_in', 'checked_out'])->whereBetween('checked_in_at', [$from, $to->copy()->endOfDay()])->get()
-            ->filter(fn ($s) => ($n = strtolower((string) ($s->guest ?? $s->reservation->guest)?->nationality)) && ! in_array($n, [$home, 'indian', 'india']))
+            ->filter(fn ($s) => ($n = strtolower((string) ($s->guest ?? $s->reservation->guest)?->nationality)) && ! in_array($n, [$home, 'indian', 'india'], true))
             ->map(function ($s) {
                 $g = $s->guest ?? $s->reservation->guest;
 

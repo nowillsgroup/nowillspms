@@ -36,8 +36,8 @@ class OrganiserUser extends Model
     public function can(string $what): bool
     {
         return match ($what) {
-            'events' => in_array($this->role, ['admin', 'planner']),
-            'finance' => in_array($this->role, ['admin', 'finance']),
+            'events' => in_array($this->role, ['admin', 'planner'], true),
+            'finance' => in_array($this->role, ['admin', 'finance'], true),
             'users' => $this->role === 'admin',
             default => false,
         };

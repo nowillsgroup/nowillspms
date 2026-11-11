@@ -429,8 +429,8 @@ class IptvController extends Controller
             try {
                 IS::saveSettings($data);
             } catch (\Throwable $e) {
-                if ($uploadedPath && is_file(public_path($uploadedPath))) {
-                    @unlink(public_path($uploadedPath));
+                if ($uploadedPath && is_file(public_path($uploadedPath)) && ! unlink(public_path($uploadedPath))) {
+                    logger()->warning('Could not clean up an IPTV upload after settings failed.', ['path' => $uploadedPath]);
                 }
                 throw $e;
             }

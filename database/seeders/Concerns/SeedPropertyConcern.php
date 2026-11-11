@@ -805,7 +805,7 @@ trait SeedPropertyConcern
         $sahara = Models\Company::firstOrCreate(['name' => 'Sahara Events Ltd'], ['type' => 'corporate', 'industry' => 'events', 'contact_person' => 'Ama Serwaa',
             'phone' => '+233 24 555 0199', 'email' => 'ama.serwaa@saharaevents.com', 'address' => '14 Liberation Road, Accra', 'city' => 'Accra',
             'credit_limit' => 200000, 'tax_number' => 'C0712345678', 'is_active' => true, 'direct_billing' => true]);
-        $hash = \Illuminate\Support\Facades\Hash::make('Organiser2026');
+        $hash = \Illuminate\Support\Facades\Hash::make($this->demoPassword);
         $mk = function (?Models\Company $c, string $name, string $email, string $role, ?int $daysAgo, array $extra = []) use ($hash, $real, $fom) {
             $u = new Models\OrganiserUser(['company_id' => $c?->id, 'name' => $name, 'email' => $email, 'role' => $role, 'is_active' => true, 'created_by' => $fom->id] + $extra);
             $u->save();
@@ -936,7 +936,7 @@ trait SeedPropertyConcern
         $infy->forceFill(['portal_enabled' => true, 'portal_approval_over' => 40000, 'portal_max_rooms' => 5, 'portal_guest_pay' => true])->save();
         $tc->forceFill(['portal_enabled' => true, 'portal_max_rooms' => 8, 'portal_guest_pay' => false])->save();
         $yatra->forceFill(['portal_enabled' => true, 'portal_max_rooms' => 4, 'portal_guest_pay' => true])->save();
-        $hash = \Illuminate\Support\Facades\Hash::make('Partner2026');
+        $hash = \Illuminate\Support\Facades\Hash::make($this->demoPassword);
         $mk = function (Models\Company $c, string $name, string $email, string $role, ?int $daysAgo, array $extra = []) use ($hash, $real, $fom) {
             $u = new Models\PartnerUser(['company_id' => $c->id, 'name' => $name, 'email' => $email, 'role' => $role, 'is_active' => true, 'created_by' => $fom->id] + $extra);
             $u->save();

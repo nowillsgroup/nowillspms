@@ -61,7 +61,7 @@ class OnlineReview extends Model
 
     public function isLocked(): bool
     {
-        return in_array($this->status, ['posted', 'ignored']);
+        return in_array($this->status, ['posted', 'ignored'], true);
     }
 
     /** Hours from import (or the review date when imported later) to the posted response. */

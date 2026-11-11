@@ -202,7 +202,7 @@ class InventoryController extends Controller
                 $item = InventoryItem::findOrFail($line['item_id']);
                 $qty = abs((float) $line['qty']);
                 $current = $item->stock((int) $data['store_id']);
-                $out = in_array($data['type'], ['issue', 'transfer', 'wastage']) || ($data['type'] === 'adjustment' && ($data['adjust_sign'] ?? 'minus') === 'minus');
+                $out = in_array($data['type'], ['issue', 'transfer', 'wastage'], true) || ($data['type'] === 'adjustment' && ($data['adjust_sign'] ?? 'minus') === 'minus');
                 if ($out && $qty > $current + 0.0001) {
                     throw ValidationException::withMessages(['lines' => "Insufficient stock of {$item->name} (available {$current} {$item->unit})."]);
                 }
@@ -261,7 +261,7 @@ class InventoryController extends Controller
                 $valueIn = round($in->sum($money), 2);
                 $valueOut = round($out->sum($money), 2);
 
-                $inward = in_array($type, ['purchase', 'opening', 'transfer_in', 'consumption_in']);
+                $inward = in_array($type, ['purchase', 'opening', 'transfer_in', 'consumption_in'], true);
 
                 return ['type' => $type, 'label' => $label($type), 'tone' => $inward ? 'green' : 'amber', 'count' => $set->count(),
                     'units_in' => round((float) $in->sum('qty'), 2), 'units_out' => round(abs((float) $out->sum('qty')), 2),

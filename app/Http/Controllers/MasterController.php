@@ -40,7 +40,7 @@ class MasterController extends Controller
                 $cls = 'App\\Models\\'.$cls;
                 $q = $cls::query();
                 // models without the tenant trait (e.g. User) are filtered to the current hotel explicitly
-                if (! in_array(\App\Models\Concerns\BelongsToHotel::class, class_uses_recursive($cls))) {
+                if (! in_array(\App\Models\Concerns\BelongsToHotel::class, class_uses_recursive($cls), true)) {
                     $q->where('hotel_id', Tenant::id())->when(\Illuminate\Support\Facades\Schema::hasColumn((new $cls)->getTable(), 'is_active'), fn ($w) => $w->where('is_active', true));
                 }
                 $out[$name] = $q->orderBy($label)->pluck($label, 'id')->all();
@@ -64,7 +64,7 @@ class MasterController extends Controller
                 'outlet' => 'nullable|integer|owned:outlets',
                 'availability' => ['nullable', Rule::in(['available', 'hidden'])],
             ]);
-            $textCols = collect($def['fields'])->filter(fn ($f) => in_array($f[1], ['text', 'email']))->keys();
+            $textCols = collect($def['fields'])->filter(fn ($f) => in_array($f[1], ['text', 'email'], true))->keys();
             $q = \App\Models\MenuItem::query()
                 ->when($term !== '', fn ($builder) => $builder->where(fn ($w) => $textCols->each(fn ($c) => $w->orWhere($c, 'like', '%'.$term.'%'))))
                 ->when(! empty($filters['category']), fn ($builder) => $builder->where('menu_category_id', $filters['category']))
@@ -91,7 +91,7 @@ class MasterController extends Controller
 
         $q = $def['model']::query()->with($def['with'] ?? []);
         if ($term !== '') {
-            $textCols = collect($def['fields'])->filter(fn ($f) => in_array($f[1], ['text', 'email']))->keys();
+            $textCols = collect($def['fields'])->filter(fn ($f) => in_array($f[1], ['text', 'email'], true))->keys();
             $q->where(fn ($w) => $textCols->each(fn ($c) => $w->orWhere($c, 'like', '%'.$term.'%')));
         }
         $rows = $q->orderBy($def['order'] ?? 'id')->orderBy('id')->paginate(50)->withQueryString();
@@ -142,7 +142,7 @@ class MasterController extends Controller
         $rules = [];
         foreach ($def['fields'] as $name => $f) {
             $rules[$name] = explode('|', $f[2]);
-            if (($f[1] ?? '') === 'image' || ! in_array($name, $def['unique'] ?? [])) {
+            if (($f[1] ?? '') === 'image' || ! in_array($name, $def['unique'] ?? [], true)) {
                 continue;
             }
             $rules[$name][] = Rule::unique($table, $name)->where('hotel_id', Tenant::id())->ignore($id);
@@ -155,7 +155,7 @@ class MasterController extends Controller
                 $data[$name] = $request->boolean($name);
             } elseif ($f[1] === 'number' && ($data[$name] ?? null) === null && ! str_contains($f[2], 'required')) {
                 // nullable numeric columns with DB defaults: keep null only where the column is nullable
-                $data[$name] = in_array($name, ['slab_to']) ? null : ($name === 'credit_days' ? 30 : 0);
+                $data[$name] = in_array($name, ['slab_to'], true) ? null : ($name === 'credit_days' ? 30 : 0);
             }
         }
         foreach ($def['autonumber'] ?? [] as $field => $key) {
@@ -475,8 +475,8 @@ class MasterController extends Controller
             return;
         }
         $full = public_path($path);
-        if (is_file($full)) {
-            @unlink($full);
+        if (is_file($full) && ! unlink($full)) {
+            logger()->warning('Could not remove a replaced menu upload.', ['path' => $path, 'hotel_id' => $hotelId]);
         }
     }
 

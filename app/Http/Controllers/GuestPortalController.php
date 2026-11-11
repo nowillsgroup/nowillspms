@@ -45,7 +45,7 @@ class GuestPortalController extends Controller
     protected function page(ReservationRoom $stay, string $view, string $tab, array $data = [], array $allowed = ['inhouse', 'upcoming', 'departed'])
     {
         $state = $stay->portalState();
-        if ($state === 'closed' || ! in_array($state, $allowed)) {
+        if ($state === 'closed' || ! in_array($state, $allowed, true)) {
             $view = $state === 'closed' ? 'portal.expired' : 'portal.unavailable';
         }
         $guest = $stay->guest ?? $stay->reservation?->guest;
@@ -539,7 +539,7 @@ class GuestPortalController extends Controller
     public function feedback(Request $request, string $token)
     {
         $stay = $this->stay($token);
-        abort_unless(in_array($stay->portalState(), ['inhouse', 'departed']), 404);
+        abort_unless(in_array($stay->portalState(), ['inhouse', 'departed'], true), 404);
         $data = $request->validate([
             'rating_overall' => 'required|integer|min:1|max:5', 'rating_room' => 'nullable|integer|min:1|max:5', 'rating_service' => 'nullable|integer|min:1|max:5',
             'rating_food' => 'nullable|integer|min:1|max:5', 'rating_cleanliness' => 'nullable|integer|min:1|max:5', 'comments' => 'nullable|string|max:2000',

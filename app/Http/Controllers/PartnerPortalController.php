@@ -186,7 +186,7 @@ class PartnerPortalController extends Controller
     public function bookings(Request $r)
     {
         $u = $this->me($r);
-        $tab = in_array($r->query('tab'), ['upcoming', 'inhouse', 'past', 'cancelled', 'all']) ? $r->query('tab') : 'upcoming';
+        $tab = in_array($r->query('tab'), ['upcoming', 'inhouse', 'past', 'cancelled', 'all'], true) ? $r->query('tab') : 'upcoming';
         $today = bdate()->toDateString();
         $q = Reservation::with('guest', 'rooms.roomType', 'rooms.room', 'partnerUser')->where('company_id', $u->company_id);
         match ($tab) {

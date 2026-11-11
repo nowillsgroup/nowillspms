@@ -146,7 +146,7 @@ class SurveyController extends Controller
         $d = $request->validate(['reservation_no' => 'required|string|max:30', 'survey_id' => 'required|integer']);
         $survey = Survey::where('is_active', true)->findOrFail($d['survey_id']);
         $r = Reservation::where('reservation_no', trim($d['reservation_no']))->first();
-        if (! $r || ! in_array($r->status, ['checked_out', 'checked_in'])) {
+        if (! $r || ! in_array($r->status, ['checked_out', 'checked_in'], true)) {
             throw ValidationException::withMessages(['reservation_no' => 'Enter a reservation that is in-house or checked out.']);
         }
         $existed = SurveyInvitation::where('survey_id', $survey->id)->where('reservation_id', $r->id)->exists();
@@ -164,7 +164,7 @@ class SurveyController extends Controller
 
     public function sendNow(SurveyInvitation $invitation)
     {
-        if (! in_array($invitation->status, ['scheduled', 'failed'])) {
+        if (! in_array($invitation->status, ['scheduled', 'failed'], true)) {
             return back()->with('warning', 'Only scheduled or failed invitations can be sent.');
         }
         $ok = FeedbackService::send($invitation);

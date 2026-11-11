@@ -52,6 +52,6 @@ class MarketingCampaign extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['draft', 'scheduled']);
+        return in_array($this->status, ['draft', 'scheduled'], true);
     }
 }

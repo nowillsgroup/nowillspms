@@ -70,7 +70,7 @@ class PrivacyRequest extends Model
     /** Identity must be verified before data is disclosed, changed or erased. */
     public function needsIdentity(): bool
     {
-        return in_array($this->type, ['access', 'correction', 'erasure']);
+        return in_array($this->type, ['access', 'correction', 'erasure'], true);
     }
 
     public function daysLeft(): int

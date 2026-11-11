@@ -129,7 +129,7 @@ class SpaBookingService
         return DB::transaction(function () use ($appt, $status, $reason) {
             $appt = SpaAppointment::whereKey($appt->id)->lockForUpdate()->firstOrFail();
             $allowed = ['in_progress' => ['booked'], 'cancelled' => ['booked'], 'no_show' => ['booked'], 'booked' => ['in_progress']];
-            if (! in_array($appt->status, $allowed[$status] ?? [])) {
+            if (! in_array($appt->status, $allowed[$status] ?? [], true)) {
                 throw new RuntimeException("Cannot change a {$appt->status} appointment to {$status}.");
             }
             if ($status === 'cancelled' && ! trim((string) $reason)) {

@@ -81,7 +81,7 @@ class AssetService
     protected static function normalise(array $d, AssetCategory $cat, ?Asset $a = null): array
     {
         $d['method'] = $d['method'] ?? $cat->method;
-        if (! in_array($d['method'], ['slm', 'wdv'])) {
+        if (! in_array($d['method'], ['slm', 'wdv'], true)) {
             throw new RuntimeException('Unknown depreciation method.');
         }
         $d['life_months'] = (int) ($d['life_months'] ?? 0) ?: (int) $cat->life_months;
@@ -166,7 +166,7 @@ class AssetService
 
     public static function setStatus(Asset $a, string $status, ?string $note = null): Asset
     {
-        if ($a->isDisposed() || ! in_array($status, ['active', 'in_repair'])) {
+        if ($a->isDisposed() || ! in_array($status, ['active', 'in_repair'], true)) {
             throw new RuntimeException('That status change isn\'t allowed.');
         }
         $a->forceFill(['status' => $status])->save();

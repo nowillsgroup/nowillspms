@@ -18,7 +18,7 @@ class PosOpsService
 {
     protected static function assertRunning(PosOrder $o, string $what = 'Order'): void
     {
-        if (! in_array($o->status, ['open', 'billed'])) {
+        if (! in_array($o->status, ['open', 'billed'], true)) {
             throw new RuntimeException("{$what} {$o->order_no} is {$o->status}.");
         }
         if ($o->items()->where('is_pending', true)->where('is_cancelled', false)->exists()) {

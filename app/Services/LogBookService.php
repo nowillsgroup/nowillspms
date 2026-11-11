@@ -28,7 +28,7 @@ class LogBookService
         $cat = array_key_exists($d['category'] ?? '', LogEntry::CATEGORIES) ? $d['category'] : 'info';
         $dept = array_key_exists($d['department'] ?? '', LogEntry::DEPARTMENTS) ? $d['department'] : 'front_office';
         $prio = array_key_exists($d['priority'] ?? '', LogEntry::PRIORITIES) ? $d['priority'] : 'normal';
-        $needsAction = ! empty($d['needs_action']) || ! empty($d['follow_up_at']) || in_array($cat, ['complaint', 'incident', 'maintenance']) || $prio === 'urgent';
+        $needsAction = ! empty($d['needs_action']) || ! empty($d['follow_up_at']) || in_array($cat, ['complaint', 'incident', 'maintenance'], true) || $prio === 'urgent';
         $stay = ! empty($d['reservation_room_id']) ? ReservationRoom::find($d['reservation_room_id']) : null;
         $follow = ! empty($d['follow_up_at']) ? Carbon::parse($d['follow_up_at']) : null;
         if ($follow && $follow->lt(now()->subMinutes(5)) && $source === 'manual') {

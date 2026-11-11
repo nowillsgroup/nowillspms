@@ -52,7 +52,7 @@ class GstService
 
     public static function isGhana(): bool
     {
-        return in_array(strtolower(trim((string) (hotel()?->country ?? 'Ghana'))), ['ghana', 'gh', 'gha', '']);
+        return in_array(strtolower(trim((string) (hotel()?->country ?? 'Ghana'))), ['ghana', 'gh', 'gha', ''], true);
     }
 
     // ------------------------------------------------------------------ TIN
@@ -344,7 +344,7 @@ class GstService
     /** Why an issued document may NOT be cancelled (null = allowed). */
     public static function cancelBlocker(Folio $f): ?string
     {
-        if (! $f->invoice_no || ! in_array($f->status, ['closed'])) {
+        if (! $f->invoice_no || ! in_array($f->status, ['closed'], true)) {
             return 'Only issued invoices / credit notes can be cancelled.';
         }
         if (GstPeriod::isFiled($f->invoice_date?->toDateString())) {
@@ -460,7 +460,7 @@ class GstService
             }
         } elseif ($settle === 'refund') {
             $mode = PaymentMode::find($modeId);
-            if (! $mode || in_array($mode->type, ['city_ledger', 'online', 'gift_voucher'])) {
+            if (! $mode || in_array($mode->type, ['city_ledger', 'online', 'gift_voucher'], true)) {
                 throw ValidationException::withMessages(['payment_mode_id' => 'Choose how the refund is paid (cash, card, mobile money or bank).']);
             }
             try {
@@ -634,7 +634,7 @@ class GstService
             $prefix = preg_replace('/\d+$/', '', (string) $all->first());
             $width = strlen((string) preg_replace('/^\D+/', '', (string) $all->first()));
             for ($n = min($nums) + 1; $n < max($nums); $n++) {
-                if (! in_array($n, $nums)) {
+                if (! in_array($n, $nums, true)) {
                     $gaps[] = $prefix.str_pad((string) $n, $width, '0', STR_PAD_LEFT);
                 }
             }

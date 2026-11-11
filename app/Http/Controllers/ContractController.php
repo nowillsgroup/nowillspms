@@ -32,7 +32,7 @@ class ContractController extends Controller
         $all = RateContract::with('company', 'allotments')->withCount('reservations')->orderByDesc('valid_to')->get()
             ->each(fn ($c) => $c->prod = ContractService::production($c));
         $pick = fn ($c) => match ($tab) {
-            'active' => in_array($c->state(), ['active', 'upcoming']),
+            'active' => in_array($c->state(), ['active', 'upcoming'], true),
             'draft' => $c->status === 'draft',
             'expiring' => $c->status === 'active' && $c->valid_to->toDateString() >= $today && $c->valid_to->toDateString() <= $alertTo,
             'suspended' => $c->status === 'suspended',
@@ -45,7 +45,7 @@ class ContractController extends Controller
             'contracts' => $all->filter($pick)->values(), 'tab' => $tab, 'alerts' => ContractService::alerts(),
             'counts' => collect(array_keys(self::TABS))->mapWithKeys(fn ($t) => [$t => $all->filter(function ($c) use ($t, $today, $alertTo) {
                 return match ($t) {
-                    'active' => in_array($c->state(), ['active', 'upcoming']), 'draft' => $c->status === 'draft', 'suspended' => $c->status === 'suspended',
+                    'active' => in_array($c->state(), ['active', 'upcoming'], true), 'draft' => $c->status === 'draft', 'suspended' => $c->status === 'suspended',
                     'expiring' => $c->status === 'active' && $c->valid_to->toDateString() >= $today && $c->valid_to->toDateString() <= $alertTo,
                     'expired' => $c->state() === 'expired', default => true,
                 };

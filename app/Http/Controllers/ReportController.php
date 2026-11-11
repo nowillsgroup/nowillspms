@@ -954,7 +954,7 @@ class ReportController extends Controller
             $activeView->forceFill(['last_opened_at' => now(), 'opens' => $activeView->opens + 1])->saveQuietly();
         }
         $from = Carbon::parse($request->input('from', $defaultFrom->toDateString()))->startOfDay();
-        $defaultTo = in_array($report, ['lease_expiry', 'training_expiry'], true) ? bdate()->copy()->addDays(90) : ($report === 'rm_forecast' ? bdate()->copy()->addDays(29) : (in_array($report, ['channel_parity', 'bd_rate_shop', 'cro_demand'], true) ? bdate()->copy()->addDays(29) : (in_array($report, ['flash', 'trial_balance', 'gl_pnl', 'balance_sheet', 'journal_register', 'budget_vs_actual', 'budget_annual', 'forecast_vs_budget', 'budget_kpis']) ? bdate()->copy()->subDay() : bdate()))); // GL: last closed day
+        $defaultTo = in_array($report, ['lease_expiry', 'training_expiry'], true) ? bdate()->copy()->addDays(90) : ($report === 'rm_forecast' ? bdate()->copy()->addDays(29) : (in_array($report, ['channel_parity', 'bd_rate_shop', 'cro_demand'], true) ? bdate()->copy()->addDays(29) : (in_array($report, ['flash', 'trial_balance', 'gl_pnl', 'balance_sheet', 'journal_register', 'budget_vs_actual', 'budget_annual', 'forecast_vs_budget', 'budget_kpis'], true) ? bdate()->copy()->subDay() : bdate()))); // GL: last closed day
         $to = Carbon::parse($request->input('to', ($viewTo ?? $defaultTo)->toDateString()))->startOfDay();
         if ((self::REPORTS[$report][3] ?? '') === 'date') {
             $from = $to->copy(); // "as at" reports only use the date

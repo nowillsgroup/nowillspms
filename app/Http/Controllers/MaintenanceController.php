@@ -22,7 +22,7 @@ class MaintenanceController extends Controller
                 ->when($request->input('status', 'active') === 'active', fn ($q) => $q->whereIn('status', ['open', 'in_progress']))
                 ->when($request->input('status') === 'pm', fn ($q) => $q->whereNotNull('pm_schedule_id')->whereIn('status', ['open', 'in_progress']))
                 ->when($request->input('status') === 'overdue', fn ($q) => $q->whereIn('status', ['open', 'in_progress'])->whereDate('due_date', '<', bdate()->toDateString()))
-                ->when(! in_array($request->input('status', 'active'), ['active', 'all', 'pm', 'overdue']), fn ($q) => $q->where('status', $request->status))
+                ->when(! in_array($request->input('status', 'active'), ['active', 'all', 'pm', 'overdue'], true), fn ($q) => $q->where('status', $request->status))
                 ->when($request->filled('asset'), fn ($q) => $q->where('asset_id', $request->integer('asset')))
                 ->orderByRaw("CASE WHEN status IN ('open','in_progress') AND due_date < ? THEN 0 ELSE 1 END", [bdate()->toDateString()])
                 ->latest()->paginate(25)->withQueryString(),
@@ -77,7 +77,7 @@ class MaintenanceController extends Controller
         $data = $request->validate(['status' => 'required|in:open,in_progress,resolved,closed', 'employee_id' => 'nullable|integer|owned:employees', 'resolution' => 'nullable|string|max:2000', 'cost' => 'nullable|numeric|min:0']);
         $wasOpen = $ticket->isOpen();
         $ticket->fill(array_filter($data, fn ($v) => $v !== null));
-        if (in_array($data['status'], ['resolved', 'closed'])) {
+        if (in_array($data['status'], ['resolved', 'closed'], true)) {
             $ticket->resolved_at ??= now();
             if ($ticket->block_room && $ticket->room && $ticket->room->status === 'out_of_order') {
                 $ticket->room->update(['status' => 'vacant', 'hk_status' => 'dirty']);

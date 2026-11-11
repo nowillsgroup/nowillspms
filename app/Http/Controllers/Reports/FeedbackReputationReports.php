@@ -367,7 +367,7 @@ trait FeedbackReputationReports
                     'sev' => ucfirst($c->severity), 'guest' => $c->guest?->full_name, 'title' => \Illuminate\Support\Str::limit($c->title, 90), 'owner' => $c->assignee?->name ?? 'Unassigned',
                     'status' => \App\Models\FeedbackCase::STATUSES[$c->status], 'first' => $h($c->created_at, $c->first_response_at), 'res' => $h($c->created_at, $done), 'sla' => $onTime,
                     'action' => \App\Models\FeedbackCase::ACTIONS[$c->recovery_action] ?? '', 'pts' => (int) $c->goodwill_points, 'outcome' => \App\Models\FeedbackCase::OUTCOMES[$c->outcome] ?? '',
-                    '_class' => in_array($onTime, ['Late', 'Overdue']) ? 'row-alert' : ''];
+                    '_class' => in_array($onTime, ['Late', 'Overdue'], true) ? 'row-alert' : ''];
             })->values();
         $closed = $rows->whereNotIn('outcome', ['']);
         $rec = $closed->where('outcome', \App\Models\FeedbackCase::OUTCOMES['recovered'])->count();
@@ -386,7 +386,7 @@ trait FeedbackReputationReports
         $rows = \App\Models\GuestFeedback::with('recoveryCase', 'stay.room', 'reservation')->whereBetween('created_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()])->orderBy('created_at')->get()
             ->map(fn ($f) => ['date' => $f->created_at->format('d M Y H:i'), 'guest' => $f->guest_name ?: 'Anonymous', 'res' => $f->reservation?->reservation_no, 'room' => $f->stay?->room?->room_no,
                 'src' => \App\Models\GuestFeedback::SOURCES[$f->source] ?? $f->source, 'nps' => $f->nps ?? '', 'grp' => $f->nps_group ? ucfirst($f->nps_group) : '', 'overall' => $f->rating_overall,
-                'sent' => ucfirst((string) $f->sentiment), 'neg' => collect((array) $f->aspects)->filter(fn ($s) => in_array($s, ['negative', 'mixed']))->keys()->map(fn ($d) => \App\Services\FeedbackService::DEPTS[$d] ?? $d)->implode(', '),
+                'sent' => ucfirst((string) $f->sentiment), 'neg' => collect((array) $f->aspects)->filter(fn ($s) => in_array($s, ['negative', 'mixed'], true))->keys()->map(fn ($d) => \App\Services\FeedbackService::DEPTS[$d] ?? $d)->implode(', '),
                 'comments' => \Illuminate\Support\Str::limit((string) $f->comments, 200), 'case' => $f->recoveryCase?->case_no, 'status' => $f->status === 'new' ? 'Unread' : 'Read',
                 '_class' => $f->nps_group === 'detractor' || $f->sentiment === 'negative' ? 'row-alert' : ''])->values();
 

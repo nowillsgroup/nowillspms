@@ -63,7 +63,7 @@ class ApController extends Controller
     {
         $po = $request->po ? PurchaseOrder::with('supplier', 'items.item')->findOrFail($request->po) : null;
         $supplier = $po?->supplier ?? ($request->supplier ? Supplier::findOrFail($request->supplier) : null);
-        $mode = in_array($request->mode, ['goods', 'expense', 'debit_note']) ? $request->mode
+        $mode = in_array($request->mode, ['goods', 'expense', 'debit_note'], true) ? $request->mode
             : ($po ? 'goods' : ($request->type === 'debit_note' ? 'debit_note' : 'expense'));
 
         return view('ap.bill-create', [
@@ -163,7 +163,7 @@ class ApController extends Controller
     {
         $bill->load('supplier', 'purchaseOrder.items.item', 'purchaseOrder.receipts.lines.item', 'lines.head', 'allocations.payment.paymentMode', 'allocations.debitNote', 'applications.invoice', 'creator', 'approver', 'againstInvoice');
         $credits = collect();
-        if (in_array($bill->status, ['open', 'partial'])) {
+        if (in_array($bill->status, ['open', 'partial'], true)) {
             // v9.4 the credits on offer here are the credit rule's own documents — the set the ageing nets off, the bills
             // list takes off what is payable and the payments screen lists — narrowed to this bill's currency, because
             // applying a credit across currencies is refused and an option that throws is not an offer

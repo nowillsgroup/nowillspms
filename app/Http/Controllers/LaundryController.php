@@ -26,7 +26,7 @@ class LaundryController extends Controller
         $list = LaundryOrder::with('room')
             ->when($tab === 'open', fn ($x) => $x->whereIn('status', LaundryOrder::OPEN))
             ->when($tab === 'overdue', fn ($x) => $x->whereIn('status', LaundryOrder::OPEN)->where('promised_at', '<', now()))
-            ->when(in_array($tab, ['collected', 'processing', 'ready', 'delivered', 'cancelled']), fn ($x) => $x->where('status', $tab))
+            ->when(in_array($tab, ['collected', 'processing', 'ready', 'delivered', 'cancelled'], true), fn ($x) => $x->where('status', $tab))
             ->when($q !== '', fn ($x) => $x->where(fn ($w) => $w->where('order_no', 'like', "%{$q}%")->orWhere('guest_name', 'like', "%{$q}%")->orWhere('bag_no', 'like', "%{$q}%")
                 ->orWhereHas('room', fn ($r) => $r->where('room_no', $q))))
             ->orderByRaw("FIELD(status, 'ready', 'processing', 'collected', 'delivered', 'cancelled')")->orderBy('promised_at')->orderByDesc('id')

@@ -231,7 +231,7 @@ class LostFoundService
     public static function candidates(LostReport $r, int $limit = 8): Collection
     {
         $words = collect(preg_split('/[^a-z0-9]+/', mb_strtolower($r->item.' '.$r->description)))->filter(fn ($w) => mb_strlen($w) >= 3)
-            ->reject(fn ($w) => in_array($w, ['the', 'and', 'with', 'black', 'white', 'small', 'large', 'left', 'room', 'lost', 'found']))->unique()->values();
+            ->reject(fn ($w) => in_array($w, ['the', 'and', 'with', 'black', 'white', 'small', 'large', 'left', 'room', 'lost', 'found'], true))->unique()->values();
         $roomId = $r->stay?->room_id;
 
         return LostFoundItem::with('room')->where('status', 'stored')

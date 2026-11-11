@@ -152,7 +152,7 @@ class PackageService
         if (! $p->is_active || ! $p->is_sellable) {
             throw new RuntimeException("{$p->name} is not sold as an add-on.");
         }
-        if (! in_array($stay->status, ['reserved', 'checked_in'])) {
+        if (! in_array($stay->status, ['reserved', 'checked_in'], true)) {
             throw new RuntimeException('Packages can only be added to a reserved or in-house stay.');
         }
         $s = Carbon::parse($start);
@@ -160,7 +160,7 @@ class PackageService
         if ($s->lt($stay->arrival_date) || $s->gt($lastNight)) {
             throw new RuntimeException('The package must start on a night of the stay ('.$stay->arrival_date->format('d M').' – '.$lastNight->format('d M').').');
         }
-        $once = in_array($p->rhythm, ['once', 'arrival', 'departure']);
+        $once = in_array($p->rhythm, ['once', 'arrival', 'departure'], true);
         if ($p->rhythm === 'departure') {
             $s = $lastNight->copy();
         }
@@ -215,7 +215,7 @@ class PackageService
     public static function redeem(ReservationRoom $stay, Package $p, array $in): PackageRedemption
     {
         return DB::transaction(function () use ($stay, $p, $in) {
-            if (! in_array($stay->status, ['checked_in', 'checked_out'])) {
+            if (! in_array($stay->status, ['checked_in', 'checked_out'], true)) {
                 throw new RuntimeException('Only in-house guests (or guests who left today) can use packages.');
             }
             $today = bdate();
@@ -305,7 +305,7 @@ class PackageService
         $last = (clone $live)->max('business_date');
         $byAmount = $e->package?->redeem_mode === 'amount';
         $full = $byAmount ? ((float) $e->amount > 0 ? $amt >= (float) $e->amount - 0.005 : $qty > 0) : $qty >= max(1, (int) $e->qty);
-        $status = in_array($e->status, ['expired', 'cancelled']) ? $e->status : ($full ? 'consumed' : ($qty > 0 || $amt > 0 ? 'partial' : 'open'));
+        $status = in_array($e->status, ['expired', 'cancelled'], true) ? $e->status : ($full ? 'consumed' : ($qty > 0 || $amt > 0 ? 'partial' : 'open'));
         $e->update(['consumed_qty' => min($qty, $e->qty), 'consumed_amount' => min($amt, (float) $e->amount), 'consumed_date' => $last, 'status' => $status]);
 
         return $e;
@@ -346,7 +346,7 @@ class PackageService
     /** Called from FolioService::void – a waived night takes its unused packages with it. */
     public static function onFolioVoid(FolioTransaction $tx): void
     {
-        if (! in_array($tx->source_type, ['night', 'fixed'])) {
+        if (! in_array($tx->source_type, ['night', 'fixed'], true)) {
             return;
         }
         PackageEntitlement::where('folio_transaction_id', $tx->id)->where('consumed_qty', 0)->where('consumed_amount', 0)->where('status', 'open')

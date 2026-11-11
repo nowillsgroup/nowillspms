@@ -48,7 +48,7 @@ class KitchenController extends Controller
             $cooking = $live->reject(fn ($l) => $l->kitchen_status === 'held');
             $status = $live->isEmpty() ? 'cancelled' : ($cooking->isEmpty() ? 'held'
                 : ($cooking->every(fn ($l) => $l->kitchen_status === 'served') ? 'served'
-                : ($cooking->every(fn ($l) => in_array($l->kitchen_status, ['ready', 'served'])) ? 'ready'
+                : ($cooking->every(fn ($l) => in_array($l->kitchen_status, ['ready', 'served'], true)) ? 'ready'
                 : ($cooking->contains(fn ($l) => $l->kitchen_status !== 'new') ? 'preparing' : 'new'))));
             $since = $lines->min('created_at');
 

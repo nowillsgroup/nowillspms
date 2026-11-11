@@ -116,7 +116,7 @@ class GuestRequestController extends Controller
 
     public function action(Request $request, GuestRequest $greq, string $action)
     {
-        abort_unless(in_array($action, ['acknowledge', 'start', 'done', 'decline']), 404);
+        abort_unless(in_array($action, ['acknowledge', 'start', 'done', 'decline'], true), 404);
         $data = $request->validate(['note' => 'nullable|string|max:255']);
         try {
             GuestPortalService::transition($greq, $action, $data['note'] ?? null);
@@ -170,7 +170,7 @@ class GuestRequestController extends Controller
             $err = $log->error;
         } else {
             $log = GuestPortalService::sendWelcome($stay, $data['channel']);
-            $ok = in_array($log->status, ['sent', 'queued', 'logged', 'delivered']);
+            $ok = in_array($log->status, ['sent', 'queued', 'logged', 'delivered'], true);
             $err = $log->error;
         }
         ActivityLogger::log('requests', 'portal_send', "Portal link sent by {$data['channel']} for {$stay->reservation->reservation_no}", $stay);

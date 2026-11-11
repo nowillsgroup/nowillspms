@@ -358,7 +358,7 @@ class ApService
             ], $fx ?: []));
             $dn->lines()->createMany($lines);
             ActivityLogger::log('ap', 'debit_note', "Debit note {$dn->doc_no} to {$s->name}: ".money($dn->total).self::fxNote($fx, $board, (float) $dn->total), $dn);
-            if ($against && in_array($against->status, ['open', 'partial'])) {
+            if ($against && in_array($against->status, ['open', 'partial'], true)) {
                 $amt = min($dn->total, $against->fresh()->outstanding());
                 if ($amt > 0) {
                     self::allocate($against, $amt, null, $dn);
@@ -562,7 +562,7 @@ class ApService
     protected static function allocate(SupplierInvoice $bill, float $amount, ?SupplierPayment $p, ?SupplierInvoice $dn, ?string $date = null): ApAllocation
     {
         $amount = round($amount, 2);
-        if ($bill->isDebitNote() || ! in_array($bill->status, ['open', 'partial'])) {
+        if ($bill->isDebitNote() || ! in_array($bill->status, ['open', 'partial'], true)) {
             throw new RuntimeException("Bill {$bill->doc_no} is ".(SupplierInvoice::STATUSES[$bill->status] ?? $bill->status).' and cannot be paid.');
         }
         if ($amount <= 0 || $amount - $bill->outstanding() > 0.004) {
@@ -650,7 +650,7 @@ class ApService
         $doc->refresh();
         $sum = round((float) ($doc->isDebitNote() ? $doc->applications()->sum('amount') : $doc->allocations()->sum('amount')), 2);
         $status = match (true) {
-            in_array($doc->status, ['cancelled', 'on_hold']) => $doc->status,
+            in_array($doc->status, ['cancelled', 'on_hold'], true) => $doc->status,
             $sum >= (float) $doc->total - 0.004 => 'paid',
             $sum > 0 => 'partial',
             default => 'open',

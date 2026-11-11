@@ -26,6 +26,9 @@ use Illuminate\Support\Facades\Auth;
 
 class DatabaseSeeder extends Seeder
 {
+    /** One high-entropy password shared by this run's synthetic demo accounts. */
+    protected string $demoPassword;
+
     use SeedPropertyConcern,
         SeedFrontOfficeConcern,
         SeedFnBConcern,
@@ -42,6 +45,10 @@ class DatabaseSeeder extends Seeder
                 'DatabaseSeeder creates synthetic development/demo records and is disabled in production.'
             );
         }
+
+        $this->demoPassword = \Illuminate\Support\Str::password(20);
+        $this->command?->warn('Synthetic demo password for this seed run: '.$this->demoPassword);
+        $this->command?->warn('Rotate it immediately if this database is shared.');
 
         $today = Carbon::today();
         $group = Models\HotelGroup::create(['code' => 'NWGROUP', 'name' => 'Nowills Hospitality Group']);
@@ -69,16 +76,16 @@ class DatabaseSeeder extends Seeder
         // ---------- Users ----------
         Tenant::set($main);
         $roles = Models\Role::pluck('id', 'name');
-        $admin = new Models\User(['name' => 'System Administrator', 'username' => 'admin', 'email' => 'admin@nowills.example', 'password' => 'Admin@123']);
+        $admin = new Models\User(['name' => 'System Administrator', 'username' => 'admin', 'email' => 'admin@nowills.example', 'password' => $this->demoPassword]);
         $admin->hotel_id = $main->id; $admin->is_super_admin = true; $admin->role_id = $roles['Administrator']; $admin->save();
-        $ga = new Models\User(['name' => 'Group Admin', 'username' => 'groupadmin', 'email' => 'group@nowills.example', 'password' => 'Admin@123']);
+        $ga = new Models\User(['name' => 'Group Admin', 'username' => 'groupadmin', 'email' => 'group@nowills.example', 'password' => $this->demoPassword]);
         $ga->hotel_id = $main->id; $ga->hotel_group_id = $group->id; $ga->is_group_admin = true; $ga->role_id = $roles['Administrator']; $ga->save();
         foreach ([['Priya Sharma', 'frontdesk', 'Receptionist'], ['Ravi Kumar', 'fom', 'Front Office Manager'], ['Anita Das', 'housekeeping', 'Housekeeping Supervisor'], ['Suresh Nair', 'cashier', 'Restaurant Cashier'], ['Arjun Menon', 'restaurant', 'F&B Manager'], ['Meera Iyer', 'accounts', 'Accountant'], ['Vikram Rao', 'store', 'Store Keeper'], ['Chef Mani', 'chef', 'Kitchen / Chef'], ['Ramesh Gowda', 'attendant', 'Room Attendant'], ['Grace Mensah', 'spa', 'Spa Desk / Therapist'], ['Anjali Menon', 'hr', 'HR Manager'], ['Kwame Boateng', 'laundry', 'Laundry Attendant'], ['Joseph Thomas', 'engineer', 'Chief Engineer'], ['Farah Khan', 'banquet', 'Banquet Manager'], ['Efua Asante', 'marketing', 'Sales & Marketing'], ['Lakshmi Pillai', 'concierge', 'Transport Desk / Concierge'], ['Sunil Yadav', 'driver', 'Driver'], ['Imran Sheikh', 'security', 'Security Officer'], ['Nana Yaw Owusu', 'owner', "Owner's Representative"], ['Kojo Mensah', 'digital', 'Digital Marketing Executive'], ['Akosua Darko', 'bizdev', 'Business Development Manager'], ['Yaw Boateng', 'cro', 'Reservations Agent (CRO)'], ['Esi Quaye', 'qa', 'Quality Manager'], ['Nana Sarpong', 'hse', 'Health & Safety Officer'], ['Ebenezer Ankrah', 'costctl', 'Cost Controller'], ['Kwabena Tetteh', 'valet', 'Valet / Parking Attendant']] as [$n, $u, $r]) {
-            $x = new Models\User(['name' => $n, 'username' => $u, 'password' => 'Pass@123']);
+            $x = new Models\User(['name' => $n, 'username' => $u, 'password' => $this->demoPassword]);
             $x->hotel_id = $main->id; $x->role_id = $roles[$r]; $x->save();
         }
         Tenant::set($resort);
-        $ra = new Models\User(['name' => 'Resort Manager', 'username' => 'admin', 'password' => 'Admin@123']);
+        $ra = new Models\User(['name' => 'Resort Manager', 'username' => 'admin', 'password' => $this->demoPassword]);
         $ra->hotel_id = $resort->id; $ra->is_super_admin = true; $ra->role_id = Models\Role::where('name', 'Administrator')->value('id'); $ra->save();
 
         Models\User::where('hotel_id', $main->id)->where('username', 'cro')->update(['hotel_group_id' => $group->id]); // v6.4: the CRO agent sells every hotel of the group
@@ -143,9 +150,9 @@ class DatabaseSeeder extends Seeder
     /** v2.5 demo: ten events across the whole pipeline, driven through the service with back-dated business days. */
 
 
-    /** v7.5 event organiser portal demo. Logins use the password Organiser2026. */
+    /** v7.5 event organiser portal demo. Logins use the random password printed by the seeder. */
 
-    /** v7.4 corporate & travel-agent portal demo. Logins use the password Partner2026. */
+    /** v7.4 corporate & travel-agent portal demo. Logins use the random password printed by the seeder. */
 
     /**
      * v3.4 foreign-guest demo: Form C for every foreign stay of the last three weeks – departed guests filed and their departures

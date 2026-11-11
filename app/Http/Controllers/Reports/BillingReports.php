@@ -442,8 +442,8 @@ trait BillingReports
                 'guest' => $p->payer_name, 'res' => $p->reservation?->reservation_no, 'folio' => $p->folioTransaction?->folio?->folio_no, 'gateway' => ucfirst($p->provider),
                 'txn' => $p->provider_payment_id, 'channel' => $p->channel ? str_replace('_', ' ', $p->channel) : '', 'status' => $p->statusLabel(),
                 'paid_at' => $p->paid_at?->format('d-m-Y H:i'), 'amount' => (float) $p->amount,
-                'received' => in_array($p->status, ['paid', 'review']) ? $p->received() : 0.0, 'refunded' => (float) $p->refunded_amount,
-                'net' => in_array($p->status, ['paid', 'review']) ? round($p->received() - (float) $p->refunded_amount, 2) : 0.0, 'fee' => (float) $p->fee]);
+                'received' => in_array($p->status, ['paid', 'review'], true) ? $p->received() : 0.0, 'refunded' => (float) $p->refunded_amount,
+                'net' => in_array($p->status, ['paid', 'review'], true) ? round($p->received() - (float) $p->refunded_amount, 2) : 0.0, 'fee' => (float) $p->fee]);
 
         return ['cols' => ['no' => 'Link', 'created' => 'Created', 'purpose' => 'Purpose', 'guest' => 'Guest', 'res' => 'Reservation', 'folio' => 'Folio', 'gateway' => 'Gateway',
             'txn' => 'Transaction', 'channel' => 'Channel', 'status' => 'Status', 'paid_at' => 'Paid at', 'amount' => 'Requested', 'received' => 'Received', 'refunded' => 'Refunded',

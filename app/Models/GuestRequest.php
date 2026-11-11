@@ -57,7 +57,7 @@ class GuestRequest extends Model
 
     public function isOpen(): bool
     {
-        return in_array($this->status, self::OPEN);
+        return in_array($this->status, self::OPEN, true);
     }
 
     public function categoryLabel(): string

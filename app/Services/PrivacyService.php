@@ -152,9 +152,9 @@ class PrivacyService
         $stayIds = self::stayIds($g);
         $phone = MessageService::normalise($g->phone);
         $filled = collect(self::PII_FIELDS)->filter(fn ($f) => filled($g->{$f}));
-        $retainPolice = in_array('passport_no', $retain);
+        $retainPolice = in_array('passport_no', $retain, true);
         $items = [
-            'profile' => ['Profile fields cleared', $filled->reject(fn ($f) => in_array($f, $retain))->count()],
+            'profile' => ['Profile fields cleared', $filled->reject(fn ($f) => in_array($f, $retain, true))->count()],
             'documents' => ['ID document scans deleted', GuestDocument::where('guest_id', $g->id)->count()],
             'signatures' => ['Registration-card signatures deleted', ReservationRoom::whereIn('id', $stayIds)->whereNotNull('grc_signature_path')->count()],
             'messages' => ['SMS / WhatsApp log entries blanked', self::messageQuery($resIds, $g, $phone)->count()],
@@ -322,7 +322,7 @@ class PrivacyService
             ->update(['status' => 'cancelled', 'cancelled_at' => now(), 'cancel_reason' => 'Guest data erased']);
         self::transportQuery($g, $phone)->update(['passenger_name' => self::ERASED_NAME, 'phone' => null, 'flight_no' => null, 'notes' => null, 'extra_note' => null, 'guest_id' => null]);
         // v3.4: Form C / forex records keep their particulars while the police-register hold runs (passport retained), else lose every identifier
-        if (! in_array('passport_no', $retain)) {
+        if (! in_array('passport_no', $retain, true)) {
             DB::table('form_c_records')->where('hotel_id', $h)->where('guest_id', $g->id)->update(['surname' => null, 'given_name' => self::ERASED_NAME, 'dob' => null,
                 'passport_no' => null, 'passport_place' => null, 'visa_no' => null, 'visa_place' => null, 'address_abroad' => null, 'phone' => null, 'arrived_from' => null,
                 'next_destination' => null, 'notes' => null, 'guest_id' => null]);
@@ -387,11 +387,11 @@ class PrivacyService
 
         $clear = [];
         foreach (self::PII_FIELDS as $f) {
-            if (! in_array($f, $retain)) {
+            if (! in_array($f, $retain, true)) {
                 $clear[$f] = null;
             }
         }
-        if (! in_array('first_name', $retain)) {
+        if (! in_array('first_name', $retain, true)) {
             $clear['first_name'] = self::ERASED_NAME;
         }
         $g->forceFill($clear + ['is_vip' => false, 'is_blacklisted' => false, 'loyalty_points' => 0, 'email_opt_in' => false, 'sms_opt_in' => false,
@@ -622,7 +622,7 @@ class PrivacyService
 
     public static function reject(PrivacyRequest $req, string $reason, ?int $userId): void
     {
-        if (! in_array($req->status, ['open', 'unverified'])) {
+        if (! in_array($req->status, ['open', 'unverified'], true)) {
             throw ValidationException::withMessages(['request' => 'Request is already closed.']);
         }
         $req->forceFill(['status' => 'rejected', 'completed_at' => now(), 'completed_by' => $userId, 'rejection_reason' => $reason])->save();

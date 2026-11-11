@@ -319,7 +319,7 @@ trait PartnerOrganiserPortalsReports
         $list = \App\Models\OrganiserAudit::with('company', 'organiserUser')->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
         $rows = $list->map(fn ($x) => ['at' => $x->created_at->format('d-m-Y H:i:s'), 'org' => $x->company?->name ?? '—', 'user' => $x->organiserUser ? $x->organiserUser->name.' <'.$x->organiserUser->email.'>' : 'unknown',
             'action' => str_replace('_', ' ', $x->action), 'detail' => $x->detail, 'ip' => $x->ip,
-            '_class' => in_array($x->action, ['locked', 'login_blocked']) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
+            '_class' => in_array($x->action, ['locked', 'login_blocked'], true) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
 
         return ['cols' => ['at' => 'When', 'org' => 'Organiser', 'user' => 'Login', 'action' => 'Event', 'detail' => 'Detail', 'ip' => 'IP address'],
             'rows' => $rows, 'money' => [], 'sum' => [],
@@ -390,7 +390,7 @@ trait PartnerOrganiserPortalsReports
             ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('created_at')->get();
         $rows = $list->map(fn ($x) => ['at' => $x->created_at->format('d-m-Y H:i:s'), 'partner' => $x->company?->name ?? '—', 'user' => $x->partnerUser ? $x->partnerUser->name.' <'.$x->partnerUser->email.'>' : 'unknown',
             'action' => str_replace('_', ' ', $x->action), 'detail' => $x->detail, 'ip' => $x->ip,
-            '_class' => in_array($x->action, ['locked', 'login_blocked']) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
+            '_class' => in_array($x->action, ['locked', 'login_blocked'], true) ? 'row-red' : ($x->action === 'login_failed' ? 'row-amber' : '')]);
 
         return ['cols' => ['at' => 'When', 'partner' => 'Partner', 'user' => 'Login', 'action' => 'Event', 'detail' => 'Detail', 'ip' => 'IP address'],
             'rows' => $rows, 'money' => [], 'sum' => [],

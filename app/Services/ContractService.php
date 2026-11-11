@@ -208,7 +208,7 @@ class ContractService
     public static function activate(RateContract $c): void
     {
         $c->loadMissing('rates', 'company');
-        if (! in_array($c->status, ['draft', 'suspended'])) {
+        if (! in_array($c->status, ['draft', 'suspended'], true)) {
             throw ValidationException::withMessages(['contract' => "Contract {$c->code} is already {$c->status}."]);
         }
         if ($c->valid_to->toDateString() < bdate()->toDateString()) {

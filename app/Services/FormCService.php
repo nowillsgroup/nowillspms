@@ -192,7 +192,7 @@ class FormCService
     public static function createForStay(ReservationRoom $stay, ?Guest $g = null, bool $companion = false, array $data = []): FormCRecord
     {
         $stay->loadMissing('reservation');
-        if (! in_array($stay->status, ['checked_in', 'checked_out'])) {
+        if (! in_array($stay->status, ['checked_in', 'checked_out'], true)) {
             throw new RuntimeException('Form C is opened at check-in.');
         }
         $cfg = self::cfg();
@@ -222,7 +222,7 @@ class FormCService
         };
 
         return array_filter([
-            'surname' => $g->last_name ?: null, 'given_name' => $g->first_name ?: null, 'gender' => in_array($gender, ['M', 'F']) ? $gender : ($gender === 'O' ? 'X' : null),
+            'surname' => $g->last_name ?: null, 'given_name' => $g->first_name ?: null, 'gender' => in_array($gender, ['M', 'F'], true) ? $gender : ($gender === 'O' ? 'X' : null),
             'dob' => $g->dob?->toDateString(), 'nationality' => $g->nationality, 'passport_no' => $passport ? strtoupper(preg_replace('/\s+/', '', $passport)) : null,
             'visa_expires_on' => $g->visa_expiry?->toDateString(), 'phone' => $g->phone, 'purpose' => $purpose,
             'address_abroad' => collect([$g->address, $g->city, $g->state, $g->pincode, $g->country])->filter()->implode(', ') ?: null,
@@ -248,7 +248,7 @@ class FormCService
             if ($k === 'visa_type' && $noVisa && ! $f->visa_type) {
                 continue;
             }
-            if ($k === 'visa_expires_on' && in_array($f->visa_type, ['oci', 'diplomatic'])) {
+            if ($k === 'visa_expires_on' && in_array($f->visa_type, ['oci', 'diplomatic'], true)) {
                 continue; // OCI cards are for life; diplomatic visas carry no fixed expiry on the form
             }
             if (blank($f->{$k})) {
@@ -434,7 +434,7 @@ class FormCService
 
     public static function reopen(FormCRecord $f, string $reason): FormCRecord
     {
-        if (! in_array($f->status, ['submitted', 'exempt'])) {
+        if (! in_array($f->status, ['submitted', 'exempt'], true)) {
             throw new RuntimeException('This Form C is already open.');
         }
         if ($f->departure_submitted_at) {

@@ -44,14 +44,14 @@ class MessageController extends Controller
             'clear_secrets' => 'nullable|array',
         ]);
         foreach (self::PLAIN as $k) {
-            $val = in_array($k, ['sms_enabled', 'sms_auto_confirmation', 'sms_auto_thankyou']) ? ($request->boolean($k) ? '1' : '0') : ($data[$k] ?? null);
+            $val = in_array($k, ['sms_enabled', 'sms_auto_confirmation', 'sms_auto_thankyou'], true) ? ($request->boolean($k) ? '1' : '0') : ($data[$k] ?? null);
             if ($k === 'sms_default_country_code') {
                 $val = '+'.ltrim($val, '+');
             }
             Setting::updateOrCreate(['key' => $k], ['value' => $val]);
         }
         foreach (MessageService::SECRETS as $k) {
-            if (in_array($k, $data['clear_secrets'] ?? [])) {
+            if (in_array($k, $data['clear_secrets'] ?? [], true)) {
                 Setting::where('key', $k)->get()->each->delete();
             } else {
                 MessageService::storeSecret($k, $data[$k] ?? null);

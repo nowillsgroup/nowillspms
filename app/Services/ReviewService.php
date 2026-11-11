@@ -247,8 +247,8 @@ class ReviewService
     public static function render(ReviewTemplate $t, OnlineReview $r): string
     {
         $asp = (array) $r->aspects;
-        $liked = self::listJoin(array_values(array_map(fn ($d) => self::PHRASES[$d], array_keys(array_filter($asp, fn ($s, $d) => in_array($s, ['positive', 'mixed']) && isset(self::PHRASES[$d]), ARRAY_FILTER_USE_BOTH)))));
-        $disliked = self::listJoin(array_values(array_map(fn ($d) => self::PHRASES[$d], array_keys(array_filter($asp, fn ($s, $d) => in_array($s, ['negative', 'mixed']) && isset(self::PHRASES[$d]), ARRAY_FILTER_USE_BOTH)))));
+        $liked = self::listJoin(array_values(array_map(fn ($d) => self::PHRASES[$d], array_keys(array_filter($asp, fn ($s, $d) => in_array($s, ['positive', 'mixed'], true) && isset(self::PHRASES[$d]), ARRAY_FILTER_USE_BOTH)))));
+        $disliked = self::listJoin(array_values(array_map(fn ($d) => self::PHRASES[$d], array_keys(array_filter($asp, fn ($s, $d) => in_array($s, ['negative', 'mixed'], true) && isset(self::PHRASES[$d]), ARRAY_FILTER_USE_BOTH)))));
         $first = trim(explode(' ', trim($r->reviewer_name))[0]) ?: 'Guest';
 
         return strtr($t->body, ['{reviewer}' => $first, '{hotel}' => hotel()->name, '{signature}' => (string) setting('fb_signature', 'Guest Relations Manager'),

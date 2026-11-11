@@ -105,7 +105,7 @@ class OrganiserAdminController extends Controller
 
     public function requests(Request $r)
     {
-        $status = in_array($r->query('status'), ['pending', 'approved', 'declined', 'done', 'withdrawn', 'all']) ? $r->query('status') : 'pending';
+        $status = in_array($r->query('status'), ['pending', 'approved', 'declined', 'done', 'withdrawn', 'all'], true) ? $r->query('status') : 'pending';
         $q = OrganiserRequest::with('company', 'organiserUser', 'event.company', 'decider')
             ->when($status !== 'all', fn ($w) => $w->where('status', $status))
             ->when(isset(OrganiserRequest::TYPES[$r->query('type')]), fn ($w) => $w->where('type', $r->query('type')));

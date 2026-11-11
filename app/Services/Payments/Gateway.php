@@ -39,12 +39,12 @@ abstract class Gateway
 
     public static function minor(float $amount, string $currency): int
     {
-        return (int) round($amount * (in_array(strtoupper($currency), self::ZERO_DECIMAL) ? 1 : 100));
+        return (int) round($amount * (in_array(strtoupper($currency), self::ZERO_DECIMAL, true) ? 1 : 100));
     }
 
     public static function major(int|float|string|null $minor, string $currency): ?float
     {
-        return $minor === null ? null : round((float) $minor / (in_array(strtoupper($currency), self::ZERO_DECIMAL) ? 1 : 100), 2);
+        return $minor === null ? null : round((float) $minor / (in_array(strtoupper($currency), self::ZERO_DECIMAL, true) ? 1 : 100), 2);
     }
 
     protected function http()

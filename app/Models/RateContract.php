@@ -77,7 +77,7 @@ class RateContract extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['draft', 'suspended']);
+        return in_array($this->status, ['draft', 'suspended'], true);
     }
 
     public function basisLabel(): string

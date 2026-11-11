@@ -30,7 +30,7 @@ class BackupService
     public static function tables(): array
     {
         return collect(Schema::getTableListing())->map(fn ($t) => str_contains($t, '.') ? explode('.', $t, 2)[1] : $t)
-            ->reject(fn ($t) => in_array($t, self::SKIP))->values()->all();
+            ->reject(fn ($t) => in_array($t, self::SKIP, true))->values()->all();
     }
 
     public static function full(?string $file = null): string
@@ -85,7 +85,7 @@ class BackupService
     {
         $pdo = DB::connection()->getPdo();
         $cols = Schema::getColumnListing($table);
-        $order = in_array('id', $cols) ? 'id' : $cols[0];
+        $order = in_array('id', $cols, true) ? 'id' : $cols[0];
         $query->orderBy($order)->chunk(500, function ($rows) use ($fh, $table, $pdo, $blank) {
             $vals = [];
             foreach ($rows as $r) {
@@ -111,8 +111,11 @@ class BackupService
         $n = 0;
         foreach (glob(self::dir().'/*.sql') as $f) {
             if (filemtime($f) < now()->subDays($days)->getTimestamp()) {
-                @unlink($f);
-                $n++;
+                if (unlink($f)) {
+                    $n++;
+                } else {
+                    logger()->warning('Could not prune an expired database backup.', ['path' => $f]);
+                }
             }
         }
 

@@ -56,7 +56,7 @@ class LaundryService
             throw new RuntimeException('Enter the customer\'s name.');
         }
         $req = ! empty($d['guest_request_id']) ? GuestRequest::find($d['guest_request_id']) : null;
-        if ($req && ($req->category !== 'laundry' || ! in_array($req->status, GuestRequest::OPEN))) {
+        if ($req && ($req->category !== 'laundry' || ! in_array($req->status, GuestRequest::OPEN, true))) {
             throw new RuntimeException('That guest request is not an open laundry request.');
         }
         if ($req && $stay && (int) $req->reservation_room_id !== (int) $stay->id) {
@@ -228,7 +228,7 @@ class LaundryService
      */
     public static function deliver(LaundryOrder $o, ?int $paymentModeId = null, ?string $reference = null, ?array $cheque = null, array $payments = [], ?string $settle = null): LaundryOrder
     {
-        if (! in_array($o->status, ['processing', 'ready'])) {
+        if (! in_array($o->status, ['processing', 'ready'], true)) {
             throw new RuntimeException($o->status === 'collected' ? 'Add the items before delivering.' : "Laundry {$o->order_no} is already {$o->statusLabel()}.");
         }
         if ((float) $o->total <= 0) {
@@ -313,7 +313,7 @@ class LaundryService
             }
             $o->forceFill(['status' => 'delivered', 'delivered_at' => now(), 'delivered_by' => auth()->id(), 'folio_id' => $folio->id,
                 'folio_transaction_id' => $tx->id, 'payment_mode_id' => $direct && ! $payments ? $paymentModeId : null])->save();
-            if ($o->guest_request_id && ($req = GuestRequest::find($o->guest_request_id)) && in_array($req->status, GuestRequest::OPEN)) {
+            if ($o->guest_request_id && ($req = GuestRequest::find($o->guest_request_id)) && in_array($req->status, GuestRequest::OPEN, true)) {
                 GuestPortalService::transition($req, 'done', "Laundry delivered – {$o->pieces} pcs");
             }
             ActivityLogger::log('laundry', 'deliver', "Laundry {$o->order_no} delivered – ".money($quote['total'])

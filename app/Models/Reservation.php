@@ -37,7 +37,7 @@ class Reservation extends Model
         }
         if ($st->contains('checked_in')) {
             $this->status = 'checked_in';
-        } elseif ($st->every(fn ($s) => in_array($s, ['checked_out', 'cancelled', 'no_show'])) && $st->contains('checked_out')) {
+        } elseif ($st->every(fn ($s) => in_array($s, ['checked_out', 'cancelled', 'no_show'], true)) && $st->contains('checked_out')) {
             $this->status = 'checked_out';
         } elseif ($st->every(fn ($s) => $s === 'cancelled')) {
             $this->status = 'cancelled';
@@ -182,7 +182,7 @@ class Reservation extends Model
 
     public function onlineCheckinOpen(): bool
     {
-        return in_array($this->status, ['confirmed', 'tentative']) && $this->departure_date->gt(bdate()) && setting('online_checkin_enabled', '1') === '1';
+        return in_array($this->status, ['confirmed', 'tentative'], true) && $this->departure_date->gt(bdate()) && setting('online_checkin_enabled', '1') === '1';
     }
 
     public function commissions()

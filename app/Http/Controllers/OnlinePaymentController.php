@@ -75,7 +75,7 @@ class OnlinePaymentController extends Controller
         ]);
         $r = ! empty($data['reservation_id']) ? Reservation::find($data['reservation_id']) : null;
         $f = ! empty($data['folio_id']) ? Folio::find($data['folio_id']) : null;
-        if (in_array('email', $data['send'] ?? []) && ! (($data['email'] ?? null) ?: ($f?->guest ?? $r?->guest)?->email)) {
+        if (in_array('email', $data['send'] ?? [], true) && ! (($data['email'] ?? null) ?: ($f?->guest ?? $r?->guest)?->email)) {
             return back()->withInput()->with('error', 'No e-mail address – enter one to send the link by e-mail.');
         }
         $p = Svc::create($data, $r, $f);
@@ -205,7 +205,7 @@ class OnlinePaymentController extends Controller
             'pay_razorpay_key_secret' => 'nullable|string|max:200', 'pay_razorpay_webhook_secret' => 'nullable|string|max:200', 'clear_secrets' => 'nullable|array',
         ]);
         foreach (self::PLAIN as $k) {
-            $val = in_array($k, ['pay_enabled', 'pay_portal_enabled', 'pay_receipt_email']) ? ($request->boolean($k) ? '1' : '0') : ($data[$k] ?? null);
+            $val = in_array($k, ['pay_enabled', 'pay_portal_enabled', 'pay_receipt_email'], true) ? ($request->boolean($k) ? '1' : '0') : ($data[$k] ?? null);
             Setting::updateOrCreate(['key' => $k], ['value' => $val]);
         }
         Svc::saveSecrets($data, $data['clear_secrets'] ?? []);

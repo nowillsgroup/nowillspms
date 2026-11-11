@@ -41,6 +41,6 @@ class RoomBlock extends Model
     /** Holds inventory only while tentative/definite and before release. */
     public function isHolding(): bool
     {
-        return in_array($this->status, ['tentative', 'definite']);
+        return in_array($this->status, ['tentative', 'definite'], true);
     }
 }

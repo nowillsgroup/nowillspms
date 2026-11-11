@@ -510,7 +510,7 @@ class ForexService
     {
         $stay = ReservationRoom::with('reservation.guest', 'guest', 'room')->findOrFail($d['reservation_room_id']);
         $c = Currency::find($d['currency_id']);
-        $payout = in_array($d['payout'] ?? '', ['cash', 'folio']) ? $d['payout'] : 'cash';
+        $payout = in_array($d['payout'] ?? '', ['cash', 'folio'], true) ? $d['payout'] : 'cash';
         $fc = round((float) $d['fc_amount'], 2);
         $g = FormCService::stayGuest($stay);
         $passport = trim((string) ($d['passport_no'] ?? '')) ?: null;
@@ -638,7 +638,7 @@ class ForexService
             throw new RuntimeException('The books are locked up to '.Carbon::parse($lock)->format('d M Y').'.');
         }
         $mode = PaymentMode::find($d['payment_mode_id'] ?? 0);
-        if (! $mode || in_array($mode->type, ['forex', 'city_ledger', 'gift_voucher'])) {
+        if (! $mode || in_array($mode->type, ['forex', 'city_ledger', 'gift_voucher'], true)) {
             throw new RuntimeException('Choose where the cedis were received (bank or cash).');
         }
         $pos = self::position()->keyBy('currency_id');

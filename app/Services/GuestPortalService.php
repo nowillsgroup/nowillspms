@@ -85,7 +85,7 @@ class GuestPortalService
         $item = trim((string) ($d['item'] ?? ''));
         $notes = trim((string) ($d['notes'] ?? '')) ?: null;
         $items = self::items($cat);
-        if (in_array($cat, ['front_desk', 'wakeup', 'late_checkout', 'checkout'])) {
+        if (in_array($cat, ['front_desk', 'wakeup', 'late_checkout', 'checkout'], true)) {
             $item = $items[0];
         } elseif (! in_array($item, $items, true)) {
             throw new RuntimeException('Please choose an item from the list.');
@@ -94,7 +94,7 @@ class GuestPortalService
             throw new RuntimeException('Please describe what you need.');
         }
         $when = ! empty($d['preferred_at']) ? Carbon::parse($d['preferred_at']) : null;
-        if (in_array($cat, ['wakeup', 'transport']) && ! $when) {
+        if (in_array($cat, ['wakeup', 'transport'], true) && ! $when) {
             throw new RuntimeException('Please choose a date and time.');
         }
         if ($when && $when->lt(now()->subMinutes(5))) {
@@ -129,8 +129,8 @@ class GuestPortalService
             }
             $req = GuestRequest::create([
                 'request_no' => Numbering::next('guest_request'), 'reservation_room_id' => $stay->id, 'room_id' => $stay->room_id,
-                'category' => $cat, 'item' => $item, 'quantity' => in_array($cat, ['amenity']) ? $qty : 1, 'notes' => $notes, 'preferred_at' => $when,
-                'priority' => ($cat === 'maintenance' && in_array($item, self::URGENT)) || $cat === 'checkout' ? 'high' : 'normal',
+                'category' => $cat, 'item' => $item, 'quantity' => in_array($cat, ['amenity'], true) ? $qty : 1, 'notes' => $notes, 'preferred_at' => $when,
+                'priority' => ($cat === 'maintenance' && in_array($item, self::URGENT, true)) || $cat === 'checkout' ? 'high' : 'normal',
                 'source' => $source, 'status' => 'new', 'handled_by' => $source === 'staff' ? auth()->id() : null,
             ]);
             self::link($req, $stay);
@@ -156,7 +156,7 @@ class GuestPortalService
             ]);
             $req->forceFill(['linked_type' => 'MaintenanceRequest', 'linked_id' => $t->id])->save();
         }
-        if ($req->category === 'housekeeping' && in_array($req->item, ['Clean my room now', 'Turn-down service', 'Change bed linen']) && $stay->room_id) {
+        if ($req->category === 'housekeeping' && in_array($req->item, ['Clean my room now', 'Turn-down service', 'Change bed linen'], true) && $stay->room_id) {
             $type = match ($req->item) { 'Turn-down service' => 'turndown', 'Change bed linen' => 'linen_change', default => 'cleaning' };
             $task = HousekeepingTask::where('room_id', $stay->room_id)->whereDate('task_date', bdate()->toDateString())->whereIn('status', ['pending', 'in_progress'])
                 ->when($type !== 'cleaning', fn ($q) => $q->where('task_type', $type))->first();
@@ -224,7 +224,7 @@ class GuestPortalService
             GuestRequest::where('reservation_room_id', $stay->id)->whereIn('status', GuestRequest::OPEN)
                 ->where(fn ($q) => $q->whereNull('linked_type')->orWhere('linked_type', '!=', 'TransportTrip')) // v3.3: the trip closes its own request
                 ->orderBy('id')->lockForUpdate()->get()->each(function ($r) {
-                    $done = in_array($r->category, ['checkout', 'late_checkout']);
+                    $done = in_array($r->category, ['checkout', 'late_checkout'], true);
                     $r->forceFill(['status' => $done ? 'done' : 'cancelled', 'completed_at' => now(), 'acknowledged_at' => $r->acknowledged_at ?? now(),
                         'staff_note' => $r->staff_note ?? ($done ? 'Checked out' : 'Closed at check-out')])->save();
                 });
@@ -305,7 +305,7 @@ class GuestPortalService
 
     public static function needsTherapist(SpaService $s): bool
     {
-        return in_array($s->category, ['spa', 'salon']);
+        return in_array($s->category, ['spa', 'salon'], true);
     }
 
     /** Free start times for a service on a date, with the therapist/room that would be assigned. */

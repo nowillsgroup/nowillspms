@@ -57,6 +57,6 @@ class MaintenanceRequest extends Model
 
     public function isOpen(): bool
     {
-        return in_array($this->status, ['open', 'in_progress']);
+        return in_array($this->status, ['open', 'in_progress'], true);
     }
 }

@@ -155,14 +155,14 @@ class PurchaseOrder extends Model
     /** Whether the supplier bill can be matched now: all goods in (or the balance short-closed). */
     public function billable(): bool
     {
-        return in_array($this->status, ['received', 'closed']) && $this->receivedValue() > 0;
+        return in_array($this->status, ['received', 'closed'], true) && $this->receivedValue() > 0;
     }
 
     public function isOverdue(?string $on = null): bool
     {
         $on ??= bdate()->toDateString();
 
-        return in_array($this->status, ['approved', 'partial']) && $this->expected_date && $this->expected_date->toDateString() < $on;
+        return in_array($this->status, ['approved', 'partial'], true) && $this->expected_date && $this->expected_date->toDateString() < $on;
     }
 
     public function creator()

@@ -396,12 +396,12 @@ class FeedbackService
         $name = $inv->guest?->first_name ?: 'Guest';
         $ok = false;
         $errors = [];
-        if (in_array($inv->channel, ['email', 'both'])) {
+        if (in_array($inv->channel, ['email', 'both'], true)) {
             $log = MailService::send($inv->to_email, new SurveyInvite($inv, $hotel, $url, $reminder), $reminder ? 'survey_reminder' : 'survey', $inv);
             $ok = $ok || $log->status === 'sent';
             $log->status === 'sent' || $errors[] = 'E-mail: '.$log->error;
         }
-        if (in_array($inv->channel, ['sms', 'both'])) {
+        if (in_array($inv->channel, ['sms', 'both'], true)) {
             $body = ($reminder ? "Reminder: " : '')."Dear {$name}, thank you for staying at {$hotel->name}. How did we do? One minute: {$url}";
             $log = MessageService::send($inv->to_phone, $body, MessageService::defaultChannel(), $reminder ? 'survey_reminder' : 'survey', $inv);
             $ok = $ok || $log->status === 'sent';
@@ -502,7 +502,7 @@ class FeedbackService
                     continue;
                 }
                 FeedbackAnswer::create(['feedback_id' => $f->id, 'question_id' => $q->id,
-                    'value_int' => in_array($q->type, ['nps', 'rating', 'yesno']) ? (int) $v : null, 'value_text' => in_array($q->type, ['text', 'choice']) ? (string) $v : null]);
+                    'value_int' => in_array($q->type, ['nps', 'rating', 'yesno'], true) ? (int) $v : null, 'value_text' => in_array($q->type, ['text', 'choice'], true) ? (string) $v : null]);
             }
             $inv->forceFill(['status' => 'completed', 'completed_at' => now(), 'opened_at' => $inv->opened_at ?? now()])->save();
 
@@ -588,8 +588,8 @@ class FeedbackService
         foreach (collect($fb)->concat(collect($rev)) as $x) {
             foreach ((array) $x->aspects as $d => $s) {
                 if (isset($out[$d])) {
-                    $out[$d]['pos'] += in_array($s, ['positive', 'mixed']) ? 1 : 0;
-                    $out[$d]['neg'] += in_array($s, ['negative', 'mixed']) ? 1 : 0;
+                    $out[$d]['pos'] += in_array($s, ['positive', 'mixed'], true) ? 1 : 0;
+                    $out[$d]['neg'] += in_array($s, ['negative', 'mixed'], true) ? 1 : 0;
                 }
             }
         }

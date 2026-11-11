@@ -568,7 +568,7 @@ class OrganiserService
     /** Change / quote requests: staff did what was asked and close it with a note for the organiser. */
     public static function complete(OrganiserRequest $q, User $by, string $note): void
     {
-        self::need(in_array($q->type, ['change', 'quote']) && $q->status === 'pending', 'Only a pending change or quote request can be completed.');
+        self::need(in_array($q->type, ['change', 'quote'], true) && $q->status === 'pending', 'Only a pending change or quote request can be completed.');
         $note = trim($note);
         self::need(mb_strlen($note) >= 3, 'Add a short note for the organiser (what was changed / quoted).');
         $q->update(['status' => 'done', 'decided_by' => $by->id, 'decided_at' => now(), 'decision_note' => mb_substr($note, 0, 500)]);

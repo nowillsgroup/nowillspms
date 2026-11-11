@@ -61,6 +61,6 @@ class SurveyInvitation extends Model
 
     public function isOpen(): bool
     {
-        return in_array($this->status, ['sent', 'opened']) && (! $this->expires_at || $this->expires_at->isFuture());
+        return in_array($this->status, ['sent', 'opened'], true) && (! $this->expires_at || $this->expires_at->isFuture());
     }
 }

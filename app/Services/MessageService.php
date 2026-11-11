@@ -107,7 +107,7 @@ class MessageService
             if (setting('sms_enabled', '0') !== '1' && $driver !== 'log') {
                 throw new \InvalidArgumentException('Messaging is switched off in Messaging settings.');
             }
-            if ($log->channel === 'whatsapp' && ! in_array($driver, ['twilio', 'http', 'log'])) {
+            if ($log->channel === 'whatsapp' && ! in_array($driver, ['twilio', 'http', 'log'], true)) {
                 throw new \InvalidArgumentException('WhatsApp needs the Twilio or HTTP driver.');
             }
             $log->provider_id = match ($driver) {
@@ -144,7 +144,7 @@ class MessageService
     /** Hooks – only fire when the feature is on and the guest has a phone number. */
     public static function autoConfirm(Reservation $r): void
     {
-        if (setting('sms_enabled', '0') === '1' && setting('sms_auto_confirmation', '0') === '1' && in_array($r->status, ['confirmed', 'tentative']) && $r->guest?->phone) {
+        if (setting('sms_enabled', '0') === '1' && setting('sms_auto_confirmation', '0') === '1' && in_array($r->status, ['confirmed', 'tentative'], true) && $r->guest?->phone) {
             self::sendTemplate('confirmation', $r, self::defaultChannel());
         }
     }

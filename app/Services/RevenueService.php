@@ -306,7 +306,7 @@ class RevenueService
                 if (! $r || $r->created_at->gt($end)) {
                     return false;
                 }
-                if (in_array($s->status, ['cancelled', 'no_show'])) {
+                if (in_array($s->status, ['cancelled', 'no_show'], true)) {
                     return $r->cancelled_at && $r->cancelled_at->gt($end); // still on the books that night
                 }
 

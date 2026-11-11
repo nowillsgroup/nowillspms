@@ -97,7 +97,7 @@ class AppServiceProvider extends ServiceProvider
 
         // v1.7 guest portal: a finished maintenance ticket / housekeeping task completes the guest's linked request.
         \App\Models\MaintenanceRequest::updated(function ($t) {
-            if ($t->wasChanged('status') && in_array($t->status, ['resolved', 'closed'])) {
+            if ($t->wasChanged('status') && in_array($t->status, ['resolved', 'closed'], true)) {
                 \App\Services\GuestPortalService::syncFromLinked('MaintenanceRequest', $t->id);
             }
         });

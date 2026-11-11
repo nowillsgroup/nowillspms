@@ -60,6 +60,6 @@ class SpaAppointment extends Model
 
     public function isOpen(): bool
     {
-        return in_array($this->status, ['booked', 'in_progress']);
+        return in_array($this->status, ['booked', 'in_progress'], true);
     }
 }

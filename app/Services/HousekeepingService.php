@@ -91,7 +91,7 @@ class HousekeepingService
                 if ($staff->isNotEmpty()) {
                     $min = min($load);
                     // prefer someone already on this floor unless they are clearly busier
-                    $emp = collect($load)->filter(fn ($c, $id) => in_array($room->floor_id, $floorsOf[$id] ?? []) && $c <= $min + 1)->sort()->keys()->first()
+                    $emp = collect($load)->filter(fn ($c, $id) => in_array($room->floor_id, $floorsOf[$id] ?? [], true) && $c <= $min + 1)->sort()->keys()->first()
                         ?? collect($load)->sort()->keys()->first();
                     $load[$emp] += $credits;
                     $floorsOf[$emp][] = $room->floor_id;

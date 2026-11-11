@@ -167,7 +167,7 @@ class ChartOfAccounts
         foreach (self::SYSTEM as $key => $def) {
             [$code, $name, $type, $group] = $def;
             $head = $heads->firstWhere('system_key', $key)
-                ?? $heads->first(fn ($h) => ! $h->system_key && in_array($h->name, $def[4] ?? []))
+                ?? $heads->first(fn ($h) => ! $h->system_key && in_array($h->name, $def[4] ?? [], true))
                 ?? $heads->first(fn ($h) => ! $h->system_key && $h->name === $name);
             if (! $head) {
                 $head = new AccountHead(['name' => $name]);

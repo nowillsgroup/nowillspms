@@ -92,7 +92,7 @@ class StripeGateway extends Gateway
         $acts = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired'];
 
         return ['event_id' => (string) ($e['id'] ?? sha1($request->getContent())), 'event' => $e['type'] ?? 'unknown', 'ref' => $o['id'] ?? null,
-            'result' => in_array($e['type'] ?? '', $acts) ? $this->result($o) : null];
+            'result' => in_array($e['type'] ?? '', $acts, true) ? $this->result($o) : null];
     }
 
     public function refund(OnlinePayment $p, float $amount): array

@@ -162,7 +162,7 @@ class ReservationRoom extends Model
     {
         return match (true) {
             $this->status === 'checked_in' => 'inhouse',
-            $this->status === 'reserved' && in_array($this->reservation?->status, ['confirmed', 'tentative']) => 'upcoming',
+            $this->status === 'reserved' && in_array($this->reservation?->status, ['confirmed', 'tentative'], true) => 'upcoming',
             $this->status === 'checked_out' && $this->checked_out_at && $this->checked_out_at->gt(now()->subDays(max(0, (int) setting('portal_days_after', 2)))) => 'departed',
             default => 'closed',
         };

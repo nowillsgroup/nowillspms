@@ -681,7 +681,7 @@ class FolioController extends Controller
 
     public function addFixed(Request $request, Folio $folio)
     {
-        abort_unless($folio->status === 'open' && $folio->stay && in_array($folio->stay->status, ['reserved', 'checked_in']), 422, 'Fixed charges need an open folio of an active stay.');
+        abort_unless($folio->status === 'open' && $folio->stay && in_array($folio->stay->status, ['reserved', 'checked_in'], true), 422, 'Fixed charges need an open folio of an active stay.');
         $stay = $folio->stay;
         $data = $request->validate([
             'description' => 'required|string|max:120', 'category' => 'required|in:'.implode(',', array_keys(config('pms.charge_categories'))),

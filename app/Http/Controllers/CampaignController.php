@@ -25,11 +25,11 @@ class CampaignController extends Controller
         $tab = array_key_exists($request->show, self::TABS) ? $request->show : 'all';
         $campaigns = MarketingCampaign::with('segment', 'promo', 'creator')
             ->when($tab === 'scheduled', fn ($q) => $q->whereIn('status', ['scheduled', 'sending']))
-            ->when(! in_array($tab, ['all', 'scheduled']), fn ($q) => $q->where('status', $tab))
+            ->when(! in_array($tab, ['all', 'scheduled'], true), fn ($q) => $q->where('status', $tab))
             ->when($request->channel, fn ($q, $c) => $q->where('channel', $c))
             ->when($request->q, fn ($q, $t) => $q->where('name', 'like', "%$t%"))
             ->orderByRaw("FIELD(status, 'sending', 'scheduled', 'draft', 'sent', 'cancelled')")->latest('id')->paginate(20)->withQueryString();
-        $campaigns->getCollection()->each(fn ($c) => $c->stats = in_array($c->status, ['sent', 'sending']) ? CrmService::stats($c) : null);
+        $campaigns->getCollection()->each(fn ($c) => $c->stats = in_array($c->status, ['sent', 'sending'], true) ? CrmService::stats($c) : null);
         $sent = MarketingCampaign::where('status', 'sent')->where('sent_at', '>=', now()->subDays(90))->get();
         $totals = $sent->map(fn ($c) => CrmService::stats($c));
 
@@ -86,7 +86,7 @@ class CampaignController extends Controller
         $sample = $breakdown['sample'] ?? $campaign->messages()->with('guest')->where('status', 'sent')->first()?->guest ?? $this->options()['sample'];
         $preview = $sample ? CrmService::compose($sample, $campaign->channel, $campaign->subject, $campaign->body, $campaign->cta_label, ['promo' => $campaign->promo]) : null;
         $recipients = $campaign->messages()->with('guest', 'reservation')
-            ->when(in_array($request->status, ['sent', 'failed', 'skipped']), fn ($q) => $q->where('status', $request->status))
+            ->when(in_array($request->status, ['sent', 'failed', 'skipped'], true), fn ($q) => $q->where('status', $request->status))
             ->when($request->status === 'clicked', fn ($q) => $q->whereNotNull('clicked_at'))
             ->when($request->status === 'booked', fn ($q) => $q->whereNotNull('reservation_id'))
             ->latest('id')->paginate(25)->withQueryString();

@@ -328,7 +328,7 @@ class IcalService
 
     protected static function cancel(Reservation $r, string $reason): bool
     {
-        if (! in_array($r->status, ['confirmed', 'tentative']) || $r->rooms()->where('status', 'checked_in')->exists()) {
+        if (! in_array($r->status, ['confirmed', 'tentative'], true) || $r->rooms()->where('status', 'checked_in')->exists()) {
             return false;
         }
         $n = $r->rooms()->where('status', 'reserved')->update(['status' => 'cancelled']);

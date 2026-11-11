@@ -220,7 +220,7 @@ class FolioService
                 throw new RuntimeException('Opening receivable balances are cutover records and cannot be voided as historical transactions. Correct an unused row in a new opening_ar batch before the opening TB is posted; otherwise use an approved live settlement or adjustment.');
             }
             IncomeAuditService::assertCanVoid($current); // v5.3: a day closed by the income audit is locked
-            if (in_array($current->source_type, ['online_payment', 'online_refund'])) {
+            if (in_array($current->source_type, ['online_payment', 'online_refund'], true)) {
                 throw new RuntimeException('Online payments and refunds cannot be voided – refund the payment from Billing › Online Payments instead.');
             }
             $current->update(['is_void' => true, 'void_reason' => $reason]);

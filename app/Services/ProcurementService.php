@@ -353,7 +353,7 @@ class ProcurementService
     /** Add a supplier to an RFQ that is already out (and invite them straight away). */
     public static function addSupplier(Rfq $rfq, int $supplierId): RfqSupplier
     {
-        if (! in_array($rfq->status, ['draft', 'sent'])) {
+        if (! in_array($rfq->status, ['draft', 'sent'], true)) {
             throw new RuntimeException('Suppliers can only be added while the RFQ is open.');
         }
         $inv = self::invite($rfq, $supplierId);
@@ -384,7 +384,7 @@ class ProcurementService
     public static function submitQuote(RfqSupplier $inv, array $d, string $source = 'manual'): RfqQuote
     {
         $rfq = $inv->rfq;
-        if ($source === 'portal' ? ! $rfq->acceptingQuotes() : ! in_array($rfq->status, ['sent', 'closed'])) {
+        if ($source === 'portal' ? ! $rfq->acceptingQuotes() : ! in_array($rfq->status, ['sent', 'closed'], true)) {
             throw new RuntimeException($source === 'portal' ? 'This request for quotation is no longer accepting quotes.' : 'Quotes can only be recorded for an RFQ that has been sent.');
         }
         $rfqLines = $rfq->lines()->get()->keyBy('id');
@@ -458,7 +458,7 @@ class ProcurementService
 
     public static function cancel(Rfq $rfq, string $reason): void
     {
-        if (! in_array($rfq->status, Rfq::OPEN)) {
+        if (! in_array($rfq->status, Rfq::OPEN, true)) {
             throw new RuntimeException('This RFQ can no longer be cancelled.');
         }
         $rfq->forceFill(['status' => 'cancelled', 'cancel_reason' => mb_substr($reason, 0, 255)])->save();
@@ -508,7 +508,7 @@ class ProcurementService
      */
     public static function award(Rfq $rfq, array $awards, array $reasons = [], ?string $note = null, bool $updatePrices = false): Collection
     {
-        if (! in_array($rfq->status, ['sent', 'closed'])) {
+        if (! in_array($rfq->status, ['sent', 'closed'], true)) {
             throw new RuntimeException('This RFQ cannot be awarded.');
         }
         $cmp = self::comparative($rfq);
@@ -594,7 +594,7 @@ class ProcurementService
 
         $grn = DB::transaction(function () use ($po, $d, $date) {
             $po = PurchaseOrder::with('items.item', 'supplier')->lockForUpdate()->findOrFail($po->id);
-            if (! in_array($po->status, ['approved', 'partial'])) {
+            if (! in_array($po->status, ['approved', 'partial'], true)) {
                 throw new RuntimeException('Goods can only be received against an approved purchase order.');
             }
             if ($date < $po->po_date->toDateString()) {

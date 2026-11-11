@@ -308,7 +308,7 @@ class EInvoiceService
         $msg = is_string($resp['message'] ?? null) ? $resp['message'] : ($j['message'] ?? ('E-VAT returned HTTP '.$http));
 
         return ['ok' => false, 'code' => (string) ($j['code'] ?? $resp['code'] ?? ('HTTP'.$http)), 'message' => (string) $msg,
-            'retry' => $http >= 500 || in_array($http, [401, 408, 429]), 'raw' => $j];
+            'retry' => $http >= 500 || in_array($http, [401, 408, 429], true), 'raw' => $j];
     }
 
     protected static function graSubmit(array $payload): array

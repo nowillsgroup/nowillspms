@@ -75,7 +75,7 @@ class JourneyController extends Controller
 
         return view('crm.journeys.show', ['j' => $journey, 'stats' => CrmService::stats($journey), 'next' => $next,
             'preview' => $sample ? CrmService::compose($sample, $journey->channel, $journey->subject, $journey->body, $journey->cta_label, $ctx) : null,
-            'messages' => $journey->messages()->with('guest', 'reservation')->when(in_array($request->status, ['sent', 'failed', 'skipped']), fn ($q) => $q->where('status', $request->status))
+            'messages' => $journey->messages()->with('guest', 'reservation')->when(in_array($request->status, ['sent', 'failed', 'skipped'], true), fn ($q) => $q->where('status', $request->status))
                 ->latest('id')->paginate(25)->withQueryString()]);
     }
 

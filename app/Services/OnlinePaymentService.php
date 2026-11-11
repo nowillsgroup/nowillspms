@@ -184,7 +184,7 @@ class OnlinePaymentService
             }
             $r ??= $f->reservation_id ? Reservation::find($f->reservation_id) : null;
         }
-        if ($r && in_array($r->status, ['cancelled', 'no_show', 'checked_out']) && ! $f) {
+        if ($r && in_array($r->status, ['cancelled', 'no_show', 'checked_out'], true) && ! $f) {
             throw new RuntimeException("Reservation {$r->reservation_no} is {$r->status}.");
         }
         $guest = $f?->guest ?? $r?->guest;
@@ -221,7 +221,7 @@ class OnlinePaymentService
     {
         $out = [];
         $p->loadMissing('reservation');
-        if (in_array('email', $channels)) {
+        if (in_array('email', $channels, true)) {
             $log = MailService::send($p->payer_email, new \App\Mail\PaymentRequest($p, hotel()), 'payment_request', $p->reservation);
             $out['email'] = [$log->status === 'sent', $log->status === 'sent' ? "e-mailed to {$log->to_email}" : 'e-mail failed: '.$log->error];
         }
@@ -246,10 +246,10 @@ class OnlinePaymentService
         if (! $p->isPayable()) {
             throw new RuntimeException($p->status === 'paid' ? 'This payment has already been made.' : 'This payment link is no longer valid.');
         }
-        if ($p->reservation && in_array($p->reservation->status, ['cancelled', 'no_show'])) {
+        if ($p->reservation && in_array($p->reservation->status, ['cancelled', 'no_show'], true)) {
             throw new RuntimeException('The reservation for this payment has been cancelled.');
         }
-        if ($p->banquet_event_id && ($e = BanquetEvent::find($p->banquet_event_id)) && in_array($e->status, ['cancelled', 'lost'])) {
+        if ($p->banquet_event_id && ($e = BanquetEvent::find($p->banquet_event_id)) && in_array($e->status, ['cancelled', 'lost'], true)) {
             throw new RuntimeException('The event for this payment has been cancelled.');
         }
         if ($p->provider !== self::provider() || ! self::enabled()) {
@@ -267,7 +267,7 @@ class OnlinePaymentService
     /** Browser came back from the gateway: confirm server-side, never from the query string alone. */
     public static function handleReturn(OnlinePayment $p, array $query): OnlinePayment
     {
-        if (in_array($p->status, ['paid', 'review']) || ! $p->provider_ref) {
+        if (in_array($p->status, ['paid', 'review'], true) || ! $p->provider_ref) {
             return $p;
         }
         try {
@@ -288,7 +288,7 @@ class OnlinePaymentService
         $p = DB::transaction(function () use ($p, $res, $source, $eventId, &$after) {
             $p = OnlinePayment::lockForUpdate()->findOrFail($p->id);
             $state = $res['state'] ?? 'pending';
-            if (in_array($p->status, ['paid', 'review'])) {
+            if (in_array($p->status, ['paid', 'review'], true)) {
                 if ($state === 'paid') {
                     self::log($p, $source, 'duplicate', 'Already '.$p->status.' – ignored', null, null, $eventId);
                 }
@@ -311,7 +311,7 @@ class OnlinePaymentService
             if (strtoupper((string) ($res['currency'] ?? '')) !== $p->currency) {
                 $problems[] = 'currency '.($res['currency'] ?? '?').' instead of '.$p->currency;
             }
-            if (in_array($p->status, ['expired', 'cancelled'])) {
+            if (in_array($p->status, ['expired', 'cancelled'], true)) {
                 $problems[] = 'paid after the link was '.$p->status;
             }
             $p->forceFill(['amount_received' => $amount, 'provider_payment_id' => $res['payment_id'] ?? null, 'fee' => $res['fee'] ?? null,
@@ -642,7 +642,7 @@ class OnlinePaymentService
     {
         OnlinePaymentEvent::create(['online_payment_id' => $p->id, 'provider' => $p->provider, 'source' => $source, 'event' => $event, 'event_id' => $eventId,
             'signature_ok' => $sig ?? ($source === 'webhook' ? true : null), 'result' => $result ? mb_substr($result, 0, 255) : null, 'payload' => $payload,
-            'user_id' => in_array($source, ['staff', 'api']) ? auth()->id() : null]);
+            'user_id' => in_array($source, ['staff', 'api'], true) ? auth()->id() : null]);
     }
 
     /** Expire overdue links (asking the gateway first) and release unpaid online-booking holds. */
@@ -784,7 +784,7 @@ class OnlinePaymentService
     public static function saveSecrets(array $data, array $clear): void
     {
         foreach (self::SECRETS as $k) {
-            if (in_array($k, $clear)) {
+            if (in_array($k, $clear, true)) {
                 Setting::where('key', $k)->get()->each->delete();
             } else {
                 MessageService::storeSecret($k, $data[$k] ?? null);

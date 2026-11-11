@@ -30,7 +30,7 @@ class PartnerAdminController extends Controller
 
     public function company(Company $company)
     {
-        abort_unless(in_array($company->type, ['corporate', 'travel_agent']), 404);
+        abort_unless(in_array($company->type, ['corporate', 'travel_agent'], true), 404);
 
         return view('partner-admin.company', [
             'c' => $company, 'users' => PartnerUser::where('company_id', $company->id)->orderByDesc('is_active')->orderBy('name')->get(),
@@ -83,7 +83,7 @@ class PartnerAdminController extends Controller
 
     public function requests(Request $r)
     {
-        $status = in_array($r->query('status'), ['pending', 'approved', 'declined', 'done', 'withdrawn', 'all']) ? $r->query('status') : 'pending';
+        $status = in_array($r->query('status'), ['pending', 'approved', 'declined', 'done', 'withdrawn', 'all'], true) ? $r->query('status') : 'pending';
         $q = PartnerRequest::with('company', 'partnerUser', 'reservation.rooms.roomType', 'reservation.guest', 'decider')
             ->when($status !== 'all', fn ($w) => $w->where('status', $status))
             ->when(isset(PartnerRequest::TYPES[$r->query('type')]), fn ($w) => $w->where('type', $r->query('type')));

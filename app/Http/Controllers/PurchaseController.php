@@ -273,7 +273,7 @@ class PurchaseController extends Controller
             return back()->with('error', 'Foreign-currency purchase orders must be received through a GRN so the receipt-date rate and local stock value are recorded.');
         }
         $allowed = ['draft' => ['approved', 'cancelled'], 'approved' => ['received', 'cancelled']];
-        abort_unless(in_array($data['status'], $allowed[$po->status] ?? []), 422, 'Invalid status transition.');
+        abort_unless(in_array($data['status'], $allowed[$po->status] ?? [], true), 422, 'Invalid status transition.');
         abort_if($data['status'] !== 'approved' && ! can_do('inventory.manage'), 403); // approvers without store rights can only approve
         if ($data['status'] === 'approved') { // v4.8 approval matrix
             try {

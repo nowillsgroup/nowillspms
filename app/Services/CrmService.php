@@ -87,7 +87,7 @@ class CrmService
                 return null;
             }
             $v = trim((string) ($r['value'] ?? ''));
-            if (in_array($type, ['number', 'text', 'tag']) && $v === '' || ($type === 'month' && $op === 'eq' && ((int) $v < 1 || (int) $v > 12))) {
+            if (in_array($type, ['number', 'text', 'tag'], true) && $v === '' || ($type === 'month' && $op === 'eq' && ((int) $v < 1 || (int) $v > 12))) {
                 return null;
             }
             if ($type === 'number' && ! is_numeric($v)) {
@@ -97,7 +97,7 @@ class CrmService
                 $v = self::normaliseTags($v);
             }
 
-            return ['field' => $f, 'op' => $op, 'value' => in_array($type, ['bool']) || ($type === 'month' && $op !== 'eq') ? null : $v];
+            return ['field' => $f, 'op' => $op, 'value' => in_array($type, ['bool'], true) || ($type === 'month' && $op !== 'eq') ? null : $v];
         })->filter()->values()->all();
     }
 
@@ -355,7 +355,7 @@ class CrmService
 
     protected static function assertSendable(MarketingCampaign $c): void
     {
-        if (! in_array($c->status, ['draft', 'scheduled'])) {
+        if (! in_array($c->status, ['draft', 'scheduled'], true)) {
             throw ValidationException::withMessages(['campaign' => 'This campaign is '.$c->status.'.']);
         }
         if ($c->channel === 'email' && trim((string) $c->subject) === '') {
@@ -520,7 +520,7 @@ class CrmService
         if (Carbon::parse($arrival)->diffInDays(Carbon::parse($departure)) < $p->min_nights) {
             $fail("Promo {$p->code} needs a stay of at least {$p->min_nights} nights.");
         }
-        if ($p->room_type_ids && ! in_array($roomTypeId, array_map('intval', $p->room_type_ids))) {
+        if ($p->room_type_ids && ! in_array($roomTypeId, array_map('intval', $p->room_type_ids), true)) {
             $fail("Promo {$p->code} does not apply to this room type.");
         }
         if ($p->max_uses && $p->usesCount() >= $p->max_uses) {

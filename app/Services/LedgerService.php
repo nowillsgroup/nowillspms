@@ -272,7 +272,7 @@ class LedgerService
         if ($d->isOpening()) {
             return null; // opening AP control is established once by the full trial-balance cutover
         }
-        if (in_array($d->status, ['on_hold', 'cancelled'])) {
+        if (in_array($d->status, ['on_hold', 'cancelled'], true)) {
             return null;
         }
         $ap = AccountHead::sys('accounts_payable');
@@ -423,7 +423,7 @@ class LedgerService
             $counter = match ($m->type) {
                 'opening' => AccountHead::sys('opening_equity'),
                 'issue', 'consumption' => RequisitionService::expenseHeadFor($m->department_id) ?: AccountHead::sys(match (true) {
-                    in_array($m->store?->type, ['kitchen', 'bar']) || stripos((string) $m->department, 'minibar') !== false => 'cost_fnb',
+                    in_array($m->store?->type, ['kitchen', 'bar'], true) || stripos((string) $m->department, 'minibar') !== false => 'cost_fnb',
                     $m->store?->type === 'housekeeping' => 'cost_hk',
                     default => 'cost_general',
                 }),

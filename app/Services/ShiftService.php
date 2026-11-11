@@ -172,7 +172,7 @@ class ShiftService
         if (! is_finite($counted) || $counted < 0) {
             throw new RuntimeException('Enter the cash counted in the drawer.');
         }
-        $denominations = collect($denominations)->filter(fn ($qty, $value) => in_array((float) $value, self::DENOMINATIONS) && (float) $qty > 0)
+        $denominations = collect($denominations)->filter(fn ($qty, $value) => in_array((float) $value, self::DENOMINATIONS, true) && (float) $qty > 0)
             ->mapWithKeys(fn ($qty, $value) => [(string) $value => (int) $qty])->all();
         if ($denominations) {
             $denomTotal = collect($denominations)->sum(fn ($qty, $value) => (float) $qty * (float) $value);

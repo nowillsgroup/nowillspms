@@ -21,7 +21,7 @@ class AssetController extends Controller
         $status = $request->input('status', 'live');
         $q = Asset::with('category', 'room', 'custodian')->withSum('depLines', 'amount')
             ->when($status === 'live', fn ($w) => $w->where('status', '!=', 'disposed'))
-            ->when(in_array($status, array_keys(Asset::STATUSES)), fn ($w) => $w->where('status', $status))
+            ->when(in_array($status, array_keys(Asset::STATUSES), true), fn ($w) => $w->where('status', $status))
             ->when($request->filled('category'), fn ($w) => $w->where('asset_category_id', $request->integer('category')))
             ->when($request->filled('department'), fn ($w) => $w->where('department', $request->department))
             ->when($request->input('warranty') === 'expiring', fn ($w) => $w->whereDate('warranty_until', '>=', bdate()->toDateString())->whereDate('warranty_until', '<=', bdate()->copy()->addDays(60)->toDateString()))

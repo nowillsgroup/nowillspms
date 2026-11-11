@@ -35,7 +35,7 @@ class AccountHead extends Model
     /** Debit-natured accounts (assets, expenses) show debit balances as positive. */
     public function isDebitNature(): bool
     {
-        return in_array($this->type, ['asset', 'expense']);
+        return in_array($this->type, ['asset', 'expense'], true);
     }
 
     public function getLabelAttribute(): string

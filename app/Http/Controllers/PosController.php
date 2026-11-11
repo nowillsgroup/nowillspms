@@ -496,7 +496,7 @@ class PosController extends Controller
 
     protected function assertEditable(PosOrder $order): void
     {
-        if (! in_array($order->status, ['open', 'billed'])) {
+        if (! in_array($order->status, ['open', 'billed'], true)) {
             throw ValidationException::withMessages(['order' => 'Order is '.$order->status.' and cannot be modified.']);
         }
     }
