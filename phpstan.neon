@@ -9,4 +9,3 @@ parameters:
         - app/Services/WebhookService.php
         - app/Services/Payments
     tmpDir: storage/framework/cache/phpstan
-    checkMissingIterableValueType: false
