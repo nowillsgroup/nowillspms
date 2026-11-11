@@ -47,28 +47,23 @@ class Money
         if ($s === '' || $s === '-' || $s === '.') {
             return new self(0);
         }
-        // bcmath: multiply by 100, round half-up to integer.
-        $scaled = bcmul($s, '100', 2);
-        // Round to nearest integer (half away from zero).
-        $neg = str_starts_with($scaled, '-');
-        $abs = ltrim($scaled, '-');
-        [$int, $frac] = array_pad(explode('.', $abs, 2), 2, '0');
-        $frac = str_pad(substr($frac, 0, 2), 2, '0');
-        $minor = (int) $int * 100 + (int) $frac;
-        // Handle .5+ rounding: bcmath with scale 2 already truncated; check 3rd digit.
-        // Recompute with scale 3 for correct half-up.
-        $scaled3 = bcmul($s, '1000', 3);
-        $neg3 = str_starts_with($scaled3, '-');
-        $abs3 = ltrim($scaled3, '-');
-        [$int3, $frac3] = array_pad(explode('.', $abs3, 2), 2, '0');
-        $frac3 = str_pad($frac3, 3, '0');
-        $minor3 = (int) $int3 * 1000 + (int) substr($frac3, 0, 3);
-        $minor = intdiv($minor3 + 5, 10);
-        if ($neg3) {
-            $minor = -$minor;
+        if (! preg_match('/^([+-]?)(\d+)(?:\.(\d*))?$/', $s, $m)) {
+            throw new \InvalidArgumentException('Invalid decimal money value.');
         }
 
-        return new self($minor);
+        $negative = $m[1] === '-';
+        $whole = (int) $m[2];
+        $fraction = str_pad($m[3] ?? '', 3, '0');
+        $minor = ($whole * 100) + (int) substr($fraction, 0, 2);
+
+        // Decimal half-up, away from zero. Looking at the third decimal digit
+        // avoids binary-float conversion entirely; later digits cannot change
+        // whether the value is at least half a minor unit.
+        if ((int) $fraction[2] >= 5) {
+            $minor++;
+        }
+
+        return new self($negative ? -$minor : $minor);
     }
 
     /** From a legacy float amount (rounded to 2dp). */
