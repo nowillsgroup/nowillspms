@@ -22,5 +22,5 @@
 </tbody></table></div></div>
 @if($items->count())<button class="btn btn-primary">Save round</button>@endif
 </form>
-<script>document.getElementById('hseAllPass')?.addEventListener('click', () => document.querySelectorAll('#hseRoundTable input[value=pass]').forEach(r => { if (!r.closest('tr').querySelector('input[value=fail]').checked) r.checked = true; }));</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.getElementById('hseAllPass')?.addEventListener('click', () => document.querySelectorAll('#hseRoundTable input[value=pass]').forEach(r => { if (!r.closest('tr').querySelector('input[value=fail]').checked) r.checked = true; }));</script>
 @endsection

@@ -37,7 +37,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Change price</button></div>
 </form></div></div>
 @endif
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const fmt = v => 'GH\u20B5' + v.toLocaleString('en-GH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   function calc(tr) {

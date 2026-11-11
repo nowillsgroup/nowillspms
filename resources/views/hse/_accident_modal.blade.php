@@ -23,7 +23,7 @@
   <p class="tiny muted mt-1">Deaths, injuries keeping staff or contractors off full-wage work for more than 3 days, and every fire, explosion, collapse or lift / hoist failure must be notified forthwith to the Factories Inspectorate (Factories, Offices and Shops Act 1970, ss. 10–11).</p></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Record</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('hseAccidentForm'); if (!f) return;
   const sync = () => {

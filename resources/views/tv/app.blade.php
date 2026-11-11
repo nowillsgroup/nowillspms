@@ -104,7 +104,7 @@
   </section>
 @endif
 </div>
-<script type="application/json" id="tvBoot">{!! json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
+<script nonce="{{ $cspNonce ?? '' }}" type="application/json" id="tvBoot">{!! json_encode($boot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
 <noscript><div class="tv-setup"><h1>{{ $hotel->name }}</h1><p class="tv-lead">This TV needs JavaScript switched on.</p></div></noscript>
-<script src="{{ asset('js/tv.js') }}?v={{ config('pms.version') }}-luxury-welcome-full-home-preview"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/tv.js') }}?v={{ config('pms.version') }}-luxury-welcome-full-home-preview"></script>
 </body></html>

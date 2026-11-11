@@ -166,7 +166,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('issueForm'); if (!f) return;
   const book = f.querySelector('#isBook'), pay = f.querySelector('#isPay');

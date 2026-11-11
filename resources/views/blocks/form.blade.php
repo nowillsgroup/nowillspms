@@ -171,7 +171,7 @@ body.dark .gbf-form-footer{background:color-mix(in srgb,var(--c-surface) 92%,tra
 </style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const roomInputs = [...document.querySelectorAll('[data-block-room-count]')];
   const arrival = document.getElementById('f_arrival_date');

@@ -36,6 +36,9 @@ return [
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
+    // Staff session idle timeout (minutes). 0 disables. See CheckIdleTimeout middleware.
+    'idle_timeout' => (int) env('SESSION_IDLE_TIMEOUT', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Session Encryption

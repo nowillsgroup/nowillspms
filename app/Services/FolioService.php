@@ -6,6 +6,7 @@ use App\Models\Folio;
 use App\Models\FolioTransaction;
 use App\Models\PaymentMode;
 use App\Models\ReservationRoom;
+use App\Support\Money;
 use App\Support\Numbering;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -52,6 +53,9 @@ class FolioService
 
     public static function charge(Folio $folio, string $category, string $description, float $amount, ?bool $applyTax = true, array $extra = []): FolioTransaction
     {
+        // Decimal-exact rounding at the boundary (no binary-float drift).
+        $amount = Money::fromFloat($amount)->toFloat();
+
         return DB::transaction(function () use ($folio, $category, $description, $amount, $applyTax, $extra) {
             // Serialize charge posting with settlement/close so an opening-only
             // folio cannot be closed without its newly posted charges being
@@ -60,7 +64,7 @@ class FolioService
             self::assertOpen($folio);
             $tax = $applyTax ? TaxService::forCategory($category, $amount) : ['rate' => 0, 'amount' => 0];
             if (isset($extra['tax_rate'])) {
-                $tax = ['rate' => $extra['tax_rate'], 'amount' => round($amount * $extra['tax_rate'] / 100, 2)];
+                $tax = ['rate' => $extra['tax_rate'], 'amount' => Money::fromFloat($amount * $extra['tax_rate'] / 100)->toFloat()];
                 unset($extra['tax_rate']);
             }
 
@@ -70,8 +74,8 @@ class FolioService
                 'type' => 'charge',
                 'category' => $category,
                 'description' => $description,
-                'amount' => round($amount, 2),
-                'tax_amount' => $tax['amount'],
+                'amount' => $amount,
+                'tax_amount' => Money::fromFloat((float) $tax['amount'])->toFloat(),
                 'tax_rate' => $tax['rate'],
                 'posted_by' => auth()->id(),
             ], $extra));
@@ -81,6 +85,7 @@ class FolioService
     /** $lockedMode, if supplied, must be validated and locked in the caller's transaction. */
     public static function payment(Folio $folio, float $amount, int $paymentModeId, ?string $reference = null, string $category = 'settlement', string $type = 'payment', ?array $cheque = null, ?PaymentMode $lockedMode = null): FolioTransaction
     {
+        $amount = Money::fromFloat($amount)->toFloat();
         if ($amount <= 0) {
             throw new RuntimeException('Amount must be greater than zero.');
         }
@@ -108,7 +113,7 @@ class FolioService
                 'type' => $type,
                 'category' => $category,
                 'description' => $type === 'refund' ? 'Refund' : ($category === 'advance' ? 'Advance Received' : 'Payment Received'),
-                'amount' => round($amount, 2),
+                'amount' => $amount,
                 'payment_mode_id' => $paymentModeId,
                 'reference' => $reference,
                 'posted_by' => auth()->id(),
@@ -154,14 +159,14 @@ class FolioService
     {
         return DB::transaction(function () use ($folio, $value, $reason, $percent) {
             $folio = self::lockOpen($folio);
-            $amount = $percent ? round($folio->totals(self::lockedTransactions($folio))['charges'] * min(100, $value) / 100, 2) : $value;
+            $amount = $percent ? Money::fromFloat($folio->totals(self::lockedTransactions($folio))['charges'] * min(100, $value) / 100)->toFloat() : Money::fromFloat($value)->toFloat();
 
             return $folio->transactions()->create([
                 'hotel_id' => $folio->hotel_id,
                 'business_date' => bdate()->toDateString(),
                 'type' => 'discount', 'category' => 'misc',
                 'description' => 'Discount: '.$reason,
-                'amount' => round($amount, 2),
+                'amount' => $amount,
                 'posted_by' => auth()->id(),
             ]);
         });
@@ -239,7 +244,10 @@ class FolioService
             $openingOnly = $lines->contains(fn ($line) => $line->source_type === 'opening_ar' && $line->type === 'opening_balance')
                 && ! $lines->contains(fn ($line) => ! $line->is_void && $line->type === 'charge');
             $balance = $folio->totals($lines)['balance'];
-            if (abs($balance) > 0.009) {
+            // Decimal-exact zero check (totals are now Money-based, so no
+            // float tolerance is needed). 0.005 allows a half-cent rounding
+            // residue from legacy float postings without hiding real balances.
+            if (abs($balance) > 0.005) {
                 throw new RuntimeException('Folio balance must be zero before closing. Balance: '.money($balance));
             }
             $folio->update([

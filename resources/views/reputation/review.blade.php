@@ -54,8 +54,8 @@
         </form>
         <details class="mt-2"><summary class="small muted">No response needed?</summary>
           <form method="post" action="{{ route('rep.reviews.ignore', $r) }}" class="flex gap-1 mt-1">@csrf<input name="ignore_reason" placeholder="Reason, e.g. duplicate / spam / not our hotel" required maxlength="160" style="flex:1"><button class="btn" id="ignoreBtn">Mark "no response"</button></form></details>
-        <script type="application/json" id="tplData">@json($templates)</script>
-        <script>
+        <script nonce="{{ $cspNonce ?? '' }}" type="application/json" id="tplData">@json($templates)</script>
+        <script nonce="{{ $cspNonce ?? '' }}">
         document.addEventListener('DOMContentLoaded', function () {
           const ta = document.getElementById('f_response_text'), cc = document.getElementById('charCount'), data = JSON.parse(document.getElementById('tplData').textContent || '{}');
           const count = () => cc.textContent = ta.value.length; ta.addEventListener('input', count); count();
@@ -81,7 +81,7 @@
     </div></div></div>
   </div>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('click', function (e) { const b = e.target.closest('[data-copy]'); if (!b) return; const t = document.getElementById(b.dataset.copy).innerText;
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied ✓'; }).catch(() => { b.textContent = 'Select the text and copy'; }); });
 </script>

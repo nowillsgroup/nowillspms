@@ -32,7 +32,7 @@
 </form>
 <p class="small muted">A cost centre is the department a line is charged to; it drives the departmental budgets and reports. @if($requireCc)<b>Budget settings require one on every expense line.</b>@endif Each line carries either a debit or a credit. The journal can be dated after the lock date ({{ \App\Services\LedgerService::lockDate() ?: 'none' }}) and up to the current business date. Posted journals are never edited – use Reverse.</p>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const body = document.querySelector('#jvLines tbody'), post = document.getElementById('postJv');
   const ccRequired = {{ $requireCc ? 'true' : 'false' }};

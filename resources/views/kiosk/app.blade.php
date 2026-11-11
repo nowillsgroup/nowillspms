@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><meta name="robots" content="noindex, nofollow">
-<title>{{ $hotel->name }} – self-service</title><link rel="stylesheet" href="{{ asset('css/kiosk.css') }}?v=7.2.0"></head>
+<title>{{ $hotel->name }} – self-service</title><link rel="stylesheet" href="{{ asset('css/kiosk.css') }}?v={{ config('pms.version') }}"></head>
 <body class="ksk">
 <div id="ksk" data-base="{{ $base }}" data-idle="{{ $cfg['idle'] }}" data-hotel="{{ $hotel->name }}" data-currency="GH₵">
   <header class="ksk-top">
@@ -13,5 +13,5 @@
   <div class="ksk-idle" id="kskIdle" hidden><div class="ksk-card"><h2>Are you still there?</h2><p>This screen will start over in <b id="kskIdleN">15</b> seconds.</p><button type="button" class="ksk-btn" id="kskIdleStay">I'm still here</button></div></div>
   <div class="ksk-kb" id="kskKb" hidden></div>
 </div>
-<script src="{{ asset('js/kiosk.js') }}?v=7.2.0"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/kiosk.js') }}?v={{ config('pms.version') }}"></script>
 </body></html>

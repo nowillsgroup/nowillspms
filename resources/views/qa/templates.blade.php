@@ -38,7 +38,7 @@
   </div></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Save checklist</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 function qaTpl(t) {
   const f = document.getElementById('qaTplForm'); f.reset(); t = t || {};
   ['id', 'name', 'type', 'department_id', 'frequency_days', 'pass_mark', 'description'].forEach(k => { f.elements[k].value = t[k] ?? (k === 'type' ? 'internal' : ''); });

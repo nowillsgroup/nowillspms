@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "nowills/pms",
     "type": "project",
-    "description": "Nowills PMS \u2013 Hotel Property Management System (Laravel + MySQL)",
+    "description": "Nowills PMS – Hotel Property Management System (Laravel + MySQL)",
     "keywords": [
         "laravel",
         "framework"
@@ -66,6 +66,9 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "analyse": [
+            "@php build/vendor/bin/phpstan analyse --memory-limit=1G"
         ]
     },
     "extra": {

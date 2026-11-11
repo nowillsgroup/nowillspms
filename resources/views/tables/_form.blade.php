@@ -34,7 +34,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary" id="saveBooking"><x-icon name="check"/> Book table</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const f = document.getElementById('bookForm'); if (!f) return;
   const date = f.querySelector('[name=date]'), party = f.querySelector('[name=party_size]'), time = f.querySelector('[name=time]'), box = document.getElementById('slotBox'), info = document.getElementById('slotInfo');

@@ -105,7 +105,7 @@
         <button class="btn btn-success" id="sellSubmit"><x-icon name="check"/> Sell voucher</button>
       </div>
     </form>
-    <script>
+    <script nonce="{{ $cspNonce ?? '' }}">
       (() => {
         const typeSelect = document.getElementById('f_gift_voucher_type_id');
         const amount = document.getElementById('f_amount');
@@ -202,7 +202,7 @@
   </div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-success">Issue vouchers</button></div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
   (() => {
     const typeSelect = document.getElementById('promo_voucher_type');
     const amount = document.getElementById('promo_amount');

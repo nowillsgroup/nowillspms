@@ -44,6 +44,7 @@ class OfflineFrontDeskService
     /** @return array<string, mixed> */
     public static function snapshot(User $user): array
     {
+        abort_unless($user->hasPermission('frontdesk.view'), 403);
         $today = bdate()->toDateString();
 
         $arrivals = ReservationRoom::with(['reservation.guest', 'roomType'])

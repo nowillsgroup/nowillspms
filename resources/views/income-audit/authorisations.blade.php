@@ -67,7 +67,7 @@
 </form></div></div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   var kind = document.getElementById('a_kind'); if (!kind) return;
   function sync() {

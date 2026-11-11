@@ -51,3 +51,7 @@ deploy/dev/previews/*-snapshot.png
 
 # Lock file created after web installer completes
 /storage/framework/installed.lock
+
+# Composer dependencies (vendor-dir is build/vendor — generated, not source).
+# Release zips vendor it via CI; source repo must not track 6,519 files.
+/build/vendor

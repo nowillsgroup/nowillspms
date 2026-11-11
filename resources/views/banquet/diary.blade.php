@@ -146,7 +146,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const toggle = document.getElementById('diaryEmptyDaysToggle');
   const agenda = document.getElementById('diaryAgendaDays');

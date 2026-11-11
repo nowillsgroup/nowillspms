@@ -315,7 +315,7 @@
 @endsection
 @if($dnd)
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   let drag = null;
   const status = document.getElementById('tape-chart-status');
@@ -420,7 +420,7 @@
 @endpush
 @else
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const sizeBars = () => {
     const cell = document.querySelector('.tape-chart-table tbody .tape-cell');

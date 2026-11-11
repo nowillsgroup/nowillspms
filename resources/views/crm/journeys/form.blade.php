@@ -24,7 +24,7 @@
   <button class="btn btn-primary" id="saveJourney"><x-icon name="check"/> Save automation</button>
 </div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const T = @json(collect(\App\Models\MarketingJourney::TRIGGERS)->map(fn ($t) => ['hint' => $t[1], 'def' => $t[2]])), sel = document.getElementById('f_trigger'), off = document.getElementById('f_offset_days');
   sel.addEventListener('change', () => { off.value = T[sel.value].def; const h = off.closest('.field').querySelector('.hint'); if (h) h.textContent = T[sel.value].hint; });

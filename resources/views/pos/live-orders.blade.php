@@ -71,7 +71,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const root = document.getElementById('posLivePage');
   if (!root) return;

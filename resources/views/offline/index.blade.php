@@ -118,7 +118,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const root = document.querySelector('.offline-hub');
   if (!root || !window.PmsOffline) return;

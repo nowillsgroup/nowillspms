@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\Guest;
 use App\Models\Outlet;
 use App\Models\PosOrder;
@@ -848,7 +848,7 @@ class TableBookingService
             return false;
         }
         $log = $useMail
-            ? MailService::send($r->email, new GuestMessage($subject, "Dear {$r->name},\n\n{$text}\n\n{$o->name}\n{$h->name}".($h->phone ? " · {$h->phone}" : ''), $h), 'table_'.$kind, $r)
+            ? MailService::send($r->email, new GuestMessageMail($subject, "Dear {$r->name},\n\n{$text}\n\n{$o->name}\n{$h->name}".($h->phone ? " · {$h->phone}" : ''), $h), 'table_'.$kind, $r)
             : MessageService::send($r->phone, $text, MessageService::defaultChannel(), 'table_'.$kind, $r);
 
         return $log->status === 'sent';

@@ -46,7 +46,7 @@
 </div></div>
 </div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const $ = id => document.getElementById(id), act = $('bActivity'), date = $('bDate'), time = $('bTime'), free = $('bTimeFree'), ad = $('bAdults'), ch = $('bChildren'), stay = $('bStay'), col = $('bCollection');
   const fmt = v => 'GH₵ ' + Number(v).toLocaleString('en-GH', {minimumFractionDigits: 2, maximumFractionDigits: 2});

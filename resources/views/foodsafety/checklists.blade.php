@@ -58,5 +58,5 @@
 @endif
 @endsection
 @push('scripts')
-<script>document.addEventListener('click', e => { const b = e.target.closest('[data-modal=listModal]'); if (b) setTimeout(() => { document.getElementById('listMethod').value = b.dataset.method || 'post'; }, 0); });</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.addEventListener('click', e => { const b = e.target.closest('[data-modal=listModal]'); if (b) setTimeout(() => { document.getElementById('listMethod').value = b.dataset.method || 'post'; }, 0); });</script>
 @endpush

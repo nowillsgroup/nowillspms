@@ -406,7 +406,7 @@
 @endif
 
 @if($canEdit)
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const grid = document.getElementById('budgetGrid'); if (!grid) return;
   const num = v => { v = String(v).replace(/[,₹₵GHS¢\s]/g, ''); return v === '' || isNaN(v) ? 0 : parseFloat(v); };

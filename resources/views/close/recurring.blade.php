@@ -53,7 +53,7 @@
   </tbody><tfoot><tr><td class="right small muted">Totals</td><td class="num bold" id="rjTotDr">0.00</td><td class="num bold" id="rjTotCr">0.00</td><td class="small" id="rjDiff"></td></tr></tfoot></table>
   <div class="right mt-1"><button class="btn btn-primary" id="rjSave">Save for approval</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('rjLines'); if (!f) return;
   const sum = () => { let d = 0, c = 0; f.querySelectorAll('input[name$="[debit]"]').forEach(i => d += +i.value || 0); f.querySelectorAll('input[name$="[credit]"]').forEach(i => c += +i.value || 0);

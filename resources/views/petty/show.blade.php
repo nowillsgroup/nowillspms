@@ -212,7 +212,7 @@
 <form method="post" action="{{ route('petty.floats.active', $f) }}" id="closeFloatForm" data-confirm="Close this float? The balance must be nil.">@csrf</form></div></div>
 @endif
 
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('countForm'); if (!f) return;
   const book = parseFloat(f.querySelector('[data-book]').dataset.book);

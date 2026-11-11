@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Maintenance & Repairs')
 @section('crumbs') <a href="{{ route('tr.index') }}">Transport</a> / <a href="{{ route('tr.fleet.index') }}">Fleet</a> / Maintenance @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
   // Complete-work-order panels: keyboard accessible, announced through aria-expanded.
   document.querySelectorAll('[data-wo-toggle]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -20,7 +20,7 @@
   <a class="btn" href="{{ route('tr.fleet.export.work_orders', array_filter(['status' => $status])) }}"><x-icon name="download"/> Export CSV</a>
   <a class="btn" href="{{ route('tr.fleet.export.inspections') }}"><x-icon name="download"/> Inspections CSV</a>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
   // Complete-work-order panels: keyboard accessible, announced through aria-expanded.
   document.querySelectorAll('[data-wo-toggle]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -425,7 +425,7 @@
   </div>
 </div>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
   // Complete-work-order panels: keyboard accessible, announced through aria-expanded.
   document.querySelectorAll('[data-wo-toggle]').forEach(function (btn) {
     btn.addEventListener('click', function () {

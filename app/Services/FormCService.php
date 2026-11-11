@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\FormCRecord;
 use App\Models\Guest;
 use App\Models\GuestDocument;
@@ -525,7 +525,7 @@ class FormCService
             .'File on indianfrro.gov.in and record the reference number on the Form C desk.';
         $to = $cfg['alert_email'] ?: $h->email;
         $subject = ($over->isNotEmpty() ? $over->count().' Form C overdue' : $due->count().' Form C due soon').' – '.$h->name;
-        MailService::send($to, new GuestMessage($subject, $body, $h), 'formc_alert');
+        MailService::send($to, new GuestMessageMail($subject, $body, $h), 'formc_alert');
         $stats['mails']++;
         FormCRecord::whereIn('id', $due->pluck('id'))->update(['alert_due_at' => now()]);
         FormCRecord::whereIn('id', $over->pluck('id'))->update(['alert_overdue_at' => now(), 'alert_due_at' => DB::raw('COALESCE(alert_due_at, NOW())')]);

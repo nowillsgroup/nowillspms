@@ -161,7 +161,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const money = n => 'GH₵ ' + (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
   const inclusive = {{ \App\Services\TaxService::pricesInclusive() ? 'true' : 'false' }};

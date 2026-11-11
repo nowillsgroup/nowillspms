@@ -76,16 +76,11 @@ class RoomPhotoService
         $stamp = now()->format('YmdHis').'-'.substr(bin2hex(random_bytes(4)), 0, 8);
         $base = 'room-'.self::slug($room->room_no).'-'.$stamp;
 
-        // Re-encode when GD can read it, otherwise keep the file as uploaded so a
-        // host without GD still accepts room photos.
+        // Re-encode when GD can read it. Without GD we refuse rather than store
+        // the raw upload in a web-accessible directory (polyglot risk).
         $relative = self::DIRECTORY.'/'.$base.'.jpg';
         if (! self::reencode($file->getRealPath(), public_path($relative))) {
-            $extension = strtolower((string) ($file->getClientOriginalExtension() ?: 'jpg'));
-            if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
-                $extension = 'jpg';
-            }
-            $relative = self::DIRECTORY.'/'.$base.'.'.$extension;
-            $file->move(public_path(self::DIRECTORY), basename($relative));
+            throw new \RuntimeException('Room photos need the GD extension to be re-encoded before storage. Ask your host to enable GD, then try again.');
         }
 
         // A card-sized copy beside it, best effort: the full picture stays the file

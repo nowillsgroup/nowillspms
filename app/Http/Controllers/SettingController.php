@@ -133,7 +133,7 @@ class SettingController extends Controller
         if ($request->hasFile('logo')) {
             $dir = public_path('uploads/logos');
             is_dir($dir) || mkdir($dir, 0755, true);
-            $name = 'hotel'.$hotel->id.'_'.time().'.'.$request->file('logo')->extension();
+            $name = 'hotel'.$hotel->id.'_'.bin2hex(random_bytes(8)).'.'.$request->file('logo')->extension();
             $request->file('logo')->move($dir, $name);
             $data['logo_path'] = 'uploads/logos/'.$name;
         } elseif ($request->boolean('remove_logo')) {

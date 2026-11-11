@@ -127,7 +127,7 @@
 </div></div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const f = document.getElementById('revealForm');
   if (!f) return;

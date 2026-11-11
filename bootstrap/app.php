@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // controller runs. Global (not on the route) so a public route added later is covered by
         // config/licence.php alone — and so nothing has to remember to attach it.
         $middleware->append(\App\Http\Middleware\LicenceSurface::class);
+        $middleware->append(\App\Http\Middleware\CheckIdleTimeout::class);
         $middleware->alias([
             'tenant' => \App\Http\Middleware\SetTenant::class,
             'perm' => \App\Http\Middleware\RequirePermission::class,
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.scope' => \App\Http\Middleware\ApiScope::class,
             'partner' => \App\Http\Middleware\PartnerAuth::class,      // v7.4 partner portal session (no route-model binding on its routes)
             'organiser' => \App\Http\Middleware\OrganiserAuth::class,  // v7.5 organiser portal session (no route-model binding on its routes)
+            'idle' => \App\Http\Middleware\CheckIdleTimeout::class,
         ]);
         // Tenant must be resolved BEFORE route-model binding so bound models are hotel-scoped (prevents IDOR)
         $middleware->prependToPriorityList(

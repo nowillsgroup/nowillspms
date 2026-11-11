@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="{{ asset('css/cro.css') }}?v={{ filemtime(public_path('css/cro.css')) }}">
 @endpush
 @push('scripts')
-<script src="{{ asset('js/cro-modal-accessibility.js') }}?v={{ filemtime(public_path('js/cro-modal-accessibility.js')) }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/cro-modal-accessibility.js') }}?v={{ filemtime(public_path('js/cro-modal-accessibility.js')) }}"></script>
 @endpush
 <nav class="cro-nav" aria-label="Central Reservations workspace">
   <a href="{{ route('cro.index') }}" class="{{ $croDesk ? 'active' : '' }}" @if($croDesk) aria-current="page" @endif><x-icon name="grid"/> CRO Desk</a>

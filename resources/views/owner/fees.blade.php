@@ -93,7 +93,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Record payment</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => { const t = document.getElementById('payTotal'); const upd = () => { let s = 0; document.querySelectorAll('input[form=payForm][name="fee_ids[]"]:checked').forEach(c => s += parseFloat(c.dataset.amt)); t.textContent = 'GH₵' + s.toLocaleString('en-GH', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
   document.querySelectorAll('input[form=payForm]').forEach(c => c.addEventListener('change', upd)); })();
 </script>

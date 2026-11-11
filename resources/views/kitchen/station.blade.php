@@ -33,7 +33,7 @@
 @endsection
 @push('scripts')
 @if($printer)
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const jobsUrl = @json(route('kitchen.station.jobs', ['printer' => $printer->id]));
   const claimUrl = @json(route('kitchen.station.claim'));

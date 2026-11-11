@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToHotel;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -23,15 +24,30 @@ class Folio extends Model
     public function totals(?Collection $transactions = null): array
     {
         $tx = ($transactions ?? $this->transactions()->get())->where('is_void', false);
-        $charges = $tx->where('type', 'charge')->sum(fn ($t) => $t->amount + $t->tax_amount);
-        $tax = $tx->where('type', 'charge')->sum('tax_amount');
-        $discount = $tx->whereIn('type', ['discount', 'allowance'])->sum('amount');
-        $payments = $tx->where('type', 'payment')->sum('amount');
-        $refunds = $tx->where('type', 'refund')->sum('amount');
-        $opening = $tx->where('type', 'opening_balance')->sum('amount');
-        $balance = round($charges + $opening - $discount - $payments + $refunds, 2);
+        // Decimal-exact summation via Money (integer minor units) — no float drift.
+        $chargesM = Money::zero();
+        $taxM = Money::zero();
+        foreach ($tx->where('type', 'charge') as $t) {
+            $chargesM = $chargesM->add(Money::fromDecimal((string) $t->amount))->add(Money::fromDecimal((string) $t->tax_amount));
+            $taxM = $taxM->add(Money::fromDecimal((string) $t->tax_amount));
+        }
+        $discountM = Money::sum($tx->whereIn('type', ['discount', 'allowance'])->map(fn ($t) => (string) $t->amount)->all());
+        $paymentsM = Money::sum($tx->where('type', 'payment')->map(fn ($t) => (string) $t->amount)->all());
+        $refundsM = Money::sum($tx->where('type', 'refund')->map(fn ($t) => (string) $t->amount)->all());
+        $openingM = Money::sum($tx->where('type', 'opening_balance')->map(fn ($t) => (string) $t->amount)->all());
+        $balanceM = $chargesM->add($openingM)->sub($discountM)->sub($paymentsM)->add($refundsM);
 
-        return compact('charges', 'opening', 'tax', 'discount', 'payments', 'refunds', 'balance');
+        return [
+            'charges' => $chargesM->toFloat(), 'opening' => $openingM->toFloat(), 'tax' => $taxM->toFloat(),
+            'discount' => $discountM->toFloat(), 'payments' => $paymentsM->toFloat(), 'refunds' => $refundsM->toFloat(),
+            'balance' => $balanceM->toFloat(),
+        ];
+    }
+
+    /** Decimal-exact balance as Money (prefer over balance() for comparisons). */
+    public function balanceMoney(?Collection $transactions = null): Money
+    {
+        return Money::fromFloat($this->totals($transactions)['balance']);
     }
 
     public function balance(): float
@@ -135,11 +151,12 @@ class Folio extends Model
     public function gstTotals(): array
     {
         $c = $this->activeTransactions()->where('type', 'charge')->get();
-        $taxable = round((float) $c->sum('amount'), 2);
-        $tax = round((float) $c->sum('tax_amount'), 2);
-        $disc = round((float) $this->activeTransactions()->whereIn('type', ['discount', 'allowance'])->sum('amount'), 2);
+        $taxableM = Money::sum($c->map(fn ($t) => (string) $t->amount)->all());
+        $taxM = Money::sum($c->map(fn ($t) => (string) $t->tax_amount)->all());
+        $discM = Money::sum($this->activeTransactions()->whereIn('type', ['discount', 'allowance'])->get()->map(fn ($t) => (string) $t->amount)->all());
+        $valueM = $taxableM->add($taxM)->sub($discM);
 
-        return ['taxable' => $taxable, 'tax' => $tax, 'discount' => $disc, 'value' => round($taxable + $tax - $disc, 2)];
+        return ['taxable' => $taxableM->toFloat(), 'tax' => $taxM->toFloat(), 'discount' => $discM->toFloat(), 'value' => $valueM->toFloat()];
     }
 
     public function irnBadge(): string

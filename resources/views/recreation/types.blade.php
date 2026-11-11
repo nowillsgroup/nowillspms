@@ -47,7 +47,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const form = document.getElementById('typeForm');
   // edit: prefill + switch to PUT when a row's Edit button opens the modal

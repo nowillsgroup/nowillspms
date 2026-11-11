@@ -92,5 +92,5 @@
   </div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary" id="paySave">Pay</button></div>
 </form></div></div>
-<script>function payToggle(){const p=document.querySelector('#payModal [name=method]:checked').value==='petty';document.getElementById('payMode').style.display=p?'none':'';document.getElementById('payPetty').style.display=p?'':'none';}</script>
+<script nonce="{{ $cspNonce ?? '' }}">function payToggle(){const p=document.querySelector('#payModal [name=method]:checked').value==='petty';document.getElementById('payMode').style.display=p?'none':'';document.getElementById('payPetty').style.display=p?'':'none';}</script>
 @endsection

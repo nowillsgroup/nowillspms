@@ -51,7 +51,7 @@
 </form>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const $ = id => document.getElementById(id);
   const cap = {{ (int) $cfg['lease_enforce_rent_cap'] }};

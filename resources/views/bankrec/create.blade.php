@@ -41,7 +41,7 @@
   <div class="span-2"><button class="btn btn-primary" id="stmtSave"><x-icon name="check"/> Create statement</button> <a class="btn" href="{{ route('bankrec.index') }}">Cancel</a></div>
 </form>
 </div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const sel = document.getElementById('f_account_head_id'), from = document.getElementById('f_period_from'), op = document.getElementById('f_opening_balance'), hint = document.getElementById('accHint');
   const csv = document.getElementById('csvBox');

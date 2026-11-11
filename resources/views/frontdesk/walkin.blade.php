@@ -247,7 +247,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const plans = @json($ratePlanData);
   const businessDate = '{{ bdate()->toDateString() }}';

@@ -149,7 +149,7 @@ body.dark .rmp-hero{background:linear-gradient(118deg,#0d2718,#143d25 68%,#1d543
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const boxes = [...document.querySelectorAll('.rm-grid input[name="pick[]"]')];
   const count = () => {

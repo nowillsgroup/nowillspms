@@ -27,8 +27,9 @@ class UtilityController extends Controller
 
     protected function range(Request $r, int $days = 30): array
     {
-        $to = $r->query('to') && strtotime($r->query('to')) ? Carbon::parse($r->query('to'))->toDateString() : bdate()->toDateString();
-        $from = $r->query('from') && strtotime($r->query('from')) ? Carbon::parse($r->query('from'))->toDateString() : Carbon::parse($to)->subDays($days - 1)->toDateString();
+        $r->validate(['from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d']);
+        $to = $r->query('to') ?: bdate()->toDateString();
+        $from = $r->query('from') ?: Carbon::parse($to)->subDays($days - 1)->toDateString();
         if ($from > $to) {
             [$from, $to] = [$to, $from];
         }
@@ -51,7 +52,8 @@ class UtilityController extends Controller
             $v += ['from' => $from, 'to' => $to, 'kpi' => Us::kpis($from, $to), 'by' => Us::byUtility($from, $to), 'carbon' => Us::carbon($from, $to),
                 'anomalies' => Us::openAnomalies(14), 'missingY' => Us::missing(bdate()->copy()->subDay()->toDateString(), true)];
         } elseif ($tab === 'readings') {
-            $date = $request->query('date') && strtotime($request->query('date')) ? min(Carbon::parse($request->query('date'))->toDateString(), bdate()->toDateString()) : bdate()->toDateString();
+            $request->validate(['date' => 'nullable|date_format:Y-m-d']);
+            $date = $request->query('date') ? min($request->query('date'), bdate()->toDateString()) : bdate()->toDateString();
             $meters = UtilityMeter::with('parent')->where('is_active', true)->orderByRaw("FIELD(utility,'electricity','dg','solar','water','lpg','diesel','png')")->orderBy('parent_id')->orderBy('code')->get();
             $today = MeterReading::with('user')->whereDate('reading_date', $date)->get()->keyBy('utility_meter_id');
             $rows = $meters->map(fn ($m) => ['meter' => $m, 'prev' => Us::previous($m, $date), 'cur' => $today->get($m->id), 'expected' => Us::expected($m, $date)]);

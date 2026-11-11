@@ -36,6 +36,7 @@ class OfflineSyncService
     /** @return array<string, mixed> */
     public static function housekeepingSnapshot(User $user): array
     {
+        abort_unless($user->hasPermission('housekeeping.view') || $user->hasPermission('housekeeping.attendant') || $user->hasPermission('housekeeping.manage'), 403);
         $rooms = Room::with(['roomType', 'floor', 'currentStay'])
             ->where('is_active', true)->orderBy('room_no')->get();
         $manage = $user->hasPermission('housekeeping.manage');
@@ -62,6 +63,7 @@ class OfflineSyncService
     /** @return array<string, mixed> */
     public static function guestRequestSnapshot(User $user): array
     {
+        abort_unless($user->hasPermission('requests.view') || $user->hasPermission('requests.manage'), 403);
         $stays = ReservationRoom::with('room')->where('status', 'checked_in')->whereNotNull('room_id')->get()
             ->sortBy(fn (ReservationRoom $stay) => $stay->room?->room_no)->values();
         $stayIds = $stays->pluck('id')->all();

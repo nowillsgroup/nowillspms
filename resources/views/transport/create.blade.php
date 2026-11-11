@@ -55,7 +55,7 @@
 </div>
 </form>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('tripForm'), hotel = @json($hotelName), airport = @json($cfg['airport']);
   const stay = document.getElementById('f_reservation_room_id'), tariff = document.getElementById('f_transport_tariff_id');

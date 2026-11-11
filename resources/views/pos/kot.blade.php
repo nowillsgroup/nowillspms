@@ -52,7 +52,7 @@
 @endforelse
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.getElementById('kotOpenEach')?.addEventListener('click', () => {
   const ids = [...document.querySelectorAll('.kot-pick-box:checked')].map(i => i.value);
   if (!ids.length) { alert('Select at least one printer.'); return; }

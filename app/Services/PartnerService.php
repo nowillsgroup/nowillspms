@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\AgentCommission;
 use App\Models\BusinessSource;
 use App\Models\Company;
@@ -146,7 +146,7 @@ class PartnerService
         $u->forceFill(['invite_token' => hash('sha256', $token), 'invite_expires_at' => now()->addDays((int) setting('partner_invite_days', 7))])->save();
         $link = route('partner.invite', $token);
         $h = hotel();
-        rescue(fn () => MailService::send($u->email, new GuestMessage("Your {$h->name} partner portal invitation",
+        rescue(fn () => MailService::send($u->email, new GuestMessageMail("Your {$h->name} partner portal invitation",
             "Dear {$u->name},\n\n{$h->name} has opened a partner portal account for {$u->company->name}. Use the link below to choose your password – it is valid until "
             .$u->invite_expires_at->format('d M Y H:i').".\n\n{$link}\n\nHotel ID: {$h->code}\nLogin: {$u->email}\n\nIn the portal you can book your negotiated rates, manage bookings, view invoices and statements and pay online.", $h), 'partner_invite', $u), null, true);
 
@@ -269,7 +269,7 @@ class PartnerService
         $token = Str::random(48);
         $u->forceFill(['reset_token' => hash('sha256', $token), 'reset_expires_at' => now()->addMinutes(60)])->save();
         $h = hotel();
-        rescue(fn () => MailService::send($u->email, new GuestMessage("{$h->name} partner portal – reset your password",
+        rescue(fn () => MailService::send($u->email, new GuestMessageMail("{$h->name} partner portal – reset your password",
             "Dear {$u->name},\n\nSomeone (hopefully you) asked to reset your partner portal password. The link is valid for 60 minutes:\n\n".route('partner.reset', $token)
             ."\n\nIf you did not ask for this, ignore this e-mail – your password is unchanged.", $h), 'partner_reset', $u), null, true);
         self::audit($u, 'reset_requested', 'Password reset link e-mailed');
@@ -603,7 +603,7 @@ class PartnerService
     {
         $to = $q->partnerUser?->email;
         if ($to) {
-            rescue(fn () => MailService::send($to, new GuestMessage($subject, "Dear {$q->partnerUser->name},\n\n{$text}\n\n".route('partner.home'), hotel()), 'partner_update', $q), null, true);
+            rescue(fn () => MailService::send($to, new GuestMessageMail($subject, "Dear {$q->partnerUser->name},\n\n{$text}\n\n".route('partner.home'), hotel()), 'partner_update', $q), null, true);
         }
     }
 
@@ -611,7 +611,7 @@ class PartnerService
     {
         $to = setting('partner_notify_email', '');
         if ($to) {
-            rescue(fn () => MailService::send($to, new GuestMessage($subject, $text, hotel()), 'partner_staff'), null, true);
+            rescue(fn () => MailService::send($to, new GuestMessageMail($subject, $text, hotel()), 'partner_staff'), null, true);
         }
     }
 

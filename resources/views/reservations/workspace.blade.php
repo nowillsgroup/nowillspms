@@ -673,7 +673,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const status = document.getElementById('fStatus');
   const type = document.getElementById('fType');

@@ -82,7 +82,7 @@
   </form>
 </div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 const cur = @json($hotel->currency_symbol ?? '');
 const cart = {};
 const fmt = v => cur + ' ' + v.toFixed(2);

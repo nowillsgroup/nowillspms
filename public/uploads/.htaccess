@@ -1,0 +1,17 @@
+# Nowills PMS — uploads are data, never code.
+# Deny script execution in upload directories (defence-in-depth; uploads are
+# already validated + re-encoded, but a misconfigured server must not run them).
+
+<FilesMatch "\.(php|phtml|phar|cgi|pl|asp|aspx|shtml|htaccess)$">
+    Require all denied
+</FilesMatch>
+
+php_admin_flag engine off
+Options -ExecCGI
+RemoveHandler .php .phtml .phar
+RemoveType .php .phtml .phar
+
+# Serve images with nosniff so a polyglot cannot be sniffed as HTML/JS.
+<FilesMatch "\.(jpg|jpeg|png|webp|gif|svg|pdf)$">
+    Header set X-Content-Type-Options nosniff
+</FilesMatch>

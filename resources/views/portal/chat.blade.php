@@ -45,7 +45,7 @@
 </style>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const box = document.getElementById('gpChat'); if (!box) return;
   const thread = document.getElementById('gpThread'), form = document.getElementById('gpChatForm'), ta = document.getElementById('gpChatBody'), err = document.getElementById('gpChatErr');

@@ -21,5 +21,5 @@
   <div class="modal-body"><div class="form-grid">@include('talent._vacancy_fields')</div></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Save draft</button></div>
 </form></div></div>
-<script>if (location.hash === '#new') document.getElementById('talVacNew')?.click();</script>
+<script nonce="{{ $cspNonce ?? '' }}">if (location.hash === '#new') document.getElementById('talVacNew')?.click();</script>
 @endsection

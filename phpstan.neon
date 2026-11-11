@@ -1,0 +1,15 @@
+parameters:
+    level: 5
+    paths:
+        - app/Support
+        - app/Http/Middleware
+        - app/Services/FolioService.php
+        - app/Services/IcalService.php
+        - app/Services/EInvoiceService.php
+        - app/Services/WebhookService.php
+        - app/Services/Payments
+    excludePaths:
+        analyse:
+            - app/Support/helpers.php
+    tmpDir: storage/framework/cache/phpstan
+    checkMissingIterableValueType: false

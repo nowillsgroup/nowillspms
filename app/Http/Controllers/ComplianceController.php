@@ -205,7 +205,8 @@ class ComplianceController extends Controller
 
     public function printRegister(Request $request)
     {
-        $asOf = $request->query('as_of') && strtotime($request->query('as_of')) ? Carbon::parse($request->query('as_of'))->toDateString() : bdate()->toDateString();
+        $request->validate(['as_of' => 'nullable|date_format:Y-m-d']);
+        $asOf = $request->query('as_of') ?: bdate()->toDateString();
 
         return view('compliance.print', ['rows' => Cs::register($asOf), 'asOf' => Carbon::parse($asOf)]);
     }

@@ -122,7 +122,7 @@
 @endif
 </form>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = v => Math.round((parseFloat(v) || 0) * 100) / 100, fx = n => n.toFixed(2);
   const doc = document.getElementById('docDate'), due = document.getElementById('dueDate');

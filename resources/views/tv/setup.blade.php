@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>{{ $hotel->name }} – TV setup</title><link rel="stylesheet" href="{{ asset('css/tv.css') }}?v=7.1.0"></head>
+<title>{{ $hotel->name }} – TV setup</title><link rel="stylesheet" href="{{ asset('css/tv.css') }}?v={{ config('pms.version') }}"></head>
 <body class="tv tv-th-night">
 <div class="tv-setup" id="tvSetup" data-start="{{ route('tv.pair.start', $code) }}" data-poll="{{ url('/tv/pair') }}" data-hotel="{{ $code }}">
   <div class="tv-brand">{{ $hotel->name }}</div>
@@ -13,5 +13,5 @@
   <h1>The TV portal is switched off</h1><p class="tv-lead">Turn it on in IPTV settings, then reload this page.</p>
   @endif
 </div>
-@if($enabled)<script src="{{ asset('js/tv.js') }}?v=7.1.0"></script>@endif
+@if($enabled)<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/tv.js') }}?v={{ config('pms.version') }}"></script>@endif
 </body></html>

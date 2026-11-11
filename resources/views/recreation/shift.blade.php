@@ -148,7 +148,7 @@
 
 @if($shift)
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const expected = {{ (float) ($summary['expected_cash'] ?? 0) }};
   const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

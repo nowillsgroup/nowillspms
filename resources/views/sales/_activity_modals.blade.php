@@ -43,7 +43,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-danger">Cancel activity</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const co = document.getElementById('actCompany'), ct = document.getElementById('actContact'), op = document.getElementById('actOpp');
   if (!co) return;

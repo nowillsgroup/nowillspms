@@ -26,7 +26,7 @@ return new class extends Migration
 
         Schema::create('treasury_accounts', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('account_head_id')->constrained('account_heads')->cascadeOnDelete();
             $t->string('kind', 10);                                    // bank | momo | cash | petty | clearing | forex | transit | cheques
             $t->string('name', 100);
@@ -52,7 +52,7 @@ return new class extends Migration
 
         Schema::create('treasury_transfers', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('number', 20);
             $t->string('kind', 10);                                     // deposit | sweep | transfer | withdrawal
             $t->foreignId('from_account_id')->constrained('treasury_accounts');
@@ -92,7 +92,7 @@ return new class extends Migration
 
         Schema::create('cheques_received', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('number', 20);
             $t->string('source', 8)->default('treasury');               // treasury | voucher | folio (captured from a cheque-mode payment)
             $t->string('cheque_no', 20)->nullable();
@@ -128,7 +128,7 @@ return new class extends Migration
 
         Schema::create('cheque_books', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('treasury_account_id')->constrained('treasury_accounts')->cascadeOnDelete();
             $t->unsignedInteger('first_no');
             $t->unsignedInteger('last_no');
@@ -145,7 +145,7 @@ return new class extends Migration
 
         Schema::create('cheques_issued', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('cheque_book_id')->constrained()->cascadeOnDelete();
             $t->string('cheque_no', 20);
             $t->string('payee', 150)->nullable();
@@ -171,7 +171,7 @@ return new class extends Migration
 
         Schema::create('cash_forecast_lines', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('description', 150);
             $t->string('direction', 3);                                 // in | out
             $t->string('category', 30)->default('Other');

@@ -27,5 +27,5 @@
   @yield('content')
 </div>
 @stack('scripts')
-@if(request('autoprint'))<script>window.addEventListener('load', () => window.print());</script>@endif
+@if(request('autoprint'))<script nonce="{{ $cspNonce ?? '' }}">window.addEventListener('load', () => window.print());</script>@endif
 </body></html>

@@ -57,7 +57,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => { const f = document.getElementById('sellForm'); if (!f) return; const A = {{ $adult }}, C = {{ $child }}, R = {{ $rate }} / 100;
   const sync = () => { const s = f.querySelector('[name=settle]:checked').value; f.querySelectorAll('[data-settle]').forEach(el => el.hidden = el.dataset.settle !== s);
     const single = document.getElementById('clubDayPassSingleTender'), widget = document.getElementById('clubDayPassSplitTender');

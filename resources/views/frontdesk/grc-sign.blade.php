@@ -171,7 +171,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const canvas = document.getElementById('sigPad');
   const form = document.getElementById('sigForm');

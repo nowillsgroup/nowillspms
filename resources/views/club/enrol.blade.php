@@ -66,7 +66,7 @@
 </form>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => { const sel = document.getElementById('f_club_plan_id'), waive = document.getElementById('waive'), rate = {{ $tax }} / 100, fmt = v => 'GH₵ ' + v.toLocaleString('en-GH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const sync = () => { const o = sel.selectedOptions[0], ok = o && o.value; const price = ok ? +o.dataset.price : 0, join = ok && !(waive && waive.checked) ? +o.dataset.join : 0, max = ok ? +o.dataset.max : 1;
     document.getElementById('planInfo').textContent = ok ? o.dataset.info : ''; document.getElementById('maxInfo').textContent = ok ? 'up to ' + max + ' person(s)' : '';

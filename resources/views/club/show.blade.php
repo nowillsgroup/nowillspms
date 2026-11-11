@@ -245,5 +245,5 @@
 @endif
 @endsection
 @push('scripts')
-<script>(() => { const f = document.getElementById('cancelForm'); if (!f) return; const s = () => document.getElementById('creditField').hidden = f.querySelector('[name=mode]:checked').value !== 'immediate'; f.querySelectorAll('[name=mode]').forEach(r => r.addEventListener('change', s)); s(); })();</script>
+<script nonce="{{ $cspNonce ?? '' }}">(() => { const f = document.getElementById('cancelForm'); if (!f) return; const s = () => document.getElementById('creditField').hidden = f.querySelector('[name=mode]:checked').value !== 'immediate'; f.querySelectorAll('[name=mode]').forEach(r => r.addEventListener('change', s)); s(); })();</script>
 @endpush

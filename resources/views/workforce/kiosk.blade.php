@@ -17,7 +17,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 setInterval(() => { const d = new Date(), p = n => String(n).padStart(2, '0'); document.getElementById('kioskClock').textContent = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); }, 1000);
 @if(session('success') || session('error'))setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.remove()), 8000);@endif
 </script>

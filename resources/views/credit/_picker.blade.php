@@ -15,7 +15,7 @@
 @if(can_do('credit.override'))
 <div id="overrideBox" class="hidden mt-1"><x-field name="override_reason" label="Credit override reason" placeholder="e.g. GM approved – PO received from the client" hint="Needed to bill a company on hold or over its limit. Logged in credit control."/></div>
 @endif
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const sel = document.getElementById('f_{{ $name ?? 'company_id' }}'), box = document.getElementById('creditInfo'), ov = document.getElementById('overrideBox');
   if (!sel || !box) return;

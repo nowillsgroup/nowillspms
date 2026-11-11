@@ -181,7 +181,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-success"><x-icon name="check"/> Deliver</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const modal = document.getElementById('deliverModal');
   const settle = modal?.querySelector('[data-laundry-settle]');

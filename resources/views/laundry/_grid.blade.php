@@ -16,7 +16,7 @@
 </tbody>
 <tfoot><tr><td class="right">Total</td><td colspan="3" class="num"><span id="lgPcs">0</span> pcs · <b id="lgSub">0.00</b><span id="lgExp" class="muted"></span><span id="lgTax" class="muted"></span></td><td class="small muted">The tax line is carried on the bill.</td></tr></tfoot>
 </table></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const grid = document.getElementById('laundryGrid'); if (!grid) return;
   const fmt = n => n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});

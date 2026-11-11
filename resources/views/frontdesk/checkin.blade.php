@@ -200,7 +200,7 @@
     </div>
   </form>
 
-  <script>
+  <script nonce="{{ $cspNonce ?? '' }}">
     (() => {
       const form = document.getElementById('checkInForm');
       const roomSelect = document.getElementById('checkinRoom');

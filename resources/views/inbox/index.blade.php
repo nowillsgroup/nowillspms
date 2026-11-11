@@ -177,4 +177,4 @@
 </form></div></div>
 @endif
 @endsection
-@push('scripts')<script src="{{ asset('js/inbox.js') }}?v=73"></script>@endpush
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/inbox.js') }}?v={{ config('pms.version') }}"></script>@endpush

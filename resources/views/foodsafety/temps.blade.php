@@ -146,7 +146,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const L = @json($limits);
   const f = document.getElementById('tempForm'); if (!f) return;

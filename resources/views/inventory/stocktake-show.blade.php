@@ -155,7 +155,7 @@
 <p class="tiny muted mt-1" id="stSheetChain">This sheet is the count, and the <a href="{{ route('stocktakes.index') }}">stock take register</a> is the month it belongs to. Posting writes one movement per counted line into the <a href="{{ route('inventory.ledger') }}">stock ledger</a> and freezes the sheet; a line left blank is not a line counted at zero, and only the second one takes stock off the shelf.</p>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('.st-count').forEach(inp => inp.addEventListener('input', () => {
   const tr = inp.closest('tr'), sys = +tr.dataset.sys, cost = +tr.dataset.cost, v = inp.value === '' ? null : Math.round((+inp.value - sys) * 100) / 100;
   const vc = tr.querySelector('.st-var'), vv = tr.querySelector('.st-val');

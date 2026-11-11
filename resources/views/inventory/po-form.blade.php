@@ -30,7 +30,7 @@
 <td><input class="input input-sm" type="number" step="0.01" min="0.01" data-k="qty" required></td><td><input class="input input-sm" type="number" step="0.0001" min="0" data-k="rate" required></td><td><input class="input input-sm" type="number" step="0.01" min="0" data-k="tax_rate" value="0"></td><td class="num"><span data-line-total>0.00</span><div class="tiny" data-line-home></div><div class="tiny" data-list></div></td>
 <td><button type="button" class="btn btn-sm btn-ghost" data-remove-po-row><x-icon name="trash" size="sm"/></button></td></tr></template>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const form = document.getElementById('poForm'), tb = document.querySelector('#poLines tbody');
   const currency = document.getElementById('poCurrency'), poDate = document.querySelector('[name="po_date"]');

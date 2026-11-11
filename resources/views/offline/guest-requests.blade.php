@@ -76,5 +76,5 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/offline-guest-requests.js') }}?v={{ config('pms.version') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/offline-guest-requests.js') }}?v={{ config('pms.version') }}"></script>
 @endpush

@@ -64,7 +64,7 @@
   </div><p class="tiny muted" id="aHint">Accrued expenses cover one month and reverse on the 1st; prepaid expenses and deferred income are spread evenly (the last month takes the rounding).</p></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary" id="accrualSave">Save for approval</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const t = document.getElementById('aType'), m = document.getElementById('aMonths');
   const sync = () => { const acc = t.value === 'accrual'; m.disabled = acc; if (acc) m.value = 1; else if (m.value === '1') m.value = 12; };

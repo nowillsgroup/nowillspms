@@ -27,7 +27,7 @@ return new class extends Migration
 
         Schema::create('close_periods', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->char('period', 7);                                   // YYYY-MM
             $t->unsignedSmallInteger('fiscal_year');
             $t->unsignedTinyInteger('fiscal_month');                  // 1..12 within the fiscal year
@@ -55,7 +55,7 @@ return new class extends Migration
 
         Schema::create('close_tasks', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('close_period_id')->constrained()->cascadeOnDelete();
             $t->string('key', 30);                                    // automatic check key, or manual_<n>
             $t->string('title', 150);
@@ -78,7 +78,7 @@ return new class extends Migration
 
         Schema::create('close_events', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('close_period_id')->constrained()->cascadeOnDelete();
             $t->string('action', 20);
             $t->string('note', 255)->nullable();
@@ -92,7 +92,7 @@ return new class extends Migration
 
         Schema::create('accruals', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('number', 20);
             $t->string('type', 12);                                   // accrual | prepayment | deferral
             $t->string('description', 150);
@@ -124,7 +124,7 @@ return new class extends Migration
 
         Schema::create('recurring_journals', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('code', 20);
             $t->string('name', 120);
             $t->string('frequency', 10)->default('monthly');          // monthly | quarterly | yearly
@@ -149,7 +149,7 @@ return new class extends Migration
 
         Schema::create('period_postings', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('source', 10);                                 // accrual | recurring
             $t->unsignedBigInteger('source_id');
             $t->char('period', 7);
@@ -169,7 +169,7 @@ return new class extends Migration
 
         Schema::create('fiscal_year_closes', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->unsignedSmallInteger('fiscal_year');
             $t->date('closing_date');
             $t->decimal('income', 14, 2)->default(0);

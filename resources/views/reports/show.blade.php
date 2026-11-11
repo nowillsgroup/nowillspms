@@ -196,7 +196,7 @@
 </style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('[data-range-nav]').forEach(s => s.addEventListener('change', () => { if (s.value) location.href = s.value; }));
 
 // The quick filter narrows the rows; it also has to say how many are left, and to say

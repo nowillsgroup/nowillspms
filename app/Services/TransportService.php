@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\Driver;
 use App\Models\Guest;
 use App\Models\GuestRequest;
@@ -794,7 +794,7 @@ class TransportService
         $email = $t->guest?->email;
         $log = $t->phone
             ? MessageService::send($t->phone, $text, MessageService::defaultChannel(), 'transport_'.$kind, $t)
-            : ($email ? MailService::send($email, new GuestMessage(match ($kind) {
+            : ($email ? MailService::send($email, new GuestMessageMail(match ($kind) {
                 'assigned' => 'Your driver details – '.$t->scheduled_at->format('d M H:i'), 'cancelled' => 'Transfer cancelled – '.$t->trip_no, default => 'Your transfer '.$t->trip_no,
             }, $text, $h), 'transport_'.$kind, $t) : null);
         if (! $log) {

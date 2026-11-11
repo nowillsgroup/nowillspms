@@ -185,7 +185,7 @@
 <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-danger">Close balance</button></div></form></div></div>
 @endif
 @if($po->isForeign() && in_array($po->status, ['approved', 'partial']) && $manage)
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const info = document.getElementById('grnFxInfo'), date = document.getElementById('grnDate'), button = document.getElementById('postGrn');
   if (!info || !date || !button) return;

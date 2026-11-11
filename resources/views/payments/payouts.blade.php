@@ -32,5 +32,5 @@
   <p class="span-2 m-0">Net to bank: <b id="poNet">—</b></p>
 </div>
 <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Record payout</button></div></form></div></div>
-<script>function poNet(){const g=parseFloat(document.getElementById('poGross').value)||0,f=parseFloat(document.getElementById('poFees').value)||0;document.getElementById('poNet').textContent=(g-f).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}</script>
+<script nonce="{{ $cspNonce ?? '' }}">function poNet(){const g=parseFloat(document.getElementById('poGross').value)||0,f=parseFloat(document.getElementById('poFees').value)||0;document.getElementById('poNet').textContent=(g-f).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}</script>
 @endsection

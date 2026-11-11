@@ -42,7 +42,7 @@
   </div>
 </div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const p = document.getElementById('f_provider'), box = document.getElementById('endpointFields'), note = document.getElementById('providerNote');
   const NOTES = {

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\AccountHead;
 use App\Models\Activity;
 use App\Models\ActivityBooking;
@@ -981,7 +981,7 @@ class ConciergeService
             default => "{$b->number}: {$act} on {$when}",
         };
         $log = $b->phone ? MessageService::send($b->phone, $text, MessageService::defaultChannel(), 'concierge_'.$kind, $b)
-            : ($b->email ? MailService::send($b->email, new GuestMessage($kind === 'cancelled' ? 'Booking cancelled – '.$b->number : $act.' – '.$b->date->format('d M'), $text, $h), 'concierge_'.$kind, $b) : null);
+            : ($b->email ? MailService::send($b->email, new GuestMessageMail($kind === 'cancelled' ? 'Booking cancelled – '.$b->number : $act.' – '.$b->date->format('d M'), $text, $h), 'concierge_'.$kind, $b) : null);
         if ($log && $log->status === 'sent') {
             $b->forceFill(['guest_notified_at' => now()])->saveQuietly();
 

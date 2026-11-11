@@ -22,7 +22,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('.fs-check').forEach(row => row.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', () => { const n = row.querySelector('.note'); n.hidden = r.value !== '0' || !r.checked; n.required = !n.hidden; })));
 document.getElementById('allYes')?.addEventListener('click', () => document.querySelectorAll('.fs-check input[value="1"]').forEach(r => { r.checked = true; r.dispatchEvent(new Event('change')); }));
 </script>

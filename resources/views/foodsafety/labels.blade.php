@@ -32,7 +32,7 @@
 @if(session('print_label'))<iframe src="{{ route('fs.labels.print', session('print_label')) }}?autoprint=1" style="position:absolute;width:0;height:0;border:0" title="Labels"></iframe>@endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => { const st = document.getElementById('f_storage'), h = document.getElementById('f_shelf_hours'), p = document.getElementById('f_prepared_at'), hint = document.getElementById('useByHint');
   const show = () => { const d = new Date((p.value ? new Date(p.value) : new Date()).getTime() + (+h.value || 0) * 3600e3); hint.textContent = h.value ? 'Use by ' + d.toLocaleString([], {weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : ''; };
   st.addEventListener('change', () => { h.value = st.selectedOptions[0].dataset.hours; show(); }); [h, p].forEach(e => e.addEventListener('input', show)); show(); })();

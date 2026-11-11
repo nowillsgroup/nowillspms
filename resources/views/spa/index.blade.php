@@ -130,7 +130,7 @@
 </form></div></div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const settlement = document.querySelector('#settleModal [name="settlement"]');
   const widget = document.getElementById('spaSplitTender');

@@ -49,6 +49,34 @@ const REQUIRED_EXT = ['pdo', 'pdo_mysql', 'mbstring', 'openssl', 'tokenizer', 'c
 const RECOMMENDED_EXT = ['gd' => 'menu photos, logos and room images', 'curl' => 'OTA calendar sync, webhooks, online payments', 'zip' => 'spreadsheet / archive exports'];
 const REQUIRED_DIRS = ['storage', 'storage/app', 'storage/framework', 'storage/framework/cache', 'storage/framework/sessions', 'storage/framework/views', 'storage/logs', 'bootstrap/cache', 'public/uploads'];
 
+// ── Hard lock: once installed, this file must not run again ─────────────────
+// Checked BEFORE any POST handling. Returns 404 so the file's existence is
+// not disclosed. The operator must delete public/install.php after install;
+// this guard is defence-in-depth, not a substitute for deletion.
+if (is_file(LOCK_FILE)) {
+    http_response_code(404);
+    exit('Not found.');
+}
+
+// ── CSRF + rate-limit for the install form ───────────────────────────────────
+// Standalone file (no Laravel session yet), so use a signed cookie token.
+session_start();
+if (empty($_SESSION['install_csrf'])) {
+    $_SESSION['install_csrf'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['install_csrf'];
+
+// Simple per-IP rate limit: max 10 install attempts per 15 minutes.
+$rateFile = sys_get_temp_dir().'/nowills_install_rate_'.md5($_SERVER['REMOTE_ADDR'] ?? 'unknown').'.json';
+$rateData = json_decode((string) @file_get_contents($rateFile), true) ?: ['count' => 0, 'reset' => time() + 900];
+if (time() > ($rateData['reset'] ?? 0)) {
+    $rateData = ['count' => 0, 'reset' => time() + 900];
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($rateData['count'] ?? 0) >= 10) {
+    http_response_code(429);
+    exit('Too many install attempts. Try again in 15 minutes.');
+}
+
 /*
  * Folders the app writes into at run time. Two of them — public/uploads and
  * storage/app/backups — are gitignored, so they are missing from a fresh
@@ -134,7 +162,13 @@ function guess_url(): string
     $https = (($_SERVER['HTTPS'] ?? '') === 'on')
         || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
         || ((int) ($_SERVER['SERVER_PORT'] ?? 80) === 443);
-    $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+    // Host comes from the request — validate it before using it in APP_URL.
+    // A poisoned Host header must not be persisted into .env.
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+    $host = trim($host);
+    if (! preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host) || str_contains($host, '..')) {
+        $host = 'localhost';
+    }
     $dir = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
     // install.php sits in /public — the app's base URL is one level up when the
     // project is served through the root .htaccess fallback.
@@ -246,6 +280,15 @@ $checksOk = $blocking === [];
 // ── Install action ───────────────────────────────────────────────────────────
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'install') {
+    // CSRF check — reject before doing anything else.
+    if (! hash_equals($csrfToken, (string) ($_POST['_csrf'] ?? ''))) {
+        http_response_code(419);
+        exit('Session expired. Reload the page and try again.');
+    }
+    // Count this attempt against the rate limit.
+    $rateData['count'] = ($rateData['count'] ?? 0) + 1;
+    @file_put_contents($rateFile, json_encode($rateData));
+
     $in = fn (string $k, string $d = '') => trim((string) ($_POST[$k] ?? $d));
 
     $dbHost = $in('db_host', 'localhost');
@@ -296,8 +339,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
         }
     }
 
-    // Test the database with PDO first: a clear "Access denied" beats a
-    // mile-long Laravel stack trace.
+    // Test the database with PDO first. The PDO message is logged server-side
+    // only — never echoed to the browser (it discloses host/DB details).
     if (! $errors) {
         try {
             $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
@@ -306,8 +349,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
             $pdo = null;
             $summary[] = 'Database connection OK';
         } catch (Throwable $e) {
-            $errors[] = 'Could not connect to MySQL: '.$e->getMessage()
-                .' — check the database name (cPanel prefixes it, e.g. myaccount_pms), the user and the password.';
+            @error_log('Nowills installer DB test failed: '.$e->getMessage());
+            $errors[] = 'Could not connect to MySQL — check the database name (cPanel prefixes it, e.g. myaccount_pms), the user and the password.';
         }
     }
 
@@ -382,7 +425,7 @@ ENV;
         if (@file_put_contents(ENV_FILE, $env) === false) {
             $errors[] = 'Could not write .env — check the permissions of the project folder.';
         } else {
-            @chmod(ENV_FILE, 0644);
+            @chmod(ENV_FILE, 0600);
             $summary[] = 'Wrote .env (APP_ENV=production, APP_DEBUG=false)';
         }
     }
@@ -468,10 +511,13 @@ ENV;
             // Lock, so the installer cannot be replayed.
             @file_put_contents(LOCK_FILE, 'installed '.date('c').PHP_EOL);
             $done = true;
+            // Self-delete: a successful install removes this file so it can
+            // never be replayed even if the operator forgets. Best-effort —
+            // the hard lock above still protects if unlink fails.
+            @unlink(__FILE__);
         } catch (Throwable $e) {
-            $errors[] = get_class($e).': '.$e->getMessage()
-                .'  (at '.str_replace(ROOT, '', $e->getFile()).':'.$e->getLine().')';
-            $errors[] = 'Nothing is locked — correct the problem and submit again.';
+            @error_log('Nowills installer failed: '.$e->getMessage().' at '.$e->getFile().':'.$e->getLine());
+            $errors[] = 'Installation failed — check the server error log for details. Nothing is locked; correct the problem and submit again.';
         }
     }
 }
@@ -608,6 +654,7 @@ $formValue = fn (string $k, string $d = '') => h((string) ($_POST[$k] ?? $d));
 
   <form method="post" class="card">
     <input type="hidden" name="action" value="install">
+    <input type="hidden" name="_csrf" value="<?= h($csrfToken) ?>">
     <h2>2 · Database &amp; site</h2>
     <div class="note" style="margin-bottom:14px">
       Create the database first: cPanel → <em>MySQL® Databases</em>. cPanel prefixes names with your account

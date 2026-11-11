@@ -135,7 +135,7 @@
 @media(max-width:820px){.menu-item-variant-row{grid-template-columns:repeat(2,minmax(0,1fr))}.menu-item-variant-remove{justify-self:start}}
 @media(max-width:640px){.menu-item-variant-row{grid-template-columns:1fr}.menu-item-form-grid{grid-template-columns:1fr}.menu-item-form-grid .span-all{grid-column:auto}.menu-item-tax-preview-values{grid-template-columns:1fr}.menu-item-tax-preview-values .menu-item-tax-total{border-left:0;border-top:1px solid var(--border,#d7dee8);padding:.65rem 0 0}.menu-item-tax-preview-head{align-items:flex-start;flex-direction:column}.menu-item-photo-layout{grid-template-columns:1fr}.menu-item-photo-frame{max-width:280px}.menu-item-form-actions .card-body{align-items:stretch;flex-direction:column}.menu-item-form-buttons{justify-content:stretch}.menu-item-form-buttons .btn{flex:1;justify-content:center}}
 </style>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const variantRows = document.getElementById('menuItemVariantRows');
   const variantTemplate = document.getElementById('menuItemVariantTemplate');

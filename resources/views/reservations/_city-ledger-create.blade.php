@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  <script>
+  <script nonce="{{ $cspNonce ?? '' }}">
   (() => {
     const form = document.getElementById('{{ $prefix }}Form');
     const modal = document.getElementById('{{ $prefix }}Modal');

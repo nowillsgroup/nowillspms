@@ -424,7 +424,7 @@ body.dark .room-detail-page{--room-ink:#e5eee6;--room-muted:#b3c3b5;--room-line:
 @endpush
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   document.querySelector('[data-print-room]')?.addEventListener('click', () => window.print());
   const hero = document.getElementById('roomHeroPhoto');

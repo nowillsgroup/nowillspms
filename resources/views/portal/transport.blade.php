@@ -67,7 +67,7 @@
 </div>
 @endif
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('trForm'); if (!f) return;
   const lab = { pickup: ['Landing date', 'Landing time', 'Pick me up from'], drop: ['Date', 'Leave the hotel at', 'Take me to'], transfer: ['Date', 'Leave the hotel at', 'Take me to'] };

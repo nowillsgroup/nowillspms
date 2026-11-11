@@ -17,7 +17,7 @@ return new class extends Migration
 
         Schema::create('floors', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('name', 60);
             $t->unsignedSmallInteger('sort_order')->default(0);
             $t->timestamps();
@@ -29,7 +29,7 @@ return new class extends Migration
 
         Schema::create('room_types', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('code', 20);
             $t->string('name', 80);
             $t->decimal('base_rate', 12, 2)->default(0);
@@ -52,7 +52,7 @@ return new class extends Migration
 
         Schema::create('rooms', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('room_type_id')->constrained()->restrictOnDelete();
             $t->foreignId('floor_id')->nullable()->constrained()->nullOnDelete();
             $t->string('room_no', 20);
@@ -72,7 +72,7 @@ return new class extends Migration
 
         Schema::create('rate_plans', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('room_type_id')->constrained()->cascadeOnDelete();
             $t->string('code', 20);
             $t->string('name', 80);
@@ -91,7 +91,7 @@ return new class extends Migration
 
         Schema::create('taxes', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('name', 60);
             $t->decimal('rate', 6, 2);
             $t->string('applies_to', 20)->default('room'); // room, fnb, service, all
@@ -107,7 +107,7 @@ return new class extends Migration
 
         Schema::create('business_sources', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('name', 80);
             $t->string('type', 30)->default('direct'); // direct, walk_in, ota, corporate, travel_agent, booking_engine
             $t->decimal('commission_pct', 5, 2)->default(0);
@@ -121,7 +121,7 @@ return new class extends Migration
 
         Schema::create('payment_modes', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('name', 60);
             $t->string('type', 20)->default('cash'); // cash, card, upi, bank, wallet, city_ledger
             $t->boolean('is_active')->default(true);
@@ -134,7 +134,7 @@ return new class extends Migration
 
         Schema::create('companies', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('name');
             $t->string('type', 20)->default('corporate'); // corporate, travel_agent, ota
             $t->string('contact_person')->nullable();
@@ -154,7 +154,7 @@ return new class extends Migration
 
         Schema::create('guests', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('company_id')->nullable()->constrained()->nullOnDelete();
             $t->string('title', 30)->nullable();
             $t->string('first_name', 80);
@@ -189,7 +189,7 @@ return new class extends Migration
 
         Schema::create('reservations', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('reservation_no', 30);
             $t->foreignId('guest_id')->constrained()->restrictOnDelete();
             $t->foreignId('company_id')->nullable()->constrained()->nullOnDelete();
@@ -222,7 +222,7 @@ return new class extends Migration
 
         Schema::create('reservation_rooms', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('reservation_id')->constrained()->cascadeOnDelete();
             $t->foreignId('room_type_id')->constrained()->restrictOnDelete();
             $t->foreignId('room_id')->nullable()->constrained()->nullOnDelete();
@@ -249,7 +249,7 @@ return new class extends Migration
 
         Schema::create('room_moves', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('reservation_room_id')->constrained()->cascadeOnDelete();
             $t->foreignId('from_room_id')->nullable()->constrained('rooms')->nullOnDelete();
             $t->foreignId('to_room_id')->nullable()->constrained('rooms')->nullOnDelete();
@@ -266,7 +266,7 @@ return new class extends Migration
 
         Schema::create('folios', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('folio_no', 30);
             $t->foreignId('reservation_id')->nullable()->constrained()->nullOnDelete();
             $t->foreignId('reservation_room_id')->nullable()->constrained()->nullOnDelete();
@@ -287,7 +287,7 @@ return new class extends Migration
 
         Schema::create('folio_transactions', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('folio_id')->constrained()->cascadeOnDelete();
             $t->date('business_date');
             $t->string('type', 20);      // charge, payment, discount, refund, allowance
@@ -314,7 +314,7 @@ return new class extends Migration
 
         Schema::create('housekeeping_tasks', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('room_id')->nullable()->constrained()->nullOnDelete();
             $t->foreignId('employee_id')->nullable();
             $t->string('task_type', 30)->default('cleaning'); // cleaning, turndown, deep_clean, inspection, linen_change, public_area
@@ -334,7 +334,7 @@ return new class extends Migration
 
         Schema::create('maintenance_requests', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('ticket_no', 30);
             $t->foreignId('room_id')->nullable()->constrained()->nullOnDelete();
             $t->string('location')->nullable();
@@ -360,7 +360,7 @@ return new class extends Migration
 
         Schema::create('lost_found_items', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('item_name');
             $t->text('description')->nullable();
             $t->foreignId('room_id')->nullable()->constrained()->nullOnDelete();
@@ -379,7 +379,7 @@ return new class extends Migration
 
         Schema::create('guest_feedback', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('reservation_id')->nullable()->constrained()->nullOnDelete();
             $t->string('guest_name')->nullable();
             $t->string('contact')->nullable();
@@ -398,7 +398,7 @@ return new class extends Migration
 
         Schema::create('night_audits', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->date('business_date');
             $t->unsignedInteger('rooms_total')->default(0);
             $t->unsignedInteger('rooms_occupied')->default(0);

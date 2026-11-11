@@ -156,7 +156,7 @@
   </div><div id="rateResult" class="alert alert-info" style="display:none;margin-top:.6rem"></div></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary" id="doRate">Calculate</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.getElementById('rateForm').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, out = document.getElementById('rateResult');

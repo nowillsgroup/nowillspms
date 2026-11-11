@@ -33,7 +33,7 @@
   <div class="card-foot" style="padding:1rem;display:flex;gap:.5rem;justify-content:flex-end"><a class="btn" href="{{ route('security.gp.index') }}">Cancel</a><button class="btn btn-primary" type="submit">Raise gate pass</button></div>
 </form>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('gpForm');
   const syncType = () => { const r = f.querySelector('[name=type]:checked').value === 'returnable'; const d = f.querySelector('[name=expected_return_date]'); d.closest('.field').style.visibility = r ? 'visible' : 'hidden'; d.required = r; };

@@ -24,7 +24,7 @@
 </div></div>
 <div class="flex" style="justify-content:flex-end"><button class="btn btn-primary" id="saveBq"><x-icon name="check"/> Save settings</button></div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const input = document.getElementById('f_banquet_cancel_policy');
   const preview = document.getElementById('polPreview');

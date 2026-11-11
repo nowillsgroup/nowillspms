@@ -129,7 +129,7 @@
   <p class="small muted span-2">Adjustments survive recalculation. Earnings are charged to Salaries &amp; Wages; recoveries reduce it.</p>
 </div>
 <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Add &amp; recalculate</button></div></form></div></div>
-<script>document.getElementById('adjSlip').addEventListener('change', e => document.getElementById('adjForm').action = e.target.value);
+<script nonce="{{ $cspNonce ?? '' }}">document.getElementById('adjSlip').addEventListener('change', e => document.getElementById('adjForm').action = e.target.value);
 // A bonus is never taxed by the checkbox: the engine works out its own tax, so the box is taken out of the way.
 document.getElementById('adjTax').addEventListener('change', e => {
   const bonus = e.target.value === 'BONUS', box = document.getElementById('adjTaxable');

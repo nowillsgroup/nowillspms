@@ -7,7 +7,7 @@
 </div>
 @once
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
   document.querySelectorAll('[data-payment-mode]').forEach(function (mode) {
     const form = mode.closest('form');
     const details = form?.querySelector('[data-cheque-fields]');

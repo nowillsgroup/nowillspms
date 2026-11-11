@@ -290,7 +290,7 @@ X-Nowills-Signature: t=1790000000,v1=&lt;HMAC-SHA256(secret, "t.body") hex&gt;
 @endif
 @endif
 
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('click', function (e) {
   var p = e.target.closest('[data-preset]');
   if (p) {

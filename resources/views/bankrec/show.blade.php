@@ -160,7 +160,7 @@
 </form></div></div>
 @endif
 @if($manage)
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const btn = document.getElementById('matchBtn'), sl = document.getElementById('selLine'), ss = document.getElementById('selSum');
   const fmt = v => v.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2});

@@ -202,7 +202,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button type="submit" class="btn btn-primary">Check in</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('visitorForm'); if (!f) return;
   const sync = () => { const t = (f.querySelector('[name=host_type]:checked') || {}).value || 'guest';

@@ -51,7 +51,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.getElementById('fxForm'), btn = document.getElementById('fxSubmit'), hint = document.getElementById('fxHint');
   const $ = id => document.getElementById(id);

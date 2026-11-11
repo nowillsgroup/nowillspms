@@ -118,7 +118,7 @@
     </form>
   </main>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const group = document.getElementById('group_login');
   const codeLabel = document.getElementById('codeLabel');

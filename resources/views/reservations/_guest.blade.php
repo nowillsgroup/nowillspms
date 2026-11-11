@@ -46,7 +46,7 @@
   @endisset
 </div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function(){
   @if($allowCustomGuestTitle)
   const titleSelect = document.querySelector('[name="guest[title]"]');

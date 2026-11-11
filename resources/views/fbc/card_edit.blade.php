@@ -49,7 +49,7 @@
   </div>
 </div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const form = document.getElementById('fbcCardForm'); const sum = document.getElementById('fbcEditSummary');
   const price = parseFloat(sum.dataset.price) || 0, step = parseInt(sum.dataset.step, 10) || 1;

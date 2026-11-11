@@ -243,7 +243,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const search = document.querySelector('[data-room-search]');
   const cards = [...document.querySelectorAll('[data-room-card]')];

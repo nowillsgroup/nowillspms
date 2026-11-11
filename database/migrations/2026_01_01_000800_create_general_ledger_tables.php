@@ -31,7 +31,7 @@ return new class extends Migration
 
         Schema::create('gl_journals', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('journal_no', 30);
             $t->date('date');
             $t->string('source_type', 20);           // folio_tx, pos, voucher, po, stock, manual
@@ -56,7 +56,7 @@ return new class extends Migration
 
         Schema::create('gl_lines', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('gl_journal_id')->constrained('gl_journals')->cascadeOnDelete();
             $t->foreignId('account_head_id')->constrained('account_heads')->restrictOnDelete();
             $t->date('date');

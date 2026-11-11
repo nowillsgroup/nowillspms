@@ -103,7 +103,7 @@ body{background:#f6f7fb;padding-bottom:6rem}
   <button type="button" class="btn btn-primary btn-block" id="alApply" onclick="document.getElementById('alSheet').classList.remove('show')">Done</button>
 </div></div>
 
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 const cur = @json($hotel->currency_symbol ?? 'GH₵');
 const cart = {}; // key -> {menu_id, name, price, qty, notes, modifiers}
 const fmt = v => cur + ' ' + v.toFixed(2);

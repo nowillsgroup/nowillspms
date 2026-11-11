@@ -24,7 +24,7 @@
 <td><input class="input input-sm" type="number" step="0.01" min="0.01" data-k="qty" required></td><td><input class="input input-sm" data-k="specification" maxlength="255"></td>
 <td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove();ri()"><x-icon name="trash" size="sm"/></button></td></tr></template>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 const tb = document.querySelector('#rfqLines tbody');
 function ri(){ [...tb.rows].forEach((r,i)=>r.querySelectorAll('[data-k]').forEach(e=>e.name=`lines[${i}][${e.dataset.k}]`)); }
 function addLine(v){ const r=document.getElementById('rfqRow').content.firstElementChild.cloneNode(true); tb.appendChild(r); if(v){ r.querySelector('[data-k=item_id]').value=v.item_id; r.querySelector('[data-k=qty]').value=v.qty; r.querySelector('[data-k=specification]').value=v.specification||''; } ri(); }

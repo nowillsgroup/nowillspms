@@ -113,7 +113,7 @@ body.dark .rcf-hero{background:linear-gradient(118deg,#0d2718,#143d25 68%,#1d543
 <template id="tpl-black"><tr><td><input type="date" name="blackouts[#][date_from]" aria-label="Blackout start date"></td><td><input type="date" name="blackouts[#][date_to]" aria-label="Blackout end date"></td><td><input name="blackouts[#][reason]" placeholder="e.g. Christmas / New Year" aria-label="Reason for blackout"></td><td class="rcf-action-cell"><button type="button" class="btn btn-ghost btn-icon" data-del aria-label="Remove blackout" title="Remove blackout"><x-icon name="trash"/></button></td></tr></template>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const tables = {rate: 'rateTable', allot: 'allotTable', black: 'blackTable'};
   let seq = 1000;

@@ -89,7 +89,7 @@
 </div></div>
 </div>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const kind = document.getElementById('cKind'), calc = document.getElementById('cCalc');
   const sync = () => {

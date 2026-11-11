@@ -80,7 +80,7 @@
   </div>
 </div>
 
-<script type="application/json" id="floorData">@json(collect($live)->keyBy('id'))</script>
+<script nonce="{{ $cspNonce ?? '' }}" type="application/json" id="floorData">@json(collect($live)->keyBy('id'))</script>
 <template id="tplActions">
   @if($canBook)
   <form method="post" action="{{ route('tb.walkin') }}" id="walkInForm" class="mt-1">@csrf<input type="hidden" name="outlet_id" value="{{ $outlet->id }}"><div class="sel-ids"></div>
@@ -112,7 +112,7 @@
 @endsection
 @if($outlet)
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const data = JSON.parse(document.getElementById('floorData').textContent);
   const floor = document.getElementById('floor'), title = document.getElementById('panelTitle'), body = document.getElementById('panelBody');

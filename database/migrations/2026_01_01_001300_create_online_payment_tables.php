@@ -18,7 +18,7 @@ return new class extends Migration
 
         Schema::create('online_payments', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('pay_no', 20);
             $t->string('token', 40)->unique();
             $t->string('purpose', 12); // deposit | balance | booking
@@ -60,7 +60,7 @@ return new class extends Migration
 
         Schema::create('online_payment_events', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('online_payment_id')->nullable()->constrained()->cascadeOnDelete();
             $t->string('provider', 12);
             $t->string('source', 10); // webhook | return | api | staff | system
@@ -80,7 +80,7 @@ return new class extends Migration
 
         Schema::create('online_refunds', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('online_payment_id')->constrained()->cascadeOnDelete();
             $t->decimal('amount', 12, 2);
             $t->string('reason', 190);
@@ -97,7 +97,7 @@ return new class extends Migration
 
         Schema::create('gateway_payouts', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('payout_no', 20);
             $t->string('provider', 12);
             $t->date('date');

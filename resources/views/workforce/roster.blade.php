@@ -173,7 +173,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('.roster-select').forEach(s => s.addEventListener('change', () => {
   const o = s.selectedOptions[0], td = s.closest('td'), c = o && o.dataset.color;
   td.style.background = c ? c + '22' : ''; td.style.borderLeft = c ? '3px solid ' + c : '';

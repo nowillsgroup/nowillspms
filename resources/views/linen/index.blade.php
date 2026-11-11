@@ -96,7 +96,7 @@
   </div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Save</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 function mvToggle() { const t = document.getElementById('mvType').value; const w = ['discard', 'lost'].includes(t);
   document.querySelector('.mv-from').style.display = w ? '' : 'none'; document.querySelector('.mv-val').style.display = (w || t === 'purchase') ? '' : 'none'; }
 mvToggle();

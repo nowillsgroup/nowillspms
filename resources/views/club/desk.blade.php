@@ -131,5 +131,5 @@
 @endif
 @endsection
 @push('scripts')
-<script>document.getElementById('facility')?.addEventListener('change', e => { const q = document.getElementById('q'); if (q.value || {{ $person ? 'true' : 'false' }}) { const u = new URL(location.href); u.searchParams.set('facility', e.target.value); location.href = u; } });</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.getElementById('facility')?.addEventListener('change', e => { const q = document.getElementById('q'); if (q.value || {{ $person ? 'true' : 'false' }}) { const u = new URL(location.href); u.searchParams.set('facility', e.target.value); location.href = u; } });</script>
 @endpush

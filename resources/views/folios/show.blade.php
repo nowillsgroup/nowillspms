@@ -294,7 +294,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 function txCount(){ const n = document.querySelectorAll('.txsel:checked').length; const b = document.getElementById('moveBtn'); if (b) { b.disabled = !n; document.getElementById('txN').textContent = n; } }
 (() => {
   const form = document.querySelector('#payModal form');

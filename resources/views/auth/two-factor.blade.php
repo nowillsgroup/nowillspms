@@ -24,7 +24,7 @@
     </form>
   </div>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.getElementById('toggleRec').addEventListener('click', e => {
   e.preventDefault();
   const c = document.getElementById('codeField'), r = document.getElementById('recField'), rec = c.hidden;

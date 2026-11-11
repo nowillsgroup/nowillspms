@@ -221,7 +221,7 @@
   <p class="availability-footnote">Inventory is presented by room type and night. Final reservation creation rechecks availability before saving.</p>
 </div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const search = document.getElementById('availabilityRoomTypeFilter');
   const rows = [...document.querySelectorAll('[data-availability-type]')];

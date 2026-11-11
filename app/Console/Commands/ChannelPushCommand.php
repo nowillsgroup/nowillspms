@@ -8,7 +8,7 @@ use App\Services\ChannelService;
 use App\Support\Tenant;
 use Illuminate\Console\Command;
 
-class ChannelPush extends Command
+class ChannelPushCommand extends Command
 {
     protected $signature = 'pms:channel-push {--hotel= : Hotel code (default: all hotels)} {--full : Full ARI refresh (the whole push horizon) instead of pending changes}';
 

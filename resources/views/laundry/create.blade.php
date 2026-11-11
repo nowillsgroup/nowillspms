@@ -35,7 +35,7 @@
 </div></div>
 <button class="btn btn-primary"><x-icon name="check"/> Save laundry order</button>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 function lfType() {
   const walk = document.querySelector('[name=type]:checked').value === 'walk_in';
   document.querySelectorAll('.lf-walk').forEach(e => e.style.display = walk ? '' : 'none');

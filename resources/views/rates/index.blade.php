@@ -143,7 +143,7 @@ body.dark .rc-hero{background:linear-gradient(118deg,#0d2718,#143d25 68%,#1d5433
 </form></div></div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const roomBoxes = [...document.querySelectorAll('.rt-box')];
   document.addEventListener('click', event => {

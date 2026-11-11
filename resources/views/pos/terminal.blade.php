@@ -385,7 +385,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 let cart = {};
 const guestAllergies = @json($guestAll), allergenNames = @json(collect($A::ALLERGENS)->map(fn ($a, $k) => $A::short($k)));
 document.querySelectorAll('.pos-context-action').forEach(cell => cell.addEventListener('keydown', event => {

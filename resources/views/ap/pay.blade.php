@@ -90,7 +90,7 @@
 @endif
 </form>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const tbl = document.getElementById('allocTable'); if (!tbl) return;
   const amt = document.getElementById('payAmount'), save = document.getElementById('savePay');

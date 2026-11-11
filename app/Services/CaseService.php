@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\FeedbackCase;
 use App\Models\FeedbackCaseEvent;
 use App\Models\Guest;
@@ -87,7 +87,7 @@ class CaseService
             throw ValidationException::withMessages(['body' => $g ? 'The guest\'s data is restricted – contact is not allowed.' : 'This case has no guest profile to contact.']);
         }
         if ($channel === 'email') {
-            $log = MailService::send($g->email, new GuestMessage($subject, $body, hotel()), 'case_reply', $case);
+            $log = MailService::send($g->email, new GuestMessageMail($subject, $body, hotel()), 'case_reply', $case);
         } else {
             $log = MessageService::send($g->phone, $body, MessageService::defaultChannel(), 'case_reply', $case);
         }

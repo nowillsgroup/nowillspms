@@ -22,7 +22,7 @@
 </style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 // refresh the floor plan every 30 s so new guest QR orders appear (skipped while a dialog is open)
 setInterval(() => { if (!document.querySelector('.modal.show') && document.visibilityState === 'visible') location.reload(); }, 30000);
 

@@ -85,7 +85,17 @@ class MoMoGateway extends Gateway implements CollectGateway
     {
         $body = (string) $request->getContent();
         $sig = (string) $request->header('X-Provider-Signature', '');
-        $expect = 'sha256='.hash_hmac('sha256', $body, (string) (MessageService::secret('momo') ?: config('app.key')));
+        // Never derive the webhook secret from APP_KEY — anyone who learns
+        // APP_KEY (e.g. via a leaked .env) could forge payment webhooks.
+        // In simulator mode (no secret) the webhook is disabled in production.
+        $secret = MessageService::secret('momo');
+        if (! $secret) {
+            if (app()->environment('production')) {
+                throw new SignatureException('Mobile Money webhook secret is not configured.');
+            }
+            $secret = 'nowills-momo-simulator-local-only';
+        }
+        $expect = 'sha256='.hash_hmac('sha256', $body, (string) $secret);
         if (! hash_equals($expect, $sig)) {
             throw new SignatureException('Invalid collection webhook signature.');
         }
@@ -115,10 +125,17 @@ class MoMoGateway extends Gateway implements CollectGateway
         return ['ref' => (string) ($j['transaction_id'] ?? $p->provider_ref), 'status' => $res->successful() ? 'processed' : 'failed'];
     }
 
-    /** No provider key configured → built-in simulator. */
+    /** No provider key configured → built-in simulator (never in production). */
     protected function sim(): bool
     {
-        return ! MessageService::secret('momo');
+        if (MessageService::secret('momo')) {
+            return false;
+        }
+        if (app()->environment('production')) {
+            throw new RuntimeException('Mobile Money gateway is not configured (momo secret missing). Refusing to run the simulator in production.');
+        }
+
+        return true;
     }
 
     protected function request(string $method, string $path, array $json = [])

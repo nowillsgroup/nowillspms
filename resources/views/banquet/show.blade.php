@@ -168,7 +168,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Back</button><button class="btn btn-danger" id="confirmCancel">Cancel booking</button></div>
 </form></div></div>
 @endif
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const waiver = document.getElementById('waiveFee');
   const reason = document.getElementById('waiveReason');

@@ -140,7 +140,7 @@
 @endif
 </div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const f = document.querySelector('[data-freq]'); if (!f) return;
   const sync = () => document.querySelectorAll('[data-when]').forEach(el => { el.hidden = !el.dataset.when.split(',').includes(f.value); });

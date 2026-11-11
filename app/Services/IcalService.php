@@ -8,9 +8,9 @@ use App\Models\Reservation;
 use App\Models\ReservationRoom;
 use App\Models\RoomType;
 use App\Support\Numbering;
+use App\Support\SsrfGuard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
@@ -147,18 +147,9 @@ class IcalService
     /** Blocks SSRF to internal addresses (the URL is admin-supplied but fetched server-side). */
     public static function assertSafeUrl(string $url): void
     {
-        $p = parse_url($url);
-        if (! in_array(strtolower($p['scheme'] ?? ''), ['http', 'https']) || empty($p['host'])) {
-            throw new RuntimeException('Import URL must be an http(s) address.');
-        }
-        $ips = @gethostbynamel($p['host']) ?: (filter_var($p['host'], FILTER_VALIDATE_IP) ? [$p['host']] : []);
         // Dev / private networks: Developer settings → allow private addresses, or PMS_CHANNEL_ALLOW_PRIVATE=1.
-        $allowPrivate = setting('api_allow_private', '0') === '1' || config('pms.channel_allow_private');
-        foreach ($ips as $ip) {
-            if (! $allowPrivate && ! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                throw new RuntimeException('Import URL points to a private/internal address.');
-            }
-        }
+        $allowPrivate = setting('api_allow_private', '0') === '1' || (bool) config('pms.channel_allow_private');
+        SsrfGuard::assertSafeUrl($url, $allowPrivate, true);
     }
 
     /** Fetch + import. Always records last_sync_* on the channel; returns the stats. */
@@ -168,8 +159,10 @@ class IcalService
             if (! $channel->import_url) {
                 throw new RuntimeException('No import URL configured.');
             }
-            self::assertSafeUrl($channel->import_url);
-            $res = Http::timeout(20)->withHeaders(['User-Agent' => 'NowillsPMS-iCal/1.0'])->get($channel->import_url);
+            // Pinned fetch: the vetted IP is pinned via CURLOPT_RESOLVE so a
+            // DNS-rebinding second lookup cannot reach an internal address.
+            $allowPrivate = setting('api_allow_private', '0') === '1' || (bool) config('pms.channel_allow_private');
+            $res = SsrfGuard::pinnedGet($channel->import_url, ['User-Agent' => 'NowillsPMS-iCal/1.0'], 20, $allowPrivate, true);
             if (! $res->successful()) {
                 throw new RuntimeException('OTA returned HTTP '.$res->status());
             }

@@ -82,7 +82,7 @@
         <button class="btn btn-primary mt-1">{{ $s->is_valet ? 'Hand over the car' : 'Release' }}</button>
       </form>
       @push('scripts')
-      <script>
+      <script nonce="{{ $cspNonce ?? '' }}">
       (() => {
         const form = document.getElementById('pkExitForm');
         const direct = form?.querySelector('[data-parking-direct-tender]');

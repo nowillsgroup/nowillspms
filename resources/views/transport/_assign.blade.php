@@ -13,7 +13,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary" id="assignSave">Assign</button></div>
 </form></div></div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const vSel = document.getElementById('as_vehicle'), dSel = document.getElementById('as_driver');
   let data = null;

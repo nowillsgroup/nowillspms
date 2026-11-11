@@ -7,7 +7,7 @@ use App\Services\RevenueService;
 use App\Support\Tenant;
 use Illuminate\Console\Command;
 
-class RmSnapshot extends Command
+class RmSnapshotCommand extends Command
 {
     protected $signature = 'pms:rm-snapshot {--hotel= : Hotel code (default: all hotels)} {--backfill=0 : Also rebuild the last N days from booking history}';
 

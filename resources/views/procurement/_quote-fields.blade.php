@@ -17,7 +17,7 @@
   <x-field name="payment_terms_days" label="Payment terms (days credit)" type="number" min="0" :value="$quote?->payment_terms_days ?? 30"/>
   <x-field name="notes" label="Notes / conditions" type="textarea" :value="$quote?->notes" class="span-all"/>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function(){ const rows=[...document.querySelectorAll('[data-qline]')];
   function calc(){ let t=0; rows.forEach(r=>{ const rate=+r.querySelector('[data-q=rate]').value||0, tax=+r.querySelector('[data-q=tax]').value||0, q=r.querySelector('[data-q=qty]').value; const qty=q===''?+r.dataset.qty:+q; const a=rate?qty*rate*(1+tax/100):0; t+=a; r.querySelector('[data-q=amt]').textContent=rate?a.toFixed(2):'—'; }); document.getElementById('quoteTotal').textContent=t.toFixed(2); }
   rows.forEach(r=>r.querySelectorAll('input').forEach(i=>i.addEventListener('input',calc))); calc(); })();

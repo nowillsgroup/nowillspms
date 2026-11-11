@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Hotel;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
+use App\Support\SsrfGuard;
 use App\Support\Tenant;
 use Closure;
 use Illuminate\Http\Client\ConnectionException;
@@ -133,7 +134,7 @@ class WebhookService
 
     public static function isPublicIp(string $ip): bool
     {
-        return (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        return SsrfGuard::isPublicIp($ip);
     }
 
     // ───────────────────────────── events → outbox ─────────────────────────────
@@ -291,24 +292,29 @@ class WebhookService
     /** @return array{0: string, 1: int, 2: string} host, port and the vetted IP to pin */
     public static function resolveSafe(string $url): array
     {
-        $p = parse_url($url);
-        $host = strtolower(trim($p['host'] ?? '', '[]'));
-        $port = (int) ($p['port'] ?? (strtolower($p['scheme'] ?? '') === 'http' ? 80 : 443));
         $cfg = ApiService::cfg();
-        if (strtolower($p['scheme'] ?? '') === 'http' && ! $cfg['allow_http']) {
-            throw new RuntimeException('Blocked: plain http is not allowed (API settings).');
-        }
-        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (self::$resolver ? (self::$resolver)($host) : (gethostbynamel($host) ?: []));
-        if (! $ips) {
-            throw new RuntimeException("DNS: {$host} does not resolve.");
-        }
-        foreach ($ips as $ip) {
-            if (! $cfg['allow_private'] && ! self::isPublicIp($ip)) {
-                throw new RuntimeException("Blocked: {$host} resolves to a private / internal address ({$ip}).");
+        // Test seam: allow injecting a resolver in tests.
+        if (self::$resolver) {
+            $p = parse_url($url);
+            $host = strtolower(trim((string) ($p['host'] ?? ''), '[]'));
+            $port = (int) ($p['port'] ?? (strtolower($p['scheme'] ?? '') === 'http' ? 80 : 443));
+            if (strtolower($p['scheme'] ?? '') === 'http' && ! $cfg['allow_http']) {
+                throw new RuntimeException('Blocked: plain http is not allowed (API settings).');
             }
+            $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : ((self::$resolver)($host) ?: []);
+            if (! $ips) {
+                throw new RuntimeException("DNS: {$host} does not resolve.");
+            }
+            foreach ($ips as $ip) {
+                if (! $cfg['allow_private'] && ! self::isPublicIp($ip)) {
+                    throw new RuntimeException("Blocked: {$host} resolves to a private / internal address ({$ip}).");
+                }
+            }
+
+            return [$host, $port, $ips[0]];
         }
 
-        return [$host, $port, $ips[0]];
+        return SsrfGuard::resolveSafe($url, (bool) $cfg['allow_private'], (bool) $cfg['allow_http']);
     }
 
     // ───────────────────────────── console data ─────────────────────────────

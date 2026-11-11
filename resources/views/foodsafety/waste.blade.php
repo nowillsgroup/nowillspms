@@ -58,7 +58,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => { const f = document.getElementById('wasteForm'); if (!f) return;
   const src = f.querySelector('[name=source]'), inv = f.querySelector('[name=inventory_item_id]'), qty = f.querySelector('[name=qty]');
   const sync = () => { f.querySelectorAll('[data-src]').forEach(el => el.hidden = !el.dataset.src.split(',').includes(src.value));

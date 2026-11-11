@@ -55,7 +55,7 @@ body.kds-full .sidebar, body.kds-full .topbar{display:none} body.kds-full .main{
 <details class="mt-2"><summary class="small muted">Recently served / cancelled (recall)</summary><div class="kds-list mt-1" id="col-done" role="list" aria-label="Recently served or cancelled tickets" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))"></div></details>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const feedUrl = @json(route('kitchen.feed')), bumpUrl = @json(route('kitchen.bump'));
   const token = document.querySelector('meta[name=csrf-token]').content;

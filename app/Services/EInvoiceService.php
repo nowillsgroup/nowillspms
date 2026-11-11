@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Models\EinvoiceLog;
 use App\Models\Folio;
 use App\Models\Hotel;
+use App\Support\SsrfGuard;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -36,7 +36,24 @@ class EInvoiceService
 
     public static function driver(): string
     {
-        return setting('gst_einvoice_driver', 'sandbox') === 'gra' ? 'gra' : 'sandbox';
+        // Default to GRA when E-VAT is enabled — a property that enables E-VAT
+        // but forgets the driver must not silently issue sandbox (fake) IRNs.
+        // Sandbox is only used when explicitly selected.
+        $configured = setting('gst_einvoice_driver', '');
+        if ($configured === 'gra') {
+            return 'gra';
+        }
+        if ($configured === 'sandbox') {
+            return 'sandbox';
+        }
+
+        return self::enabled() ? 'gra' : 'sandbox';
+    }
+
+    /** True when the sandbox simulator would run in production (misconfiguration). */
+    public static function sandboxInProduction(): bool
+    {
+        return app()->environment('production') && self::enabled() && self::driver() === 'sandbox';
     }
 
     public static function driverLabel(?string $d = null): string
@@ -300,8 +317,9 @@ class EInvoiceService
         if (! $url) {
             throw new RuntimeException('GRA E-VAT API URL is not configured (Billing › GRA VAT › Settings).');
         }
-        IcalService::assertSafeUrl($url);
-        $res = Http::timeout(30)->acceptJson()->withHeaders(['security_key' => (string) setting('gst_evat_key', '')])->post($url, $payload);
+        // Pinned fetch (DNS-rebinding safe); GRA endpoint is https-only.
+        $allowPrivate = setting('api_allow_private', '0') === '1' || (bool) config('pms.channel_allow_private');
+        $res = SsrfGuard::pinnedPost($url, $payload, ['Accept' => 'application/json', 'security_key' => (string) setting('gst_evat_key', '')], 30, $allowPrivate, false);
 
         return self::mapResponse($res->json() ?? [], $res->status());
     }

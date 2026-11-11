@@ -64,7 +64,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('click', e => { const b = e.target.closest('[data-modal=planModal]'); if (!b) return; setTimeout(() => { const f = document.getElementById('planForm');
   const d = b.dataset.planJson ? JSON.parse(b.dataset.planJson) : {term_months: 1, max_persons: 1, freeze_days_max: 30, is_active: true, facilities: ['gym']};
   if (!b.dataset.planJson) f.reset();

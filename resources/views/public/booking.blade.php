@@ -95,9 +95,9 @@
     <div class="modal-foot"><span class="pbe-modal-foot-note">@if($deposit !== 'none')<x-icon name="lock"/> Secure online deposit: <b>{{ $deposit === 'percent' ? rtrim(rtrim(number_format((float) setting('pay_booking_deposit_pct', 30), 2), '0'), '.').'% of the stay' : \App\Services\OnlinePaymentService::DEPOSIT_POLICIES[$deposit] }}</b>{{ $deposit === 'full' ? '' : ' – the rest at the hotel' }} · {{ $arrival }} → {{ $departure }}@else Pay at hotel · {{ $arrival }} → {{ $departure }}@endif</span><button class="btn btn-primary" type="submit">{{ $deposit !== 'none' ? 'Continue to payment' : 'Confirm booking' }}</button></div>
   </form></div></div>
 </div>
-<script src="{{ asset('js/app.js') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/app.js') }}"></script>
 @if($errors->any() && old('room_type_id'))
   @php $oldTypeName = $types->firstWhere('id', (int) old('room_type_id'))?->name; @endphp
-  <script>window.addEventListener('load', () => { const input = document.querySelector('#bookModal [name="room_type_id"]'); if (input) input.value = @json((string) old('room_type_id')); const label = document.getElementById('bkType'); if (label) label.textContent = @json($oldTypeName ?? 'your stay'); window.openModal?.('bookModal'); });</script>
+  <script nonce="{{ $cspNonce ?? '' }}">window.addEventListener('load', () => { const input = document.querySelector('#bookModal [name="room_type_id"]'); if (input) input.value = @json((string) old('room_type_id')); const label = document.getElementById('bkType'); if (label) label.textContent = @json($oldTypeName ?? 'your stay'); window.openModal?.('bookModal'); });</script>
 @endif
 @endsection

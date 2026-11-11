@@ -228,7 +228,7 @@ body.dark .grq-intro{border-color:#31533a;background:linear-gradient(105deg,#142
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const items = @json(collect($cats)->map(fn ($category, $key) => \App\Services\GuestPortalService::items($key)));
   const category = document.getElementById('nrCat');

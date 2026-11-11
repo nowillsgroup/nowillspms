@@ -71,7 +71,7 @@
 <style>.alc{width:1.7rem;height:1.7rem;border:1px solid var(--c-border);border-radius:6px;background:#fff;font-size:1rem;line-height:1;cursor:pointer;color:var(--c-red);padding:0}.alc[data-v=m]{color:var(--c-amber)}.alc:disabled{cursor:default;border-color:transparent;background:transparent}</style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('.alc').forEach(b => b.addEventListener('click', () => {
   const next = {'': 'c', c: 'm', m: ''}[b.dataset.v]; b.dataset.v = next; b.textContent = next === 'c' ? '●' : (next === 'm' ? '◐' : '');
   b.previousElementSibling.value = next; const td = b.closest('td');

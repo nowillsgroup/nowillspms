@@ -65,7 +65,7 @@ body.dark .rvrf-hero{background:linear-gradient(118deg,#0d2718,#143d25 68%,#1d54
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   // the box refuses what the controller refuses: -90..300 for a percent, ±9,999,999 for an amount
   const type = document.getElementById('rvrfAdjustType');

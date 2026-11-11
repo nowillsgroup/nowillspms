@@ -51,6 +51,9 @@ class OfflinePosService
     /** @return array<string, mixed> */
     public static function snapshot(User $user): array
     {
+        // Defence-in-depth: routes carry perm: middleware, but the service
+        // enforces it too so a future route without middleware cannot leak.
+        abort_unless($user->hasPermission('pos.order') || $user->hasPermission('pos.view'), 403);
         $canOrder = $user->hasPermission('pos.order');
 
         $outlets = Outlet::where('is_active', true)->orderBy('name')->get(['id', 'name', 'service_charge_pct']);

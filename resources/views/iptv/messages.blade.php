@@ -40,7 +40,7 @@
         <div class="field"><label>&nbsp;</label><label class="small"><input type="checkbox" name="requires_ack" value="1" @checked(old('requires_ack'))> Guest must press OK</label></div>
         <div class="span-all"><button class="btn btn-primary">Send</button> <span class="tiny muted">Leave “from” empty to send now. Broadcasts end after 24 h unless you set an end.</span></div>
       </form>
-      <script>(function(){var s=document.getElementById('tvMsgTarget');function f(){document.querySelectorAll('#tvMsgForm [data-for]').forEach(function(e){e.style.display=e.getAttribute('data-for')===s.value?'':'none';});}s.addEventListener('change',f);f();})();</script>
+      <script nonce="{{ $cspNonce ?? '' }}">(function(){var s=document.getElementById('tvMsgTarget');function f(){document.querySelectorAll('#tvMsgForm [data-for]').forEach(function(e){e.style.display=e.getAttribute('data-for')===s.value?'':'none';});}s.addEventListener('change',f);f();})();</script>
     </div></div>
     @endif
     <div class="card"><div class="card-head"><h3>Tips</h3></div><div class="card-body small">

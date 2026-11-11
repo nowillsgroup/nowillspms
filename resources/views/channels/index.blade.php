@@ -92,7 +92,7 @@
 </div></div>
 @endforeach
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const search = document.getElementById('icalSearch');
   const filter = document.getElementById('icalFilter');

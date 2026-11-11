@@ -13,7 +13,7 @@
   @stack('head')
 </head>
 <body @hasSection('waiterTerminal') class="waiter-pos-fullscreen" @endif>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
   try {
     if (window.innerWidth > 860 && localStorage.getItem('nowills-sidebar-collapsed') === '1') document.body.classList.add('sidebar-collapsed');
   } catch (_) {}
@@ -202,10 +202,10 @@
     </main>
   </div>
 </div>
-<script src="{{ asset('js/app.js') }}?v={{ config('pms.version') }}"></script>
-<script src="{{ asset('js/offline-core.js') }}?v={{ config('pms.version') }}"></script>
-<script src="{{ asset('js/offline-sync.js') }}?v={{ config('pms.version') }}"></script>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/app.js') }}?v={{ config('pms.version') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/offline-core.js') }}?v={{ config('pms.version') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/offline-sync.js') }}?v={{ config('pms.version') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}">
 // The offline queue is shared by every screen: this keeps the strip honest even on
 // pages that know nothing about offline work.
 (function () {
@@ -232,12 +232,12 @@
     button.addEventListener('click', () => window.PmsOffline.flush({ force: true })));
 })();
 </script>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('{{ asset('sw.js') }}', { updateViaCache: 'none' }).catch(() => {}));
 }
 </script>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const input = document.getElementById('globalSearch');
   const box = document.getElementById('search-suggest');
@@ -292,7 +292,7 @@ if ('serviceWorker' in navigator) {
   });
 })();
 </script>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
   // Global fullscreen toggle (header bar)
   document.getElementById('nav-fullscreen')?.addEventListener('click', () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.();

@@ -61,6 +61,6 @@ body{background:#f4f6fb;padding-bottom:calc(5.2rem + env(safe-area-inset-bottom)
   <a href="{{ route('portal.bill', $token) }}" class="{{ $tab === 'bill' ? 'on' : '' }}"><x-icon name="receipt"/>My bill</a>
 </nav>
 @endif
-<script>document.querySelectorAll('form').forEach(f => f.addEventListener('submit', () => f.querySelectorAll('button[type=submit],button:not([type])').forEach(b => setTimeout(() => b.disabled = true))));</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.querySelectorAll('form').forEach(f => f.addEventListener('submit', () => f.querySelectorAll('button[type=submit],button:not([type])').forEach(b => setTimeout(() => b.disabled = true))));</script>
 @stack('scripts')
 </body></html>

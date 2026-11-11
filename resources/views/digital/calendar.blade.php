@@ -33,4 +33,4 @@
 @empty<tr><td colspan="7" class="empty">No posts this month.</td></tr>@endforelse</tbody></table></div></div>
 @if($canWrite)@include('digital._post_modal', ['p' => null])@endif
 @endsection
-@push('scripts')<script>if (location.hash === '#new' && document.getElementById('postModalNew')) { document.getElementById('newPostBtn').click(); }</script>@endpush
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">if (location.hash === '#new' && document.getElementById('postModalNew')) { document.getElementById('newPostBtn').click(); }</script>@endpush

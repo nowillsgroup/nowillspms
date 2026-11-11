@@ -53,5 +53,5 @@
   @if($cfg['guest_cancel_hours'])<div class="card-body tiny muted">You can remove confirmed items online until {{ $cfg['guest_cancel_hours'] }} hours before arrival.</div>@endif
 </div>
 @endif
-<script>document.querySelectorAll('form[data-confirm]').forEach(function (f) { f.addEventListener('submit', function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); }); });</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.querySelectorAll('form[data-confirm]').forEach(function (f) { f.addEventListener('submit', function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); }); });</script>
 @endsection

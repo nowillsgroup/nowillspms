@@ -2487,7 +2487,7 @@
 </style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const desk = document.getElementById('desk');
   const toast = document.getElementById('desk-toast');

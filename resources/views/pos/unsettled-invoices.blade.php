@@ -151,7 +151,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const refreshToggle = document.getElementById('posUnsettledAutoRefresh');
   const refreshState = document.getElementById('posUnsettledRefreshState');

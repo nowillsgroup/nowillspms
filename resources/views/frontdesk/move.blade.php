@@ -165,7 +165,7 @@
 </div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const select = document.getElementById('moveToRoom');
   const preview = document.getElementById('moveRoomPreview');

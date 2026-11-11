@@ -24,7 +24,7 @@ return new class extends Migration
 
         Schema::create('supplier_invoices', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('doc_no', 20);                         // BILL-00001 / DN-00001
             $t->string('type', 12)->default('invoice');       // invoice | debit_note
             $t->string('kind', 10)->default('expense');       // goods (against a goods receipt) | expense (direct)
@@ -73,7 +73,7 @@ return new class extends Migration
 
         Schema::create('supplier_payments', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->string('payment_no', 20);
             $t->foreignId('supplier_id')->constrained()->restrictOnDelete();
             $t->date('date');
@@ -97,7 +97,7 @@ return new class extends Migration
 
         Schema::create('ap_allocations', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('hotel_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('hotel_id')->constrained()->restrictOnDelete();
             $t->foreignId('supplier_invoice_id')->constrained()->cascadeOnDelete();
             $t->foreignId('supplier_payment_id')->nullable()->constrained()->cascadeOnDelete();
             $t->foreignId('debit_note_id')->nullable()->constrained('supplier_invoices')->cascadeOnDelete();

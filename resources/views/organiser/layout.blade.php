@@ -41,7 +41,7 @@
   <span>{{ $hotel->name }}{{ $hotel->phone ? ' · '.$hotel->phone : '' }}{{ $hotel->email ? ' · '.$hotel->email : '' }}</span>
   <span>Signed in as {{ $organiser->email }} · sessions end after {{ setting('organiser_idle', 30) }} minutes without activity</span>
 </footer>
-<script src="{{ asset('js/app.js') }}?v={{ config('pms.version') }}"></script>
+<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/app.js') }}?v={{ config('pms.version') }}"></script>
 @stack('scripts')
 </body>
 </html>

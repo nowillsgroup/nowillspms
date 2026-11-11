@@ -79,7 +79,7 @@
 </div>
 </form>
 @unless($locked)
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('assetForm'), cat = document.getElementById('f_asset_category_id'), method = document.getElementById('f_method');
   const life = document.getElementById('f_life_months'), rate = document.getElementById('f_wdv_rate'), res = document.getElementById('f_residual_value'), cost = document.getElementById('f_cost');

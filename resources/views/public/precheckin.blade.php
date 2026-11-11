@@ -66,7 +66,7 @@
   </div>
   <p class="tiny muted">Choose "Passport" as the ID type above and upload the passport photo page as the ID front.</p>
 </div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const n = document.getElementById('f_nationality'), card = document.getElementById('formcCard');
   const home = ['india', 'indian', 'in', 'ind', 'bharat', 'republic of india'];
@@ -84,7 +84,7 @@
   <div class="mt-2"><button class="btn btn-primary btn-lg" id="pciSubmit" disabled><x-icon name="check"/> {{ $r->prechecked_in_at ? 'Update my check-in' : 'Complete online check-in' }}</button> <span class="small muted" id="sigHint">Please sign above to continue.</span></div>
 </div></div>
 </form>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const c = document.getElementById('sigPad'), ctx = c.getContext('2d'), btn = document.getElementById('pciSubmit');
   let drawing = false, strokes = 0, last = null;

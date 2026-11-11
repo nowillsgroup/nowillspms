@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\GuestMessage;
+use App\Mail\GuestMessageMail;
 use App\Models\BanquetEvent;
 use App\Models\BanquetFunction;
 use App\Models\Company;
@@ -144,7 +144,7 @@ class OrganiserService
         $u->forceFill(['invite_token' => hash('sha256', $token), 'invite_expires_at' => now()->addDays((int) setting('organiser_invite_days', 7))])->save();
         $link = route('organiser.invite', $token);
         $h = hotel();
-        rescue(fn () => MailService::send($u->email, new GuestMessage("Your {$h->name} organiser portal invitation",
+        rescue(fn () => MailService::send($u->email, new GuestMessageMail("Your {$h->name} organiser portal invitation",
             "Dear {$u->name},\n\n{$h->name} has opened an organiser portal account for you".($u->company ? " ({$u->company->name})" : '').". Use the link below to choose your password – it is valid until "
             .$u->invite_expires_at->format('d M Y H:i').".\n\n{$link}\n\nHotel ID: {$h->code}\nLogin: {$u->email}\n\nIn the portal you can follow your events, sign the banquet event order, keep the guest list and pay online.", $h), 'organiser_invite', $u), null, true);
 
@@ -282,7 +282,7 @@ class OrganiserService
         $token = Str::random(48);
         $u->forceFill(['reset_token' => hash('sha256', $token), 'reset_expires_at' => now()->addMinutes(60)])->save();
         $h = hotel();
-        rescue(fn () => MailService::send($u->email, new GuestMessage("{$h->name} organiser portal – reset your password",
+        rescue(fn () => MailService::send($u->email, new GuestMessageMail("{$h->name} organiser portal – reset your password",
             "Dear {$u->name},\n\nSomeone (hopefully you) asked to reset your organiser portal password. The link is valid for 60 minutes:\n\n".route('organiser.reset', $token)
             ."\n\nIf you did not ask for this, ignore this e-mail – your password is unchanged.", $h), 'organiser_reset', $u), null, true);
         self::audit($u, 'reset_requested', 'Password reset link e-mailed');
@@ -394,7 +394,7 @@ class OrganiserService
         self::audit(null, 'beo', 'Hotel '.($re ? 're-published' : 'published')." the BEO for {$e->event_no} ({$e->title})", $e->company_id, $e->id);
         ActivityLogger::log('organiser', 'beo', "BEO ".($re ? 're-published' : 'published')." for {$e->event_no}", $e);
         foreach (self::loginsFor($e)->whereNotNull('password') as $login) {
-            rescue(fn () => MailService::send($login->email, new GuestMessage("{$e->event_no} – your banquet event order is ready to sign",
+            rescue(fn () => MailService::send($login->email, new GuestMessageMail("{$e->event_no} – your banquet event order is ready to sign",
                 "Dear {$login->name},\n\nThe banquet event order for {$e->title} ({$e->event_date?->format('d M Y')}) is ready in the organiser portal – please check it and sign it online.\n\n".route('organiser.beo', $e->id), hotel()), 'organiser_beo', $e), null, true);
         }
     }
@@ -581,7 +581,7 @@ class OrganiserService
     {
         $to = $q->organiserUser?->email ?: $q->event?->contact_email;
         if ($to) {
-            rescue(fn () => MailService::send($to, new GuestMessage($subject, 'Dear '.($q->organiserUser?->name ?: 'organiser').",\n\n{$text}\n\n".route('organiser.home'), hotel()), 'organiser_update', $q), null, true);
+            rescue(fn () => MailService::send($to, new GuestMessageMail($subject, 'Dear '.($q->organiserUser?->name ?: 'organiser').",\n\n{$text}\n\n".route('organiser.home'), hotel()), 'organiser_update', $q), null, true);
         }
     }
 
@@ -589,7 +589,7 @@ class OrganiserService
     {
         $to = setting('organiser_notify_email', '');
         if ($to) {
-            rescue(fn () => MailService::send($to, new GuestMessage($subject, $text, hotel()), 'organiser_staff'), null, true);
+            rescue(fn () => MailService::send($to, new GuestMessageMail($subject, $text, hotel()), 'organiser_staff'), null, true);
         }
     }
 

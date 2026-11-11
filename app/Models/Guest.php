@@ -24,10 +24,13 @@ class Guest extends Model
             return $q;
         }
 
-        return $q->where(function ($w) use ($term) {
-            $w->where('first_name', 'like', "%$term%")->orWhere('last_name', 'like', "%$term%")
-                ->orWhere('phone', 'like', "%$term%")->orWhere('email', 'like', "%$term%")
-                ->orWhere('id_number', 'like', "%$term%");
+        // Treat user input literally: LIKE's % and _ are wildcards otherwise.
+        $like = '%'.addcslashes($term, '\\%_').'%';
+
+        return $q->where(function ($w) use ($like) {
+            $w->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like)
+                ->orWhere('phone', 'like', $like)->orWhere('email', 'like', $like)
+                ->orWhere('id_number', 'like', $like);
         });
     }
 

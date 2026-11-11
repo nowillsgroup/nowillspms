@@ -105,7 +105,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   // The desk types shorthand, not report titles: "P&L", "occ", "MoMo". A whole-word
   // match on one of these searches the words the reports are written in instead.

@@ -5,7 +5,7 @@
 </div>
 @once
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   document.querySelectorAll('[data-momo-fields]').forEach(fields => {
     const modeName = fields.dataset.momoModeName;

@@ -34,7 +34,7 @@
 </div>
 @once
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   document.querySelectorAll('[data-split-tender-widget]').forEach(widget => {
     const form = widget.closest('form');

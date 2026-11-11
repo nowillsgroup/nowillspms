@@ -4,7 +4,7 @@
     <x-field name="note" label="Resolution" required placeholder="What was done?"/></div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary" id="resolveSubmit">Mark resolved</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('[data-resolve]').forEach(b => b.addEventListener('click', () => {
   document.getElementById('resolveForm').action = b.dataset.resolve;
   document.getElementById('resolveTitle').textContent = b.dataset.title || 'Resolve';

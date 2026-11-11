@@ -16,7 +16,7 @@
   <x-field name="cta_label" label="Button label" :value="$model->cta_label" placeholder="Book your stay" hint="E-mail: a button with the tracked booking link. SMS: appended as 'label: link'."/>
   <x-field name="promo_code_id" label="Promo code" type="select" :options="$promos" :value="$model->promo_code_id" placeholder="— No promo —" hint="Pre-filled on the booking engine when the guest follows the link."/>
 </div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', function () {
   const SAMPLE = @json($sampleVars), PROMOS = @json($promoVars);
   const body = document.getElementById('f_body'), subj = document.getElementById('f_subject'), cta = document.getElementById('f_cta_label'), promo = document.getElementById('f_promo_code_id');

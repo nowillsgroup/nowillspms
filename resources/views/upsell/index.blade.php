@@ -200,7 +200,7 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button type="submit" class="btn btn-danger">Cancel order</button></div>
 </form></div></div>
 @endif
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('.offer-form').forEach(function (f) {
   var sel = f.querySelector('[data-kind-select]');
   function sync() { f.querySelectorAll('[data-kinds]').forEach(function (el) { el.style.display = el.dataset.kinds.split(',').indexOf(sel.value) >= 0 ? '' : 'none'; }); }

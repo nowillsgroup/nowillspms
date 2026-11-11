@@ -76,7 +76,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.getElementById('syncForm')?.addEventListener('submit', (e) => {
   const ta = document.getElementById('opsJson');
   if (!ta || !ta.value.trim()) { e.preventDefault(); return; }

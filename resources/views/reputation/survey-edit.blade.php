@@ -43,7 +43,7 @@
   <td><select name="q[__i__][department]"><option value="">—</option>@foreach(\App\Services\FeedbackService::DEPTS as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></td>
   <td><input name="q[__i__][options]" style="width:100%"></td><td class="center"><input type="checkbox" name="q[__i__][required]" value="1"></td>
   <td class="center"><input type="checkbox" name="q[__i__][active]" value="1" checked></td><td class="center"><input type="checkbox" name="q[__i__][remove]" value="1"></td><td></td></tr></template>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('addQ').addEventListener('click', function () {
     const tb = document.querySelector('#qTable tbody'), n = tb.querySelectorAll('[data-row]').length + Date.now() % 1000 * 100;

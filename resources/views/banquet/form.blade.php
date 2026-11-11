@@ -133,7 +133,7 @@
   <td><input class="input input-sm" maxlength="120" data-d="dish" placeholder="Gluten-free plate"></td>
   <td><button type="button" class="btn btn-ghost btn-icon dt-del" title="Remove dietary need" aria-label="Remove dietary need"><x-icon name="x"/></button></td>
 </tr></template>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const HALLS = @json($hallData), PKGS = @json($pkgData), SVCS = @json($svcData), HALF = {{ $halfDayHours }}, HALLTAX = {{ $hallTax }};
   const BUSY = @json($busy), TURN = {{ $turnaround }};

@@ -151,7 +151,7 @@
   </aside>
 </div>
 </div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.addEventListener('DOMContentLoaded', () => {
   const ev = document.getElementById('f_event'); if (!ev) return;
   const toggle = () => ['room_map_id', 'rooms', 'arrival', 'departure', 'adults', 'first_name', 'last_name', 'email'].forEach(n => {

@@ -98,7 +98,7 @@ every paid commission names one.</p>
 </form></div></div>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 function cmTotal() { let t = 0; document.querySelectorAll('.cm-chk:checked').forEach(c => t += +c.dataset.amt); const el = document.getElementById('cmTotal'); if (el) el.textContent = @json(hotel()->currency_symbol ?? '') + t.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 </script>
 @endpush

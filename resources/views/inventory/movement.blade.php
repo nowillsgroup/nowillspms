@@ -145,7 +145,7 @@
 
 <p class="tiny muted mt-1" id="mvChain">A movement is the only stock document written by hand, and it is the last one in the loop: the <a href="{{ route('grn.index') }}">receipt</a> puts stock on the book, the <a href="{{ route('req.index') }}">requisition issue</a> takes it off against an approved request, the <a href="{{ route('stocktakes.index') }}">stock take</a> posts the difference — and this form writes the ones that fit none of those. Every line here lands in the <a href="{{ route('inventory.ledger') }}">stock ledger</a> at the rate the item carries, so a movement with no document is stock the books can count and nobody can explain.</p>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 const tb = document.querySelector('#mvLines tbody'); function ri(){ [...tb.rows].forEach((r,i)=>r.querySelectorAll('[data-k]').forEach(e=>e.name=`lines[${i}][${e.dataset.k}]`)); }
 function addRow(){ tb.appendChild(document.getElementById('mvRow').content.firstElementChild.cloneNode(true)); ri(); } addRow();
 </script>@endpush

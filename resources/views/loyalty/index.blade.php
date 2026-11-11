@@ -47,7 +47,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 const adjForm = document.getElementById('adjForm');
 adjForm?.addEventListener('submit', () => { adjForm.action = @json(url('/loyalty/adjust')) + '/' + document.getElementById('adjGuest').value; });
 </script>

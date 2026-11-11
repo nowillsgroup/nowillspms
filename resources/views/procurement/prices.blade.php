@@ -37,7 +37,7 @@
 <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Save</button></div></form></div></div>
 @endif
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 function editPrice(p){ const f=document.getElementById('priceForm'); f.action = p ? '{{ url('inventory/supplier-prices') }}/'+p.id : '{{ route('prices.store') }}';
   document.getElementById('priceTitle').textContent = p ? 'Edit price' : 'Add price';
   ['supplier_id','inventory_item_id','rate','min_qty','lead_days','valid_from','valid_to','notes'].forEach(k=>{ const el=f.querySelector('[name='+k+']'); if(el) el.value = p ? (p[k] ?? '') : (k==='min_qty' ? 0 : (k==='valid_from' ? '{{ bdate()->toDateString() }}' : '')); }); }

@@ -70,7 +70,7 @@
 @endif
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('transferForm'); if (!f) return;
   const routes = @json(\App\Services\TreasuryService::ROUTES), limit = {{ $threshold }};

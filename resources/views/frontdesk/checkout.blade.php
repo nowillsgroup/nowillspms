@@ -200,7 +200,7 @@
 </div>
 </div>
 @endsection
-@push('scripts')<script>
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">
 const s = document.getElementById('settleBy'); const f = () => { document.getElementById('payBox').classList.toggle('hidden', s.value !== 'payment'); document.getElementById('coBox').classList.toggle('hidden', s.value !== 'company'); }; s.addEventListener('change', f); f();
 (() => {
   const form = document.getElementById('checkoutSettleForm');

@@ -25,7 +25,7 @@
   </div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Issue ticket</button></div>
 </form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const f = document.getElementById('pkCheckinForm'); if (!f) return;
   const sync = () => {

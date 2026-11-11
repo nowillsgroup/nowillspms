@@ -20,7 +20,7 @@
 </form>
 @endsection
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 const PRICE = {{ (float) $item->price }};
 let li = {{ count($rows) }};
 function rc() {

@@ -10,6 +10,10 @@ is an original implementation built from its public login page and published fea
 
 ---
 
+## Security notice for demo data
+
+> **Never run `db:seed` in production.** Demo accounts use publicly documented credentials. The seeder is code-blocked in production, but any copied/demo database must have every password and API secret rotated before it is reachable. Use synthetic data only.
+
 ## Offline-first operations
 
 The PMS now includes an offline-ready housekeeping workspace at **Housekeeping → Offline workspace**. A staff device must open it once while online so the service worker can cache the workspace and the latest room/task snapshot. Room housekeeping statuses (clean, dirty, inspected and touch-up), assigned task actions (start, DND and complete with checklist), supervisor inspections, and maintenance issue reports can then be recorded without a connection; changes are stored in the browser's IndexedDB outbox and replayed automatically when the connection returns.

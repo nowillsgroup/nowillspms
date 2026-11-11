@@ -54,7 +54,7 @@
   <td><input name="lines[__i__][remarks]" maxlength="190" class="input input-sm line-rem" placeholder="optional"></td>
   <td><button type="button" class="btn btn-ghost btn-icon line-del" title="Remove"><x-icon name="x"/></button></td>
 </tr></template>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const ITEMS = @json($itemData), DEPTS = @json($deptData), PARS = @json($parStores), INIT = @json(array_values(old('lines', $lines)));
   const tb = document.querySelector('#lineTable tbody'), tpl = document.getElementById('lineTpl').innerHTML;

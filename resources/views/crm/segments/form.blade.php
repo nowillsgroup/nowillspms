@@ -43,7 +43,7 @@
   <input class="input r-value" style="flex:1.2" placeholder="value">
   <button type="button" class="btn btn-ghost btn-icon r-del" title="Remove"><x-icon name="x"/></button>
 </div></template>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const FIELDS = @json($fields), OPS = @json(\App\Services\CrmService::OPS), MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const rows = document.getElementById('ruleRows'), tpl = document.getElementById('ruleTpl'), form = document.getElementById('segForm');

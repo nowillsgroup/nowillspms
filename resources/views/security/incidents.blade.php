@@ -38,6 +38,6 @@
   <div class="modal-body form-grid">@include('security._incident_form', ['i' => null])</div>
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button type="submit" class="btn btn-primary">Record incident</button></div>
 </form></div></div>
-@if($errors->any() || (session('error') && old('title')))@push('scripts')<script>openModal('incidentModal');</script>@endpush @endif
+@if($errors->any() || (session('error') && old('title')))@push('scripts')<script nonce="{{ $cspNonce ?? '' }}">openModal('incidentModal');</script>@endpush @endif
 @endif
 @endsection

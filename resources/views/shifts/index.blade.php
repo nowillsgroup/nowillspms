@@ -93,7 +93,7 @@
   </tbody></table></div>
   @if($history->hasPages())<div class="card-foot">{{ $history->links() }}</div>@endif</div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const form = document.getElementById('closeShiftForm');
   const counted = document.getElementById('shiftCountedCash');

@@ -149,7 +149,7 @@
 </style>
 @endpush
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 const plans = @json($ratePlans->groupBy('room_type_id'));
 const initial = @json(old('rooms', $lines));
 const tbody = document.querySelector('#linesTable tbody');

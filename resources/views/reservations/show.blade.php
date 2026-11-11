@@ -431,7 +431,7 @@
 @include('payments._request-modal', ['payRes' => $r, 'payFolio' => null, 'paySuggest' => \App\Services\OnlinePaymentService::suggest($r, null), 'payGuest' => $r->guest])
 @endif
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (() => {
   const form = document.querySelector('#advModal form');
   const toggle = document.getElementById('advanceSplitToggle');

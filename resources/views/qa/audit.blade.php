@@ -67,5 +67,5 @@
   <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-danger">Cancel audit</button></div>
 </form></div></div>
 @endif
-<script>document.getElementById('completeAuditBtn')?.addEventListener('click', e => { if (!confirm(e.currentTarget.dataset.confirmClick)) e.preventDefault(); });</script>
+<script nonce="{{ $cspNonce ?? '' }}">document.getElementById('completeAuditBtn')?.addEventListener('click', e => { if (!confirm(e.currentTarget.dataset.confirmClick)) e.preventDefault(); });</script>
 @endsection

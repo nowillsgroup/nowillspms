@@ -215,3 +215,25 @@ Some Laravel deployments need `php artisan storage:link` to expose uploads. This
 writes uploads, logos and room images straight into `public/uploads/`, and there is no
 `config/filesystems.php` symlink in the request path. That is deliberate — symlink creation is disabled
 on a lot of shared hosting, and this avoids the failure entirely.
+
+## Nginx / OpenLiteSpeed document-root security
+
+The document root **must** be the application's `public/` directory, never the
+repository root. Apache applies the supplied `.htaccess`; nginx does not. Add
+the following rules to the server block when nginx fronts the application:
+
+```nginx
+root /home/USER/APP/public;
+
+location ~ /\.(?!well-known) { deny all; }
+location ~* ^/(?:build|bootstrap/cache|config|database|deploy|docs|resources|routes|storage|tests|vendor)(?:/|$) { deny all; }
+location ~* \.(?:env|ini|log|sql|sqlite|lock|ya?ml|toml)$ { deny all; }
+location ~* ^/uploads/.*\.(?:php|phtml|phar|cgi|pl|asp|aspx|shtml)$ { deny all; }
+location / { try_files $uri $uri/ /index.php?$query_string; }
+```
+
+After every web-server change, verify that `/.env`, `/build/vendor/`, and
+`/storage/logs/laravel.log` return **403 or 404** from outside the server.
+CyberPanel users must set the website's document root to `public/` in **Websites
+→ List Websites → Manage → vHost Conf**, then restart OpenLiteSpeed. Do not
+publish the project root even temporarily.

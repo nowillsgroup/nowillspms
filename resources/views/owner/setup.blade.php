@@ -79,7 +79,7 @@
 </div></div>
 </div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.getElementById('mapFilter')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#mapTable tbody tr').forEach(r => { r.style.display = !q || r.dataset.code.includes(q) || r.dataset.name.includes(q) ? '' : 'none'; }); });
 </script>
 @endpush

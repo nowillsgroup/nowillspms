@@ -207,4 +207,4 @@
 </div>
 @endif
 @endsection
-@push('scripts')<script src="{{ asset('js/fleet-live.js') }}?v={{ config('pms.version') }}" defer></script>@endpush
+@push('scripts')<script nonce="{{ $cspNonce ?? '' }}" src="{{ asset('js/fleet-live.js') }}?v={{ config('pms.version') }}" defer></script>@endpush

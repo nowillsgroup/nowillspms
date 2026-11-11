@@ -64,7 +64,7 @@
   <label class="check span-2"><input type="checkbox" name="approve" value="1" checked> Approve now (updates the attendance register)</label>
 </div>
 <div class="modal-foot"><button type="button" class="btn" data-close>Close</button><button class="btn btn-primary">Save</button></div></form></div></div>
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 document.querySelectorAll('[data-modal="rejectModal"]').forEach(b => b.addEventListener('click', () => {
   document.getElementById('rejectForm').action = b.dataset.action; document.getElementById('rejectWho').textContent = b.dataset.who;
 }));

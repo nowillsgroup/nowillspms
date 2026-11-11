@@ -237,7 +237,7 @@
   @endif
 </div>
 @push('scripts')
-<script>
+<script nonce="{{ $cspNonce ?? '' }}">
 (function () {
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
   const keyOf = form => [...new FormData(form).entries()].map(([key, value]) => `${key}=${String(value)}`).join('|');
